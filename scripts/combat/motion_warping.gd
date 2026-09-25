@@ -35,6 +35,8 @@ func plan(attack: AttackData) -> Dictionary:
 		direction = body.get_facing()
 	var result := {direction = direction, speed = attack.lunge_speed, duration = attack.lunge_duration,
 			delay = attack.lunge_delay, target = null}
+	if not attack.warp:
+		return result                          # opted out: its own lunge, no steering
 	var target := find_target(direction)
 	if target == null:
 		return result
@@ -43,7 +45,7 @@ func plan(attack: AttackData) -> Dictionary:
 	if distance > 0.01:
 		result.direction = to_target / distance
 	result.target = target
-	if attack.warp and attack.lunge_duration > 0.0:
+	if attack.lunge_duration > 0.0:
 		result.speed = warp_speed(distance, attack.lunge_duration)
 	return result
 

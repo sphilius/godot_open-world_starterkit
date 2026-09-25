@@ -81,9 +81,20 @@ func _knockback_direction(target: Node3D) -> Vector3:
 		return Vector3.ZERO
 	var push := target.global_position - source.global_position
 	if _attack.knockback_direction_override != Vector3.ZERO:
-		push = source.global_basis * _attack.knockback_direction_override
+		push = _attacker_basis() * _attack.knockback_direction_override
 	push.y = 0.0
 	return push.normalized()
+
+
+## The attacker's facing as a basis. PlayerController never rotates its body (only its model
+## turns), so a source that reports get_facing() is trusted over its node rotation.
+func _attacker_basis() -> Basis:
+	if source.has_method(&"get_facing"):
+		var forward: Vector3 = source.call(&"get_facing")
+		forward.y = 0.0
+		if forward.length_squared() > 0.0001:
+			return Basis.looking_at(forward.normalized(), Vector3.UP)
+	return source.global_basis
 
 
 ## Approximate contact point: midway between this hitbox's shape and the target's first shape

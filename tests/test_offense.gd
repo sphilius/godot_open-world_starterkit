@@ -60,6 +60,30 @@ func test_chain_survives_recovery_until_the_reset_time() -> void:
 	check_eq(_name(combo.next_attack(LIGHT)), "attack_1", "after the reset time the chain starts over")
 
 
+func test_a_new_chain_can_start_right_after_a_finisher() -> void:
+	var combo := _combo()
+	combo.next_attack(LIGHT)
+	combo.next_attack(LIGHT)
+	combo.next_attack(LIGHT)                                  # attack_3: nothing chains from it
+	combo.attack_finished()
+	check(combo.has_branch(LIGHT), "light is available right after the finisher ends")
+	check_eq(_name(combo.next_attack(LIGHT)), "attack_1", "it starts a new chain")
+	combo.reset()
+	combo.next_attack(HEAVY)                                  # heavy_1 only chains into light
+	combo.attack_finished()
+	check_eq(_name(combo.next_attack(HEAVY)), "heavy_1", "a press with no branch after recovery starts from neutral")
+	combo.attack_finished()
+	check_eq(_name(combo.next_attack(LIGHT)), "attack_2", "a press that does branch still continues the chain")
+
+
+func test_no_branch_mid_strike_does_not_restart() -> void:
+	var combo := _combo()
+	combo.next_attack(LIGHT)
+	combo.next_attack(LIGHT)
+	combo.next_attack(LIGHT)                                  # attack_3 still playing (not finished)
+	check(not combo.has_branch(LIGHT), "no restart while the finisher is still playing")
+
+
 # --- MotionWarping ---------------------------------------------------------------------------
 
 func test_warp_speed_clamps_and_never_pulls_back() -> void:
@@ -89,6 +113,20 @@ func test_soft_lock_respects_angle_and_reach() -> void:
 	check(warping.find_target(player.get_facing()) == beside, "a lock-on target always wins")
 	var plan := warping.plan(load("res://resources/combat/attack_1.tres"))
 	check((plan.direction as Vector3).dot(Vector3.RIGHT) > 0.99, "the lunge points at the locked target")
+
+
+func test_warp_off_keeps_the_strike_own_lunge() -> void:
+	_add_floor()
+	var player := _spawn_player(Vector3.ZERO)                 # faces -Z
+	var warping := player.get_node("Combat/MotionWarping") as MotionWarping
+	_idle_wolf(Vector3(1.2, 0, -2.0))
+	await physics_frames(2)
+	var attack := (load("res://resources/combat/attack_1.tres") as AttackData).duplicate() as AttackData
+	attack.warp = false
+	var plan := warping.plan(attack)
+	check(plan.target == null, "no target with warp off")
+	check((plan.direction as Vector3).dot(Vector3.FORWARD) > 0.99, "keeps the facing direction (%s)" % plan.direction)
+	check_eq(plan.speed, attack.lunge_speed, "keeps its own lunge speed")
 
 
 func test_eased_lunge_covers_speed_times_duration() -> void:
@@ -202,6 +240,35 @@ func test_attack_data_reaches_hit_info() -> void:
 		check(hit.knockback.normalized().dot(Vector3.RIGHT) > 0.99, "knockback follows the override (%s)" % hit.knockback)
 		check_near(hit.knockback.length(), 2.0, 0.001, "knockback speed")
 	await seconds(0.15)
+
+
+func test_knockback_override_follows_the_attacker_facing() -> void:
+	var wolf := CombatFixtures.make_idle_wolf()
+	add_to_stage(wolf)
+	var source := FacingSource.new()                          # body unrotated, facing +X (like the player)
+	add_to_stage(source)
+	source.position = Vector3(-3, 0, 0)
+	var hitbox: Hitbox = add_to_stage(CombatFixtures.make_hitbox())
+	hitbox.source = source
+	var attack := CombatFixtures.make_attack(5.0)
+	attack.knockback = 2.0
+	attack.knockback_direction_override = Vector3.RIGHT      # the attacker's right
+	var hits: Array[HitInfo] = []
+	hitbox.hit_landed.connect(func(_target: HealthComponent, hit: HitInfo) -> void: hits.append(hit))
+	hitbox.begin(attack)
+	hitbox.set_active(true)
+	await physics_frames(4)
+	if check_eq(hits.size(), 1, "hits"):
+		# Facing +X, the attacker's right is +Z.
+		check(hits[0].knockback.normalized().dot(Vector3.BACK) > 0.99, "knockback to the attacker's right (%s)" % hits[0].knockback)
+	await seconds(0.15)
+
+
+## An attacker whose node isn't rotated but reports a facing, like PlayerController.
+class FacingSource:
+	extends Node3D
+	func get_facing() -> Vector3:
+		return Vector3.RIGHT
 
 
 # --- Helpers ---------------------------------------------------------------------------------
