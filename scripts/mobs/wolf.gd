@@ -9,7 +9,8 @@ extends CharacterBody3D
 ## BITE    : in range, facing the player, cooldown ready. A telegraphed wind-up (it keeps
 ##           tracking the player), then a lunge while the jaw Hitbox is active (AttackData
 ##           `bite`). Hitting the wolf during the wind-up cancels the bite.
-## STAGGER : reaction to a non-lethal hit: knockback, flinch, flash. Then it resumes and aggros.
+## STAGGER : a DamageReactionComponent stagger (a landed hit, a posture break, or its bite
+##           getting parried): knockback, flinch. Then it resumes and aggros. Every hit flashes.
 ## DEAD    : lethal hit. Plays the death animation, disables collision, sinks and frees itself.
 
 enum State { WANDER, CHASE, BITE, STAGGER, DEAD }
@@ -49,6 +50,8 @@ static var _flash_material: StandardMaterial3D
 @onready var detection: Area3D = $DetectionArea
 @onready var health: HealthComponent = $HealthComponent
 @onready var hurtbox: Hurtbox = $Hurtbox
+@onready var posture: PostureComponent = $PostureComponent
+@onready var reaction: DamageReactionComponent = $DamageReaction
 @onready var model: Node3D = $Model
 @onready var bite_hitbox: Hitbox = $BiteHitbox
 @onready var anim: AnimationPlayer = $Model/AnimationPlayer
@@ -61,7 +64,6 @@ var _bite_time := 0.0
 var _bite_cooldown_left := 0.0
 var _wander_timer := 0.0
 var _repath_timer := 0.0
-var _stagger_timer := 0.0
 var _meshes: Array[Node] = []
 
 
@@ -74,6 +76,8 @@ func _ready() -> void:
 	detection.body_exited.connect(_on_detection_exited)
 	health.damaged.connect(_on_damaged)
 	health.died.connect(_on_died)
+	reaction.stagger_started.connect(_on_stagger_started)
+	reaction.stagger_ended.connect(_on_stagger_ended)
 	bite_hitbox.source = self
 	anim.play(&"idle")
 
@@ -89,7 +93,7 @@ func _physics_process(delta: float) -> void:
 		State.BITE:
 			_tick_bite(delta)
 		State.STAGGER:
-			_tick_stagger(delta)
+			pass                                       # DamageReaction brakes it and ends it
 	move_and_slide()
 	_update_animation()
 
@@ -161,18 +165,6 @@ func _tick_bite(delta: float) -> void:
 func _end_bite() -> void:
 	bite_hitbox.set_active(false)
 	_bite_cooldown_left = randf_range(bite_cooldown.x, bite_cooldown.y)
-
-
-func _tick_stagger(delta: float) -> void:
-	var horizontal := Vector3(velocity.x, 0.0, velocity.z).move_toward(Vector3.ZERO, acceleration * delta)
-	velocity.x = horizontal.x
-	velocity.z = horizontal.z
-	_stagger_timer -= delta
-	if _stagger_timer <= 0.0:
-		if is_instance_valid(_target):
-			state = State.CHASE
-		else:
-			_enter_wander()
 
 
 func _enter_wander() -> void:
@@ -251,23 +243,36 @@ func _on_detection_exited(body: Node3D) -> void:
 func _on_damaged(hit: HitInfo) -> void:
 	if health.is_dead:
 		return                                         # died() handles lethal hits
-	if state == State.BITE:
-		_end_bite()                                    # interrupted mid-bite
-	state = State.STAGGER
-	_stagger_timer = hit.stagger_time
-	velocity.x = hit.knockback.x
-	velocity.z = hit.knockback.z
 	if hit.source:
 		_target = hit.source                           # getting hit always aggros
 		_target_health = HealthComponent.resolve(hit.source)
-	anim.speed_scale = 1.0
+	_flash()
+
+
+func _on_stagger_started(type: StringName) -> void:
+	if state == State.DEAD:
+		return
+	if state == State.BITE:
+		_end_bite()                                    # interrupted mid-bite (or parried)
+	state = State.STAGGER
+	# One hurt clip for every type; the heavier ones play it slower.
+	anim.speed_scale = 1.0 if type in [&"front", &"back", &"left", &"right"] else 0.5
 	anim.play(&"hurt", 0.05)
 	anim.seek(0.0, true)
-	_flash()
+
+
+func _on_stagger_ended() -> void:
+	if state != State.STAGGER:
+		return
+	if is_instance_valid(_target):
+		state = State.CHASE
+	else:
+		_enter_wander()
 
 
 func _on_died(_hit: HitInfo) -> void:
 	state = State.DEAD
+	reaction.clear()
 	bite_hitbox.set_active(false)
 	remove_from_group(&"enemies")
 	# Collision changes are deferred: we are inside the katana's physics callback.

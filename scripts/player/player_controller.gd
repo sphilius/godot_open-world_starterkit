@@ -12,7 +12,8 @@ extends CharacterBody3D
 ## Also publishes its feet position to the `player_position` global shader uniform (grass push).
 ## Combat : CombatStateMachine calls begin_attack() / begin_dodge() / end_attack() to lock
 ##            steering and lunge (eased out, as velocity), and lock_controls() / apply_knockback()
-##            / respawn() when the samurai is hurt.
+##            / respawn() when the samurai is hurt, and sets move_speed_scale / hold_facing while
+##            guarding (slow walk that keeps the facing).
 ## Look     : mouse and touch both feed add_look_input(). Touch mode turns off mouse capture.
 
 @export_group("Movement")
@@ -57,6 +58,7 @@ const _DEFAULT_BINDINGS := {
 	&"attack": [["key", KEY_J], ["mouse", MOUSE_BUTTON_LEFT], ["joy", JOY_BUTTON_X]],
 	&"attack_heavy": [["key", KEY_K], ["mouse", MOUSE_BUTTON_RIGHT], ["joy", JOY_BUTTON_Y]],
 	&"dodge": [["key", KEY_L], ["key", KEY_C], ["joy", JOY_BUTTON_B]],
+	&"guard": [["key", KEY_F], ["key", KEY_I], ["joy", JOY_BUTTON_LEFT_SHOULDER]],
 	&"lock_on": [["mouse", MOUSE_BUTTON_MIDDLE], ["key", KEY_Q], ["joy", JOY_BUTTON_RIGHT_STICK]],
 	&"target_next": [["mouse", MOUSE_BUTTON_WHEEL_DOWN], ["key", KEY_E]],
 	&"target_prev": [["mouse", MOUSE_BUTTON_WHEEL_UP]],
@@ -83,6 +85,11 @@ var _lunge_delay_left := 0.0
 
 ## Off in touch mode (TouchControls): clicks and taps never grab the pointer.
 var mouse_capture_enabled := true
+## Top speed multiplier (guarding walks slowly).
+var move_speed_scale := 1.0
+## Keep the current facing instead of turning toward travel (guarding strafes). Lock-on
+## still faces the target.
+var hold_facing := false
 
 
 func _enter_tree() -> void:
@@ -172,6 +179,8 @@ func apply_knockback(knockback: Vector3) -> void:
 func respawn() -> void:
 	spawn_at(_spawn_position, _spawn_yaw)
 	lock_controls(false)
+	move_speed_scale = 1.0
+	hold_facing = false
 
 
 ## Rotate the camera by a look delta in radians (x = yaw, y = pitch). Mouse, touch drags and the
@@ -234,7 +243,8 @@ func _physics_process(delta: float) -> void:
 	_move_direction = wish.normalized()
 	if _controls_locked:
 		wish = Vector3.ZERO           # strikes and flinches commit: no steering, just brake
-	var top_speed := sprint_speed if Input.is_action_pressed(&"sprint") else walk_speed
+	var top_speed := sprint_speed if Input.is_action_pressed(&"sprint") and move_speed_scale >= 1.0 else walk_speed
+	top_speed *= move_speed_scale
 
 	# Acceleration / deceleration: steer horizontal velocity toward the target at a capped rate.
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
@@ -258,7 +268,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	if not _controls_locked:
-		var look := horizontal
+		var look := Vector3.ZERO if hold_facing else horizontal
 		if targeting and targeting.is_locked():
 			look = targeting.current_target.global_position - global_position   # strafe: face the target
 			look.y = 0.0

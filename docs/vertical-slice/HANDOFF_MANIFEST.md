@@ -93,11 +93,13 @@ class_name TimeScale extends RefCounted       # scripts/core/time_scale.gd
 
 class_name HealthComponent                    # v2, methods added
   func grant_invulnerability(seconds: float) -> void   # extends, never shortens, the current window
+  func chip(amount: float) -> void           # guard chip damage: no `damaged`, never below 1 health
   func is_invulnerable() -> bool              # dodge i-frames and the boss roar use it
 
 class_name HitInfo                            # v2, fields added (all optional, with defaults)
   poise_damage: float; damage_type: int (AttackData.DamageType); hit_position: Vector3
   unblockable: bool; can_be_parried: bool; attack: AttackData
+  broke_posture: bool                        # set by the Hurtbox (M5): this hit, not an earlier one, broke posture
 
   enum Result { IGNORED, HIT, BLOCKED, PARRIED, GUARD_BROKEN, KILLED }   # HitInfo.Result
   static func is_landed(result: Result) -> bool   # HIT or KILLED
@@ -105,9 +107,9 @@ class_name HitInfo                            # v2, fields added (all optional, 
 class_name Hurtbox                            # v2
   signal hit_received(hit: HitInfo, result: HitInfo.Result)   # not emitted for IGNORED
   @export var health: HealthComponent
-  @export var posture: Node                   # optional; anything with add_posture(amount) -> bool. Retype to PostureComponent in M5
+  @export var posture: Node                   # optional; a PostureComponent, or anything with add_posture(amount) -> bool (kept duck-typed for test stubs)
   func receive_hit(hit: HitInfo) -> HitInfo.Result   # runs defenders in order, then health and posture
-  func add_defender(d: Object) -> void        # anything with intercept(hit: HitInfo) -> HitInfo.Result (IGNORED = pass through)
+  func add_defender(d: Object, first := false) -> void   # anything with intercept(hit: HitInfo) -> HitInfo.Result (IGNORED = pass through); first = ahead of the rest (ParrySystem)
   func remove_defender(d: Object) -> void
   static func find_for(node: Node, health: HealthComponent) -> Hurtbox   # a body's hurtbox, so body contacts can't bypass defenders
   # Returns IGNORED while health.is_invulnerable(), before any defender runs.
@@ -143,21 +145,42 @@ class_name MotionWarping extends Node         # child of Combat
   func plan(attack: AttackData) -> Dictionary   # {direction, speed, duration, delay, target}; velocity only, never tweens position
   func warp_speed(distance: float, duration: float) -> float; func find_target(direction: Vector3) -> Node3D
 
-# M5: defense (all children of the character; all optional per character)
-class_name PostureComponent extends Node
+# M5: defense (implemented; scripts/combat/defense/, all children of the character, all optional per character)
+class_name PostureComponent extends Node      # the Hurtbox's `posture`
   signal posture_changed(current: float, maximum: float); signal posture_broken; signal posture_recovered
-  @export max_posture := 100.0; @export recovery_rate := 15.0; @export recovery_delay := 1.2
-  func add_posture(amount: float) -> bool     # true = broke
+  @export max_posture := 100.0; recovery_rate := 15.0; recovery_delay := 1.2; break_duration := 2.0; wounded_recovery_scale := 0.25
+  @export health: HealthComponent; guard: GuardComponent; body: CharacterBody3D   # optional: health scaling, x2 while guarding still
+  var current: float; var is_broken: bool
+  func add_posture(amount: float) -> bool     # true = broke; ignored while broken
+  func current_recovery_rate() -> float; func reset() -> void
+  static func find_on(node: Node) -> PostureComponent
 class_name GuardComponent extends Node        # defender: intercept(hit) -> BLOCKED / GUARD_BROKEN / IGNORED
-  signal guard_started; signal guard_ended; signal guard_broken
-  var is_guarding: bool; @export guard_break_stagger := 2.5; @export guard_arc_degrees := 150.0
-class_name ParrySystem extends Node           # defender, runs before GuardComponent
+  signal guard_started; signal guard_ended; signal guard_broken; signal blocked(hit: HitInfo)
+  @export hurtbox: Hurtbox; posture: PostureComponent; body: Node3D
+  @export guard_arc_degrees := 150.0; guard_break_stagger := 2.5; chip_damage := 0.0 (share of damage, non-lethal)
+  var is_guarding: bool
+  func set_guarding(on: bool) -> void; func covers(hit: HitInfo) -> bool
+  static func facing_of(node: Node3D) -> Vector3   # get_facing() if the node has it, else -Z
+class_name ParrySystem extends Node           # defender, registers itself first on the Hurtbox
   signal parry_successful(attacker: Node3D, point: Vector3)
-  @export parry_window := 0.15; @export posture_reflect_multiplier := 3.0
-  func on_guard_pressed() -> void
-class_name DamageReactionComponent extends Node
+  @export hurtbox: Hurtbox; guard: GuardComponent (optional: frontal arc)
+  @export parry_window := 0.15 (real time); spam_lockout := 0.4 (after a window closes); posture_reflect_multiplier := 3.0; parry_hitstop := 0.08
+  func on_guard_pressed() -> bool             # true if a window opened; a successful parry lifts the lockout
+  func is_window_open() -> bool
+class_name DamageReactionComponent extends Node   # node name "DamageReaction"
   signal stagger_started(type: StringName); signal stagger_ended   # &"front", &"back", &"left", &"right", &"heavy", &"knockdown", &"guard_break", &"parried"
-  @export poise_threshold := 30.0; @export knockdown_threshold := 60.0; @export friction := 18.0
+  @export body: CharacterBody3D; hurtbox: Hurtbox; posture: PostureComponent; guard: GuardComponent
+  @export poise_threshold := 30.0; knockdown_threshold := 60.0; friction := 18.0
+  @export flinch_time := 0.3; heavy_time := 0.7; knockdown_time := 1.8; parried_time := 1.0; blocked_push := 0.35
+  var is_staggered: bool; var stagger_type: StringName
+  func react(type: StringName, duration: float) -> void   # a held knockdown / guard_break / parried with more time left isn't cut short
+  func play_parried(broke_posture := false) -> void; func clear() -> void; func classify(hit: HitInfo) -> Array   # [type, duration]
+  # A hit that breaks posture knocks down for max(knockdown_time, stagger_time, posture.break_duration).
+  static func direction_of(facing: Vector3, to_attacker: Vector3) -> StringName; static func find_on(node: Node) -> DamageReactionComponent
+  # Knockback: bodies with apply_knockback() (PlayerController) brake themselves; others brake here with `friction`.
+CombatStateMachine: State adds GUARD; exports guard, parry, reaction, posture; guard_pressed() / guard_released();
+  static stagger_clip(type) -> StringName (STAGGER_CLIPS). PlayerController: move_speed_scale, hold_facing.
+Wolf: PostureComponent (60) + DamageReaction; a parried bite staggers it.
 
 # M6: AI
 class_name CombatDirector extends Node        # one per encounter
@@ -207,17 +230,18 @@ Use these exact identifiers; retargeted source clips get renamed to them on impo
 |---|---|
 | Duelist, locomotion | `idle`, `walk`, `run`, `sprint`, `jump_start`, `jump_loop`, `jump_land`, `strafe_l`, `strafe_r`, `strafe_b`, `turn_l`, `turn_r` |
 | Duelist, offense | `attack_1`, `attack_2`, `attack_3`, `heavy_1`, `heavy_2`, `heavy_finisher`, `special_1`, `sprint_attack`, `draw_attack` (quick-draw from sheathed), `draw`, `sheathe` |
-| Duelist, defense | `guard_idle`, `guard_hit`, `guard_break`, `parry_1`, `parry_2`, `dodge_f`, `dodge_b`, `dodge_l`, `dodge_r`, `hurt_f`, `hurt_b`, `hurt_l`, `hurt_r`, `hurt_heavy`, `knockdown`, `get_up`, `death`, `execution` |
+| Duelist, defense | `guard_idle`, `guard_hit`, `guard_break`, `parry_1`, `parry_2`, `dodge_f`, `dodge_b`, `dodge_l`, `dodge_r`, `hurt_f`, `hurt_b`, `hurt_l`, `hurt_r`, `hurt_heavy`, `knockdown` (includes the get-up; a separate `get_up` is optional), `death`, `execution` |
 | Grunt | `idle`, `walk`, `run`, `strafe_l`, `strafe_r`, `attack_1`, `attack_2`, `hurt_f`, `hurt_b`, `parried`, `stagger`, `death` |
 | Brute and Gatekeeper | the Grunt set, plus `slam`, `sweep`, `thrust_unblockable`, `posture_break`, `executed`, `roar` |
 | Wolf (existing) | `idle`, `walk`, `run`, `bite`, `hurt`, `death` |
 
-`attack_1` to `attack_3`, `hurt` and `death` keep the kit's existing names, so the current state
-machine keeps working until the new clips land. The Duelist's single `hurt` state maps to
-`hurt_f` until DamageReaction (M5) picks the directional clips.
+`attack_1` to `attack_3` and `death` keep the kit's existing names. Since M5 the Duelist has no
+single `hurt` clip: CombatStateMachine.STAGGER_CLIPS maps each DamageReaction stagger type to
+`hurt_f/b/l/r`, `hurt_heavy` (also used when parried), `knockdown` or `guard_break`. The wolf keeps
+one `hurt` clip for every type (slowed for heavy ones).
 
-Still to add (M5, M9): `attack_special`, `guard`, `interact`, `pause`. (`attack_heavy` and `dodge`
-landed in M3; `lock_on`, `target_next`, `target_prev` and the right-stick `look_*` axes in M7.) Register them in
+Still to add (M9): `attack_special`, `interact`, `pause`. (`attack_heavy` and `dodge` landed in M3;
+`lock_on`, `target_next`, `target_prev` and the right-stick `look_*` axes in M7; `guard` in M5.) Register them in
 `_DEFAULT_BINDINGS`, with gamepad events if D10 is approved.
 
 ## Validation (every handoff)

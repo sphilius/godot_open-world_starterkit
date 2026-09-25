@@ -27,6 +27,10 @@ const DODGES := {
 	"dodge_f": Vector3(0, 0, -1), "dodge_b": Vector3(0, 0, 1),
 	"dodge_l": Vector3(-1, 0, 0), "dodge_r": Vector3(1, 0, 0),
 }
+## Guard clips: the held guard loops; a block or parry plays once and returns to it.
+const GUARD_CLIPS := ["guard_idle", "guard_hit", "parry_1", "parry_2"]
+## Reaction clips, one per DamageReactionComponent stagger type (CombatStateMachine.STAGGER_CLIPS).
+const REACTION_CLIPS := ["hurt_f", "hurt_b", "hurt_l", "hurt_r", "hurt_heavy", "knockdown", "guard_break"]
 const WOLF_BITE_PATH := "res://resources/combat/wolf_bite.tres"
 const DEG := PI / 180.0
 
@@ -154,7 +158,10 @@ func _build_samurai() -> void:
 		library.add_animation(attack.animation, _attack_clip(attack))
 	for dodge: String in DODGES:
 		library.add_animation(StringName(dodge), _dodge_clip(DODGES[dodge]))
-	library.add_animation(&"hurt", _samurai_hurt())
+	for clip: String in GUARD_CLIPS:
+		library.add_animation(StringName(clip), _guard_clip(clip))
+	for clip: String in REACTION_CLIPS:
+		library.add_animation(StringName(clip), _reaction_clip(clip))
 	library.add_animation(&"death", _samurai_death())
 	library = _save(library, SAMURAI_DIR + "samurai_animations.tres")
 
@@ -306,14 +313,85 @@ func _overhead_clip(attack: AttackData) -> Animation:
 		[0.0, raised], [a, peak], [(a + b) * 0.5, through], [b, impact], [attack.duration, recover]])
 
 
-## Flinch: snap back from the blow, then settle into the idle guard.
-func _samurai_hurt() -> Animation:
-	var recoil := _pose(SAMURAI_IDLE, {
-		"spine": Vector3(12, 0, 0), "chest": Vector3(10, 0, 0), "head": Vector3(15, 0, 0),
-		"upper_arm_r": Vector3(5, 0, 30), "forearm_r": Vector3(20, 0, 0),
-		"upper_arm_l": Vector3(5, 0, -30), "forearm_l": Vector3(20, 0, 0),
-		"hips_offset": Vector3(0, -0.05, 0.05)})
-	return _samurai_clip(0.4, false, [[0.0, SAMURAI_IDLE], [0.08, recoil], [0.4, SAMURAI_IDLE]])
+## Guard: blade held level across the body at chest height, left hand on the back of the grip.
+const GUARD_POSE := {
+	"spine": Vector3(-8, 0, 0), "chest": Vector3(-4, 10, 0), "head": Vector3(6, 0, 0),
+	"upper_arm_r": Vector3(55, 0, 25), "forearm_r": Vector3(70, 0, 0), "weapon_r": Vector3(-90, 70, 0),
+	"upper_arm_l": Vector3(50, 0, -20), "forearm_l": Vector3(75, 0, 0),
+	"thigh_r": Vector3(-12, 0, 6), "shin_r": Vector3(-20, 0, 0),
+	"thigh_l": Vector3(24, 0, -6), "shin_l": Vector3(-28, 0, 0),
+	"hips_offset": Vector3(0, -0.07, 0),
+}
+
+
+func _guard_clip(clip: String) -> Animation:
+	match clip:
+		"guard_hit":   # the blow shoves the guard back and down
+			var jolt := _pose(GUARD_POSE, {"spine": Vector3(4, 0, 0), "chest": Vector3(6, 14, 0),
+					"upper_arm_r": Vector3(40, 0, 30), "upper_arm_l": Vector3(35, 0, -25), "hips_offset": Vector3(0, -0.1, 0.06)})
+			return _samurai_clip(0.3, false, [[0.0, GUARD_POSE], [0.06, jolt], [0.3, GUARD_POSE]])
+		"parry_1", "parry_2":   # a sharp outward sweep that knocks the strike aside
+			var s := 1.0 if clip == "parry_1" else -1.0
+			var sweep := _pose(GUARD_POSE, {"chest": Vector3(-4, -30 * s, 0),
+					"upper_arm_r": Vector3(75, -40 * s, 20), "forearm_r": Vector3(35, 0, 0), "weapon_r": Vector3(-60, 0, 0)})
+			return _samurai_clip(0.35, false, [[0.0, GUARD_POSE], [0.07, sweep], [0.35, GUARD_POSE]])
+	return _samurai_clip(1.2, true, [
+		[0.0, GUARD_POSE], [0.6, _pose(GUARD_POSE, {"chest": Vector3(-2, 10, 0), "hips_offset": Vector3(0, -0.08, 0)})],
+		[1.2, GUARD_POSE]])
+
+
+## Hit reactions. Directional flinches recoil away from where the blow came from.
+func _reaction_clip(clip: String) -> Animation:
+	match clip:
+		"hurt_b":   # struck from behind: lurch forward
+			return _flinch(0.4, {"spine": Vector3(-18, 0, 0), "chest": Vector3(-12, 0, 0), "head": Vector3(-10, 0, 0),
+					"hips_offset": Vector3(0, -0.05, -0.06)})
+		"hurt_l":   # struck from the left: fold to the right
+			return _flinch(0.4, {"spine": Vector3(0, -10, -14), "chest": Vector3(0, -8, -10), "head": Vector3(0, 0, -12),
+					"hips_offset": Vector3(0.05, -0.04, 0)})
+		"hurt_r":
+			return _flinch(0.4, {"spine": Vector3(0, 10, 14), "chest": Vector3(0, 8, 10), "head": Vector3(0, 0, 12),
+					"hips_offset": Vector3(-0.05, -0.04, 0)})
+		"hurt_heavy":   # a big shove: stumble back, arms thrown out
+			return _flinch(0.7, {"spine": Vector3(20, 0, 0), "chest": Vector3(15, 0, 0), "head": Vector3(22, 0, 0),
+					"upper_arm_r": Vector3(-10, 0, 45), "upper_arm_l": Vector3(-10, 0, -45),
+					"thigh_r": Vector3(-25, 0, 6), "shin_r": Vector3(-20, 0, 0),
+					"thigh_l": Vector3(35, 0, -6), "shin_l": Vector3(-40, 0, 0), "hips_offset": Vector3(0, -0.12, 0.12)})
+		"guard_break":   # the guard is smashed open: arms flung wide, reeling (held while staggered)
+			var open := {"spine": Vector3(18, 0, 0), "chest": Vector3(14, 0, 0), "head": Vector3(20, 0, 0),
+					"upper_arm_r": Vector3(-20, 0, 70), "forearm_r": Vector3(15, 0, 0), "weapon_r": Vector3(-40, 0, 0),
+					"upper_arm_l": Vector3(-15, 0, -60), "forearm_l": Vector3(15, 0, 0),
+					"thigh_r": Vector3(-20, 0, 6), "shin_r": Vector3(-25, 0, 0),
+					"thigh_l": Vector3(30, 0, -6), "shin_l": Vector3(-45, 0, 0), "hips_offset": Vector3(0, -0.14, 0.1)}
+			var reel := _pose(open, {"spine": Vector3(8, 0, 0), "head": Vector3(10, 0, 0), "upper_arm_r": Vector3(0, 0, 45),
+					"upper_arm_l": Vector3(0, 0, -40)})
+			return _samurai_clip(1.2, false, [[0.0, GUARD_POSE], [0.1, open], [0.7, reel], [1.2, reel]])
+		"knockdown":   # thrown onto the back, then back up (decision D8: animated, no ragdoll)
+			var buckle := {"spine": Vector3(25, 0, 0), "chest": Vector3(15, 0, 0), "head": Vector3(20, 0, 0),
+					"upper_arm_r": Vector3(-10, 0, 50), "upper_arm_l": Vector3(-10, 0, -50),
+					"thigh_r": Vector3(40, 0, 5), "shin_r": Vector3(-70, 0, 0),
+					"thigh_l": Vector3(45, 0, -5), "shin_l": Vector3(-70, 0, 0), "hips_offset": Vector3(0, -0.35, 0.15)}
+			var down := {"spine": Vector3(70, 0, 0), "chest": Vector3(10, 0, 0), "head": Vector3(-10, 0, 0),
+					"upper_arm_r": Vector3(-30, 0, 60), "upper_arm_l": Vector3(-30, 0, -60),
+					"thigh_r": Vector3(80, 0, 8), "shin_r": Vector3(-40, 0, 0),
+					"thigh_l": Vector3(70, 0, -8), "shin_l": Vector3(-60, 0, 0), "hips_offset": Vector3(0, -0.78, 0.3)}
+			var kneel := {"spine": Vector3(-20, 0, 0), "chest": Vector3(-10, 0, 0), "head": Vector3(5, 0, 0),
+					"upper_arm_r": Vector3(20, 0, 20), "forearm_r": Vector3(30, 0, 0),
+					"upper_arm_l": Vector3(40, 0, -10), "forearm_l": Vector3(40, 0, 0),
+					"thigh_r": Vector3(0, 0, 5), "shin_r": Vector3(-90, 0, 0),
+					"thigh_l": Vector3(80, 0, -5), "shin_l": Vector3(-80, 0, 0), "hips_offset": Vector3(0, -0.43, 0)}
+			return _samurai_clip(1.8, false, [[0.0, SAMURAI_IDLE], [0.2, buckle], [0.5, down], [1.05, down],
+					[1.45, kneel], [1.8, SAMURAI_IDLE]])
+	# hurt_f: struck from the front: snap back from the blow
+	return _flinch(0.4, {"spine": Vector3(12, 0, 0), "chest": Vector3(10, 0, 0), "head": Vector3(15, 0, 0),
+			"upper_arm_r": Vector3(5, 0, 30), "forearm_r": Vector3(20, 0, 0),
+			"upper_arm_l": Vector3(5, 0, -30), "forearm_l": Vector3(20, 0, 0), "hips_offset": Vector3(0, -0.05, 0.05)})
+
+
+## A flinch: snap into `recoil` over the first 20 % of `length`, then settle into the idle stance.
+func _flinch(length: float, recoil: Dictionary) -> Animation:
+	return _samurai_clip(length, false, [[0.0, SAMURAI_IDLE], [length * 0.2, _pose(SAMURAI_IDLE, recoil)],
+			[length, SAMURAI_IDLE]])
 
 
 ## Defeat: knees buckle, then he kneels on the right knee, head bowed (held until respawn).
@@ -362,7 +440,9 @@ func _samurai_state_machine() -> AnimationNodeStateMachine:
 	actions.append_array(DODGES.keys())
 	var states: Array[String] = ["idle", "run"]
 	states.append_array(actions)
-	states.append_array(["hurt", "death"])
+	states.append_array(GUARD_CLIPS)
+	states.append_array(REACTION_CLIPS)
+	states.append("death")
 	for i in states.size():
 		var node := AnimationNodeAnimation.new()
 		node.animation = StringName(states[i])
@@ -372,26 +452,49 @@ func _samurai_state_machine() -> AnimationNodeStateMachine:
 	_link(machine, "run", "idle", 0.2)
 	# Every action (strike or dodge) can start from, chain into, and return to any other state;
 	# CombatStateMachine decides what is allowed. Reactions can interrupt anything.
+	var reactions: Array[String] = []
+	reactions.append_array(REACTION_CLIPS)
+	var guards: Array[String] = []
+	guards.append_array(GUARD_CLIPS)
 	for action in actions:
-		for from: String in ["idle", "run", "hurt"] + actions:
+		for from: String in ["idle", "run"] + reactions + guards + actions:
 			if from != action:
 				_link(machine, from, action, 0.06 if from in actions else 0.08)
 		_link(machine, action, "idle", 0.2)
 		_link(machine, action, "run", 0.2)
+	# Guard: raised from locomotion, strike or dodge recovery; blocks and parries play once and
+	# return to the held guard on their own.
+	# A press from locomotion or a recovery can parry (or block) on its first frame, so those
+	# clips are one hop away too.
 	for from: String in ["idle", "run"] + actions:
-		_link(machine, from, "hurt", 0.05)
+		for guard in guards:
+			_link(machine, from, guard, 0.1 if guard == "guard_idle" else 0.05)
+	for guard in guards:
+		_link(machine, guard, "idle", 0.15)
+		_link(machine, guard, "run", 0.15)
+		for other in guards:
+			if other != guard and other != "guard_idle":
+				_link(machine, guard, other, 0.04)
+		if guard != "guard_idle":
+			_link(machine, guard, "guard_idle", 0.12, true)
+	for reaction in reactions:
+		for from: String in ["idle", "run"] + actions + guards + reactions:
+			if from != reaction:
+				_link(machine, from, reaction, 0.05)
+		_link(machine, reaction, "idle", 0.15)
+		_link(machine, reaction, "run", 0.15)
+	for from: String in ["idle", "run"] + actions + guards + reactions:
 		_link(machine, from, "death", 0.1)
-	_link(machine, "hurt", "idle", 0.15)
-	_link(machine, "hurt", "run", 0.15)
-	_link(machine, "hurt", "death", 0.1)
 	_link(machine, "death", "idle", 0.3)     # respawn
 	return machine
 
 
+## `auto` from Start fires at once; from any other state it waits for the clip to end.
 func _link(machine: AnimationNodeStateMachine, from: String, to: String, xfade: float, auto := false) -> void:
 	var transition := AnimationNodeStateMachineTransition.new()
 	transition.xfade_time = xfade
-	transition.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
+	transition.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_AT_END if auto and from != "Start" \
+			else AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
 	transition.advance_mode = AnimationNodeStateMachineTransition.ADVANCE_MODE_AUTO if auto \
 			else AnimationNodeStateMachineTransition.ADVANCE_MODE_ENABLED   # ENABLED: only travel() moves it
 	machine.add_transition(StringName(from), StringName(to), transition)

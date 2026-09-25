@@ -49,6 +49,52 @@ static func make_target(owner: Node, max_health := 100.0) -> Hurtbox:
 	return hurtbox
 
 
+## A bare CharacterBody3D fighter with the whole M5 defense kit, facing -Z: HealthComponent,
+## PostureComponent, a Hurtbox defended by ParrySystem then GuardComponent (added in the
+## opposite order, so ParrySystem must put itself first), and a DamageReactionComponent.
+## `tune` is called with each component before the fighter enters the tree, to set exports.
+static func make_fighter(tune := Callable()) -> CharacterBody3D:
+	var body := CharacterBody3D.new()
+	var health := HealthComponent.new()
+	var posture := PostureComponent.new()
+	var hurtbox := Hurtbox.new()
+	var guard := GuardComponent.new()
+	var parry := ParrySystem.new()
+	var reaction := DamageReactionComponent.new()
+	health.name = "HealthComponent"
+	posture.name = "PostureComponent"
+	hurtbox.name = "Hurtbox"
+	guard.name = "GuardComponent"
+	parry.name = "ParrySystem"
+	reaction.name = "DamageReaction"
+	posture.health = health
+	posture.guard = guard
+	posture.body = body
+	hurtbox.health = health
+	hurtbox.posture = posture
+	guard.hurtbox = hurtbox
+	guard.posture = posture
+	guard.body = body
+	parry.hurtbox = hurtbox
+	parry.guard = guard
+	reaction.body = body
+	reaction.hurtbox = hurtbox
+	reaction.posture = posture
+	reaction.guard = guard
+	for node: Node in [health, posture, hurtbox, guard, parry, reaction]:
+		if tune.is_valid():
+			tune.call(node)
+		body.add_child(node)
+	return body
+
+
+## A hit from `source` (or from nowhere) with the given damage and poise damage.
+static func make_hit(source: Node3D, damage := 10.0, poise := 10.0) -> HitInfo:
+	var hit := HitInfo.new(damage, source)
+	hit.poise_damage = poise
+	return hit
+
+
 ## Defender stub: claims every hit with `result` (IGNORED passes it through) and counts calls.
 class StubDefender:
 	extends RefCounted

@@ -1,6 +1,6 @@
 class_name CombatStateMachine
 extends Node
-## Player combat FSM: IDLE, RUN, ATTACK, DODGE, plus the HURT and DEAD reactions.
+## Player combat FSM: IDLE, RUN, ATTACK, DODGE, GUARD, plus the HURT and DEAD reactions.
 ## (The runbook calls this node CombatController.)
 ##
 ## • This script owns the logic. The AnimationTree (StateMachine root) only blends, driven by
@@ -17,20 +17,31 @@ extends Node
 ## • Dodge: a dash with invulnerability frames. With a lock-on target it keeps facing the
 ##   target and plays the directional clip; otherwise it turns into the dash (dodge_f), or
 ##   backsteps (dodge_b) when there's no movement input.
-## • Sheathing: after `sheathe_delay` seconds without attacking, the weapon is sheathed.
-## • Taking a hit (HealthComponent.damaged) cancels the swing, applies knockback, and flinches
-##   for the hit's stagger time. Dying kneels, then respawns after `respawn_delay`.
+## • Guard (hold): walks slowly with the facing held, blocks frontal hits (GuardComponent),
+##   and each press opens a parry window (ParrySystem). Guard can start from locomotion, from a
+##   strike's recovery and from a dodge's recovery; strikes and dodges can leave it.
+## • Sheathing: after `sheathe_delay` seconds without attacking or guarding, the weapon is
+##   sheathed.
+## • Reactions come from DamageReactionComponent: a stagger cancels the swing or guard and plays
+##   its clip (directional flinch, heavy, knockdown, guard break) in HURT until it ends. Dying
+##   kneels, then respawns after `respawn_delay`.
 
 signal state_changed(previous: State, current: State)
 signal attack_started(attack: AttackData)
 signal dodge_started(direction: Vector3)
 
-enum State { IDLE, RUN, ATTACK, DODGE, HURT, DEAD }
+enum State { IDLE, RUN, ATTACK, DODGE, HURT, DEAD, GUARD }
 
 const LIGHT := ComboManager.LIGHT
 const HEAVY := ComboManager.HEAVY
 const DODGE := ComboManager.DODGE
 const ALL_ACTIONS: Array[StringName] = [ComboManager.LIGHT, ComboManager.HEAVY, ComboManager.DODGE]
+## DamageReactionComponent stagger type → clip.
+const STAGGER_CLIPS := {
+	&"front": &"hurt_f", &"back": &"hurt_b", &"left": &"hurt_l", &"right": &"hurt_r",
+	&"heavy": &"hurt_heavy", &"parried": &"hurt_heavy", &"knockdown": &"knockdown",
+	&"guard_break": &"guard_break",
+}
 
 @export var body: PlayerController
 @export var animation_tree: AnimationTree
@@ -42,13 +53,18 @@ const ALL_ACTIONS: Array[StringName] = [ComboManager.LIGHT, ComboManager.HEAVY, 
 @export var warping: MotionWarping
 ## Optional lock-on source (TargetingSystem): its `current_target` makes dodges strafe.
 @export var targeting: Node
+@export var guard: GuardComponent
+@export var parry: ParrySystem
+@export var reaction: DamageReactionComponent
+## Reset on respawn.
+@export var posture: PostureComponent
 ## Idle timer (s) before the weapon is sheathed.
 @export var sheathe_delay := 3.0
 ## Horizontal speed (m/s) above which locomotion counts as RUN.
 @export var run_threshold := 0.6
-## Shortest flinch, even from a light hit (s).
-@export var min_hurt_time := 0.3
 @export var respawn_delay := 2.5
+## Walk speed multiplier while guarding.
+@export var guard_move_scale := 0.45
 
 @export_group("Dodge")
 ## Must match the dodge clips' length (tools/build_placeholder_rigs.gd DODGE_LENGTH).
@@ -67,20 +83,30 @@ var current_attack: AttackData
 var _state_time := 0.0
 var _time_since_attack := 0.0
 var _playback: AnimationNodeStateMachinePlayback
-var _hurt_duration := 0.0
 var _iframes_granted := false
+var _guard_held := false
+var _parries := 0
 
 
 func _ready() -> void:
 	_playback = animation_tree.get(&"parameters/playback")
 	animation_tree.active = true
 	katana.hitbox.source = body
-	health.damaged.connect(_on_damaged)
 	health.died.connect(_on_died)
+	reaction.stagger_started.connect(_on_stagger_started)
+	reaction.stagger_ended.connect(_on_stagger_ended)
+	guard.blocked.connect(_on_blocked)
+	parry.parry_successful.connect(_on_parried)
 	_playback.travel(&"idle")
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"guard"):
+		guard_pressed()
+		return
+	if event.is_action_released(&"guard"):
+		guard_released()
+		return
 	var action := &""
 	if event.is_action_pressed(&"attack"):
 		action = LIGHT
@@ -105,8 +131,10 @@ func _physics_process(delta: float) -> void:
 			_tick_attack()
 		State.DODGE:
 			_tick_dodge()
+		State.GUARD:
+			_tick_guard()
 		State.HURT:
-			_tick_hurt()
+			pass                                     # ends with reaction.stagger_ended
 		State.DEAD:
 			pass                                     # respawn is timer-driven (_on_died)
 		_:
@@ -117,8 +145,40 @@ func is_attacking() -> bool:
 	return state == State.ATTACK
 
 
+## Guard pressed (held from now on). Opens a parry window and raises the guard if the current
+## state allows it; otherwise the guard goes up as soon as it does, without a parry window.
+func guard_pressed() -> void:
+	_guard_held = true
+	if _can_guard_now():
+		parry.on_guard_pressed()
+		_start_guard()
+
+
+func guard_released() -> void:
+	_guard_held = false
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_guard_held = false                      # the release may never arrive
+
+
+func _can_guard_now() -> bool:
+	match state:
+		State.IDLE, State.RUN, State.GUARD:
+			return true
+		State.ATTACK:
+			return _state_time >= current_attack.active_end
+		State.DODGE:
+			return _state_time >= dodge_cancel_time
+	return false
+
+
 func _tick_locomotion(delta: float) -> void:
 	if _take_action(ALL_ACTIONS):
+		return
+	if _guard_held:
+		_start_guard()
 		return
 	_time_since_attack += delta
 	if _time_since_attack >= sheathe_delay and holster.is_drawn():
@@ -142,6 +202,9 @@ func _tick_attack() -> void:
 			allowed.append(DODGE)                    # recovery can always be dodged out of
 	if _take_action(allowed):
 		return
+	if _guard_held and _state_time >= attack.active_end:
+		_start_guard()
+		return
 	if _state_time >= attack.duration:
 		katana.set_active(false)
 		body.end_attack()
@@ -156,15 +219,41 @@ func _tick_dodge() -> void:
 		health.grant_invulnerability(dodge_iframes.y - dodge_iframes.x)
 	if _state_time >= dodge_cancel_time and _take_action([LIGHT, HEAVY] as Array[StringName]):
 		return
+	if _guard_held and _state_time >= dodge_cancel_time:
+		_start_guard()
+		return
 	if _state_time >= dodge_duration:
 		body.end_attack()
 		_enter_locomotion()
 
 
-func _tick_hurt() -> void:
-	if _state_time >= _hurt_duration:
-		body.lock_controls(false)
+func _tick_guard() -> void:
+	_time_since_attack = 0.0                     # the weapon stays out while guarding
+	if not _guard_held:
+		_end_guard()
 		_enter_locomotion()
+		return
+	_take_action(ALL_ACTIONS)                    # strikes and dodges leave the guard
+
+
+func _start_guard() -> void:
+	katana.set_active(false)
+	if state == State.ATTACK:
+		combo.attack_finished()
+	body.end_attack()                            # guarding walks
+	holster.draw()
+	guard.set_guarding(true)
+	body.move_speed_scale = guard_move_scale
+	body.hold_facing = true
+	current_attack = null
+	if state != State.GUARD:
+		_change_state(State.GUARD, &"guard_idle")
+
+
+func _end_guard() -> void:
+	guard.set_guarding(false)
+	body.move_speed_scale = 1.0
+	body.hold_facing = false
 
 
 ## Starts the oldest buffered action if it's allowed now and leads somewhere. Returns true if
@@ -186,6 +275,7 @@ func _take_action(allowed: Array[StringName]) -> bool:
 
 
 func _start_attack(attack: AttackData) -> void:
+	_end_guard()
 	katana.set_active(false)                     # close the previous strike's window, if any
 	holster.draw()
 	var motion := warping.plan(attack)
@@ -199,6 +289,7 @@ func _start_attack(attack: AttackData) -> void:
 
 
 func _start_dodge() -> void:
+	_end_guard()
 	katana.set_active(false)
 	combo.reset()
 	var target: Node3D = targeting.get(&"current_target") if targeting else null
@@ -236,28 +327,53 @@ static func dodge_clip(facing: Vector3, direction: Vector3) -> StringName:
 	return &"dodge_r" if right > 0.0 else &"dodge_l"
 
 
-func _on_damaged(hit: HitInfo) -> void:
-	if health.is_dead:
+## The clip for a DamageReactionComponent stagger type.
+static func stagger_clip(type: StringName) -> StringName:
+	return STAGGER_CLIPS.get(type, &"hurt_f")
+
+
+func _on_stagger_started(type: StringName) -> void:
+	if health.is_dead or state == State.DEAD:
 		return                                   # _on_died handles lethal hits
-	katana.set_active(false)                     # a hit cancels the swing
+	_end_guard()
+	katana.set_active(false)                     # a stagger cancels the swing
 	combo.clear_buffer()
 	combo.reset()
 	current_attack = null
 	body.lock_controls(true)
-	body.apply_knockback(hit.knockback)
-	_hurt_duration = maxf(hit.stagger_time, min_hurt_time)
-	_change_state(State.HURT, &"hurt")
+	_change_state(State.HURT, stagger_clip(type))
+
+
+func _on_stagger_ended() -> void:
+	if state != State.HURT:
+		return
+	body.lock_controls(false)
+	_enter_locomotion()
+
+
+func _on_blocked(_hit: HitInfo) -> void:
+	if state == State.GUARD:
+		_replay(&"guard_hit")
+
+
+func _on_parried(_attacker: Node3D, _point: Vector3) -> void:
+	_parries += 1
+	if state == State.GUARD:
+		_replay(&"parry_1" if _parries % 2 == 1 else &"parry_2")
 
 
 func _on_died(_hit: HitInfo) -> void:
+	_end_guard()
 	katana.set_active(false)
 	combo.clear_buffer()
 	combo.reset()
 	current_attack = null
 	body.lock_controls(true)
 	_change_state(State.DEAD, &"death")
+	reaction.clear()                             # after DEAD, so stagger_ended is a no-op
 	await get_tree().create_timer(respawn_delay).timeout
 	health.revive()
+	posture.reset()
 	body.respawn()
 	_time_since_attack = 0.0
 	_change_state(State.IDLE, &"idle")
@@ -277,10 +393,18 @@ func _change_state(next: State, clip: StringName) -> void:
 	var previous := state
 	state = next
 	_state_time = 0.0
-	# Replaying the clip already playing (a dodge right after a dodge) must restart it.
-	if _playback.get_current_node() == clip and (next == State.ATTACK or next == State.DODGE):
-		_playback.start(clip, true)
+	if next == State.ATTACK or next == State.DODGE or next == State.HURT:
+		_replay(clip)
 	else:
 		_playback.travel(clip)
 	if previous != next:
 		state_changed.emit(previous, next)
+
+
+## Travels to `clip`, restarting it if it's already playing (a dodge right after a dodge, a
+## second flinch, a block during the last block's clip).
+func _replay(clip: StringName) -> void:
+	if _playback.get_current_node() == clip:
+		_playback.start(clip, true)
+	else:
+		_playback.travel(clip)

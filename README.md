@@ -24,6 +24,7 @@ browser, with on-screen touch controls for tablets and phones.
 | **Light attack (combo)** | **LMB / J** (keep pressing) | **ATK** (keep tapping) |
 | **Heavy attack** (branches the combo) | **RMB / K** | **HVY** |
 | **Dodge** (i-frames; backstep with no input) | **L / C** | **DODGE** |
+| **Guard** (hold) · **parry** (press just before a hit lands) | **F / I** · LB | **GUARD** |
 | Jump | Space | JUMP |
 | Sprint | Shift (hold) | RUN (tap to toggle) |
 | Quality LOW/MEDIUM/HIGH | F2 | QUAL |
@@ -145,9 +146,13 @@ Main (main.gd: drops player at path start, facing the sunset)
 Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hooks)
 ├─ Visual/SamuraiModel  generated rig: Skeleton3D + skinned mesh + HandSocket/SheathSocket (BoneAttachment3D)
 ├─ Katana               katana.tscn: blade, Area3D Hitbox, Trail (GPUParticles3D), MeshTrail
-├─ AnimationTree        StateMachine root: idle, run, every strike, dodge_f/b/l/r, hurt, death (physics-process callback)
+├─ PostureComponent     posture meter: filled by poise damage and blocks, breaks when full, recovers after a delay
+├─ GuardComponent       Hurtbox defender: blocks frontal hits into posture; breaks when posture fills
+├─ ParrySystem          Hurtbox defender (runs first): 0.15 s window per guard press, reflects 3x poise
+├─ DamageReaction       picks the stagger (directional flinch, heavy, knockdown, guard break) and knockback
+├─ AnimationTree        StateMachine root: idle, run, every strike, dodge_f/b/l/r, guard/parry, hurt_f/b/l/r, hurt_heavy, knockdown, guard_break, death
 ├─ WeaponHolster        tweens the katana between the hand and back sockets
-├─ Combat               CombatStateMachine: IDLE/RUN/ATTACK/DODGE/HURT/DEAD, active frames, sheathing
+├─ Combat               CombatStateMachine: IDLE/RUN/ATTACK/DODGE/GUARD/HURT/DEAD, active frames, sheathing
 │  ├─ ComboManager      FIFO input buffer + combo graph (resources/combat/sword_combo.tres)
 │  └─ MotionWarping     steers each lunge at the lock-on target or a nearby enemy
 ├─ TargetingSystem      lock-on: acquire, cycle, retarget, release; reticle over the target
@@ -174,10 +179,13 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 | Motion warping | `scripts/combat/motion_warping.gd` | Each lunge points at the lock-on target, or the nearest enemy within 60° and reach, and stretches to stop 1.2 m short of it (at most 3.5 m). It's velocity through `move_and_slide()`, eased out, so it never passes through walls |
 | Attack data | `resources/combat/*.tres` (`AttackData`) | Per strike: damage, poise damage, damage type, active window, combo and cancel windows, lunge, hit-stop, stagger, knockback (and an optional direction), trauma, unblockable/parryable. Designer-tunable |
 | Katana | `scripts/combat/katana.gd`, `scenes/weapons/katana.tscn` | `Area3D` hitbox on the weapon-bone socket. `area_entered` (hurtboxes) and `body_entered` (bodies) resolve a `HealthComponent`. One hit per target per swing; a landed hit triggers `HitStop` |
+| Posture | `scripts/combat/defense/posture_component.gd` | Filled by the poise damage of hits that land and of blocks. Recovery starts 1.2 s after the last posture damage, slows as health drops, and doubles while guarding and standing still. Full posture **breaks**: ignored damage for `break_duration`, then back to 0. The HUD shows it under the health bar |
+| Guard and parry | `scripts/combat/defense/guard_component.gd`, `parry_system.gd` | Hurtbox defenders. **Guard** (hold) blocks hits from the front 150°: no health damage (optional non-lethal chip), poise damage to posture; a block that fills posture is a **guard break** (2.5 s stagger). Unblockable hits pass. **Parry** runs first: each press opens a 0.15 s real-time window; a parryable hit inside it deals the attacker 3x its poise damage to posture and staggers them. Presses within 0.4 s after a window closes open nothing (spam lockout); a successful parry lifts it |
+| Hit reactions | `scripts/combat/defense/damage_reaction_component.gd` | Shared by the player and the wolves. Poise below 30 → a light flinch by direction (front/back/left/right); from 30 → heavy; from 60, or a posture break → animated knockdown (D8). Sets knockback; the owner plays the clip and locks controls or AI until `stagger_ended` |
 | Health | `scripts/combat/health_component.gd`, `hurtbox.gd`, `hit_info.gd` | Reusable node with `damaged` / `died` / `health_changed` signals and `grant_invulnerability()` for i-frames. `Hurtbox.receive_hit()` runs registered defenders (guard, parry) before health and posture, and returns a `HitInfo.Result` (HIT, BLOCKED, PARRIED…). `HealthComponent.resolve()` accepts a Hurtbox, a HealthComponent, or a body with one as a child |
 | Time scale | `scripts/core/time_scale.gd` | The only writer of `Engine.time_scale`: named requests, and the slowest one wins, so a hit-stop ending mid slow-motion can't snap time back to 1.0 |
 | Hit-stop | `scripts/combat/hit_stop.gd` | Static utility (not an autoload): a `TimeScale` request at 0.03 for the strike's duration. Overlapping requests extend; the timer ignores time scale |
-| Sheathing | `scripts/combat/weapon_holster.gd` | After **3.0 s** without attacking, the katana reparents (keeping its world pose) and tweens position plus quaternion (slerp) from the `weapon_r` hand bone to the `scabbard` bone on the left hip. Drawing takes 0.12 s, before the first active frame. `snap_weapon_to_hand()` / `snap_weapon_to_sheath()` are there for animation method tracks |
+| Sheathing | `scripts/combat/weapon_holster.gd` | After **3.0 s** without attacking or guarding, the katana reparents (keeping its world pose) and tweens position plus quaternion (slerp) from the `weapon_r` hand bone to the `scabbard` bone on the left hip. Drawing takes 0.12 s, before the first active frame. `snap_weapon_to_hand()` / `snap_weapon_to_sheath()` are there for animation method tracks |
 | Sword trail | `katana.gd` → `TrailRenderer` | **GPU_PARTICLES**: one particle glued to the blade by `shaders/sword_trail_particles.gdshader`, with a `RibbonTrailMesh` skinned along its path. **MESH**: `sword_trail_mesh.gd` stitches blade base and tip samples. AUTO picks MESH on Intel iGPUs (see below) |
 | Hitbox | `scripts/combat/hitbox.gd` | Shared by the katana and the wolf's jaws: arm it with an `AttackData`, open or close the active window, and it hits each target once per activation. Hits go through the target's `Hurtbox` even when the body is touched first, so defenders can't be bypassed |
 | Wolf AI | `scripts/mobs/wolf.gd`, `scenes/mobs/wolf.tscn` | **WANDER**: a random navmesh point within 15 m of home every 4 s. **CHASE**: the 10 m detection `Area3D`, repath every 0.25 s, arrival braking (v = √(2·a·d)). **BITE**: telegraphed 0.34 s wind-up that tracks you, then a lunge with an active jaw window (`wolf_bite.tres`, 12 dmg) and a 1.4–2.2 s cooldown; striking the wolf during the wind-up cancels it. **STAGGER**: knockback, flinch, white flash. **DEAD**: death animation, collision disabled (deferred), sink, `queue_free` |
@@ -197,7 +205,7 @@ godot --headless --path . --script res://tools/build_placeholder_rigs.gd
 Re-run after changing bones, poses or any strike's AttackData timings (`tests/test_data.gd` fails
 on a stale build). To swap in real characters (Mixamo, Blender), keep the clip names listed in
 `docs/vertical-slice/HANDOFF_MANIFEST.md` (every strike's `AttackData.animation`, `dodge_f/b/l/r`,
-`idle`, `run`, `hurt`, `death`; wolf: `idle`, `walk`, `run`, `bite`, `hurt`, `death`) and the socket
+`idle`, `run`, the guard, parry and hurt clips, `death`; wolf: `idle`, `walk`, `run`, `bite`, `hurt`, `death`) and the socket
 bones (`weapon_r`, `scabbard`). Or point the sockets and state machine at the new names, then set
 the AttackData timings to match the clips.
 
@@ -224,6 +232,8 @@ the AttackData timings to match the clips.
 | Lunge steering | Player ▸ Combat ▸ MotionWarping → `max_warp_distance`, `max_warp_angle`, `stop_distance` |
 | Wolf behaviour | `wolf.tscn` → `wander_radius`, `wander_interval`, `run_speed`, `chase_stop_distance`, `bite_cooldown`; `resources/combat/wolf_bite.tres`; HealthComponent `max_health`; DetectionArea sphere radius |
 | Player toughness | `player.tscn` ▸ HealthComponent `max_health`, `invulnerability_time`; Combat `respawn_delay` |
+| Guard, parry and posture | Player ▸ ParrySystem → `parry_window`, `spam_lockout`, `posture_reflect_multiplier`; GuardComponent → `guard_arc_degrees`, `chip_damage`, `guard_break_stagger`; PostureComponent → `max_posture`, `recovery_rate`, `recovery_delay`, `break_duration`; Combat → `guard_move_scale` |
+| Stagger tiers | DamageReaction (player and `wolf.tscn`) → `poise_threshold`, `knockdown_threshold`, `flinch_time`, `heavy_time`, `knockdown_time`, `parried_time`, `blocked_push` |
 | Touch layout / feel | `scripts/ui/touch/touch_controls.gd` (button rects, joystick size); TouchLookPad `sensitivity` |
 | Lock-on range, cone, camera framing | Player ▸ TargetingSystem → `radius`, `cone_degrees`, `break_distance`; Player ▸ CameraRig → `lock_*` |
 | Wind / grass | `grass_material.tres` → `wind_*`, `push_*`; GrassField density |

@@ -219,12 +219,13 @@ Recommendations are marked ⭐. Nothing past M0 should start until D1–D5 are a
 | D1, D2, D5–D14 | ⭐ defaults approved |
 | D3 / D3b | **AI 3D generation plus free assets**: AI-generated characters and props, rigged and animated with **Mixamo**, filled out with **Quaternius** and **Kenney** (CC0) assets and animation sets. No paid packs for now |
 | D4 | **Keep web and touch at parity, best effort.** Every new player action gets a touch button (heavy, dodge, guard, lock-on, interact) in the milestone that adds it, and `?quality=low` web builds must stay playable. Web-only fallbacks (no SDFGI or volumetric fog) are acceptable |
+| D15 | **Hero: a generic warrior with a straight one-handed sword** (approved 2026-09-25), not a katana samurai and not sword-and-shield. Stock Mixamo and Quaternius sword sets fit without retargeting to a katana grip. The quick-draw opener (`draw_attack`) stays as a fast draw-cut from the hip sheath. Code names (`Katana`, `assets/characters/samurai/`) are renamed when the M2 character lands |
 
 Consequences:
-- **Katana animation is now the biggest art risk.** Mixamo and Quaternius have generic sword
-  sets, not katana-specific ones. Plan on retiming generic clips through `AttackData` and
-  hand-keying Iai, parry and execution in Blender. If combat feel falls short at the M5
-  playtest, revisit D3b.
+- **Sword animation risk is lower after D15.** The generic warrior uses Mixamo and Quaternius
+  sword sets as they are, retimed through `AttackData`. Only the quick-draw, parry and
+  execution may need hand-keying in Blender. If combat feel falls short at the M5 playtest,
+  revisit D3b.
 - AI-generated meshes need a clean-up pass (retopology or decimation, UV check, weight check)
   before Mixamo auto-rigging. Budget it as part of M2.
 - Web parity means skinned-mesh counts and tri budgets have to be checked on the tablet at M6
@@ -246,7 +247,7 @@ either way.
 | **M2** | 02 | Art pass 1: blade, scabbard, courtyard kit and shrine via Blender MCP; characters via the D3 route; animation set via D3b; import presets with `BoneMap` retarget | `assets/**` | D3, D3b, D6, **purchases** | 2–4 h agent + user Blender sessions | 3–6 wk (art) |
 | **M3** ✅ | 03 | Offense: `AttackData` v2, `ComboManager` (FIFO buffer, branching graph, cancel windows), heavy, dodge with i-frames, `MotionWarping`, `WeaponManager` (hip sheath, quick-draw `draw_attack`). The special attack (`attack_special`) is deferred until there's a clip for it | `scripts/combat/` | M1 (placeholder rig is fine until M2 lands) | 4–6 h | 1–2 wk |
 | **M4** | 04 | Headless validation #1: `tests/test_combat_core.gd` covers the buffer, chain branching, warp clamps and hitbox once-per-target | `tests/` | M3 | 1 h | 1–2 d |
-| **M5** | 05 | Defense: `PostureComponent`, `GuardComponent`, `ParrySystem`, `DamageReactionComponent` (directional, poise, knockdown); player and wolves wired up; tests | `scripts/combat/defense/` | M1 | 4–6 h | 1–2 wk |
+| **M5** ✅ | 05 | Defense: `PostureComponent`, `GuardComponent`, `ParrySystem`, `DamageReactionComponent` (directional, poise, knockdown); player and wolves wired up; guard input (F / I, LB, GUARD button) and a HUD posture bar; tests | `scripts/combat/defense/` | M1 | 4–6 h | 1–2 wk |
 | **M6** | 06 | AI: `CombatDirector` (tokens, flank ring), `EnemyCombatController` (humanoid), Grunt and Brute scenes, telegraph glint VFX, Gatekeeper boss (2 phases) | `scripts/ai/`, `scenes/mobs/` | M5, M2 characters (or placeholder humanoid) | 6–10 h | 2–3 wk |
 | **M7** ✅ | 07 | `TargetingSystem` (hard lock, cycling on mouse wheel and right stick), `CombatCamera3D` extracted from `PlayerController` with dual focus; strafe locomotion while locked | `scripts/camera/`, `player_controller.gd` | M3 | 3–5 h | 1 wk |
 | **M8** | 08 | Level assembly: Beat 1 on the existing scenic path, then the courtyard at the path's end, then the sanctum gate. Encounter volumes, arena gates, navmesh, per-beat environments (D9) | `scenes/levels/`, `scenes/main.tscn` | M2 environment kit, M6 | 3–5 h agent + editor dressing | 1–2 wk |

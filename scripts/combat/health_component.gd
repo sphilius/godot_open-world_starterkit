@@ -48,6 +48,15 @@ func is_invulnerable() -> bool:
 	return Time.get_ticks_msec() < _invulnerable_until_msec
 
 
+## Guard chip damage: lowers health without a hit (no `damaged`, no reaction), and never
+## below 1, so it can't kill.
+func chip(amount: float) -> void:
+	if is_dead or amount <= 0.0:
+		return
+	current_health = maxf(current_health - amount, minf(current_health, 1.0))
+	health_changed.emit(current_health, max_health)
+
+
 func heal(amount: float) -> void:
 	if is_dead:
 		return

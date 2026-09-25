@@ -6,6 +6,8 @@
 [ext_resource type="Script" path="res://scripts/combat/hurtbox.gd" id="4_hurtbox"]
 [ext_resource type="Script" path="res://scripts/combat/hitbox.gd" id="5_hitbox"]
 [ext_resource type="Resource" path="res://resources/combat/wolf_bite.tres" id="6_bite"]
+[ext_resource type="Script" path="res://scripts/combat/defense/posture_component.gd" id="7_posture"]
+[ext_resource type="Script" path="res://scripts/combat/defense/damage_reaction_component.gd" id="8_reaction"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.32
@@ -36,16 +38,33 @@ shape = SubResource("CapsuleShape3D_body")
 script = ExtResource("3_health")
 max_health = 60.0
 
-[node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health")]
+[node name="PostureComponent" type="Node" parent="." node_paths=PackedStringArray("health")]
+script = ExtResource("7_posture")
+max_posture = 60.0
+recovery_rate = 12.0
+break_duration = 2.5
+health = NodePath("../HealthComponent")
+
+[node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health", "posture")]
 collision_layer = 16
 collision_mask = 0
 monitoring = false
 script = ExtResource("4_hurtbox")
 health = NodePath("../HealthComponent")
+posture = NodePath("../PostureComponent")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Hurtbox"]
 position = Vector3(0, 0.5, -0.05)
 shape = SubResource("BoxShape3D_hurtbox")
+
+[node name="DamageReaction" type="Node" parent="." node_paths=PackedStringArray("body", "hurtbox", "posture")]
+script = ExtResource("8_reaction")
+body = NodePath("..")
+hurtbox = NodePath("../Hurtbox")
+posture = NodePath("../PostureComponent")
+heavy_time = 0.6
+knockdown_time = 1.4
+parried_time = 1.2
 
 [node name="BiteHitbox" type="Area3D" parent="."]
 collision_layer = 32
