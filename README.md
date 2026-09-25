@@ -1,5 +1,8 @@
 # Scenic Open World: Godot 4.7 Forward+ prototype
 
+[![Deploy web build](https://github.com/sphilius/godot_open-world_starterkit/actions/workflows/deploy-web.yml/badge.svg)](https://github.com/sphilius/godot_open-world_starterkit/actions/workflows/deploy-web.yml)
+**Play in the browser:** https://sphilius.github.io/godot_open-world_starterkit/ (add `?touch` for the tablet controls)
+
 Golden-hour valley: a samurai walks a gravel path lined with torii gates and stone lanterns
 through wind-rippled grass, lit by a physical sky, SDFGI and volumetric fog. Wolves roam the
 meadow and bite back, and a 3-hit katana combo deals with them. It plays on desktop and in the
@@ -40,9 +43,46 @@ This is set by `rendering/renderer/rendering_method.web` and needs no code chang
 4. On the tablet (same Wi-Fi), open `http://<this-PC's-IP>:8000`. Tap **FULL** for fullscreen.
    Or host the folder on any static host (itch.io, GitHub Pages).
 
-**Play it now:** https://sphilius.github.io/godot_open-world_starterkit/ (GitHub Pages).
-To update it after a new export, run `bash tools/publish_web.sh`. It force-pushes the build as a
-single commit on the `gh-pages` branch.
+**Auto-deploy:** every push to `main` runs `.github/workflows/deploy-web.yml`: **test → export → deploy**.
+It installs Godot 4.7.1 and the web templates on a Linux runner (cached after the first run), runs the
+headless test suite, and only if every test passes, exports the Web preset and publishes it to
+https://sphilius.github.io/godot_open-world_starterkit/. Pull requests run the tests only.
+Docs-only pushes are skipped. To redeploy by hand, use **Actions ▸ Test & deploy web build ▸ Run workflow**.
+
+## Tests (the deploy gate)
+
+```
+godot --headless --path . --script res://tests/run_tests.gd                    # all tests, ~45 s
+godot --headless --path . --script res://tests/run_tests.gd -- --filter=wolves # file or test name substring
+bash tools/ci/validate.sh [--filter=hit]   # same, but downloads Godot 4.7.1 first if needed and re-imports
+```
+
+| File | Covers |
+|---|---|
+| `tests/test_data.gd` | Attack timing windows are sane; generated clips match `AttackData` durations (a stale rig build fails); every AnimationTree state exists |
+| `tests/test_combat.gd` | Buffered 3-hit combo kills a wolf (hits, hit-stop, death, collision off, freed); draw then sheathe after 3 s; uncaptured clicks don't attack but key and touch actions do |
+| `tests/test_wolves.gd` | Wander and chase on the navmesh; a bite damages and flinches the player; striking during the wind-up cancels the bite; player death, wolves disengaging, respawn |
+| `tests/test_touch.gd` | Touch buttons press and release actions (multi-touch safe), RUN latches, the look pad turns the camera (one finger), RESET respawns |
+| `tests/test_project.gd` | Every script compiles and every scene loads. It's the parse gate, because `godot --import` exits 0 even with broken scripts |
+| `tests/test_smoke.gd` | Player and wolf scenes spawn at full health; a Hitbox hits each target once per activation; i-frames; `HealthComponent.resolve()` |
+| `tests/test_time_scale.gd` | `TimeScale` requests (slowest wins); hit-stop ending mid slow-motion keeps the slow-motion; hit-stop re-arms after a reset; overlapping stops extend |
+| `tests/test_hit_pipeline.gd` | `grant_invulnerability()`; Hurtbox defenders (order, claiming, pass-through); posture damage; a Hitbox touching the body still goes through the Hurtbox's defenders |
+| `tests/test_combat_integration.gd` | On a bare stage: the attack input lands the animated katana on a wolf; a wolf's bite lands on the player |
+
+A test fails on a failed check, a 60 s timeout, or **any engine or script error logged while it
+runs**, including its setup and teardown (caught with a `Logger`). A test that logs an error and
+then stops making progress fails after 0.5 s instead of waiting out the timeout. A test file that fails to load, or a run with zero tests, also
+fails. Failures show as annotations on the GitHub Actions run.
+
+To add a test, create `tests/test_<topic>.gd` that `extends "res://tests/test_case.gd"` and add
+`test_*` methods. Start with `await load_world()` for a fresh, seeded copy of the main scene, then
+use `check()`, `check_eq()`, `wait_until()` and helpers like `place_player_near()` and `press_attack()`.
+For a component test that doesn't need the world, build nodes with `add_to_stage()` (a bare Node3D
+in the running tree, freed after the test) and `tests/lib/combat_fixtures.gd`.
+Pull requests into `vertical-slice-prototype` run the same suite (`.github/workflows/validate.yml`), and
+`.claude/hooks/session-start.sh` installs Godot in Claude Code web sessions.
+Headless mode doesn't dispatch input to the GUI, so feed UI events straight into `_gui_input()`
+(see `test_touch.gd`).
 
 URL options: `?touch` forces the touch UI, and `?quality=low|medium|high` picks a preset (web defaults to LOW).
 The overlay shows FPS, the quality preset and the samurai's combat state (IDLE, ATTACK_2, HURT…),
@@ -136,21 +176,6 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 
 Physics layers: 1 world · 2 player · 3 mobs · 4 player_hitbox · 5 mob_hurtbox · 6 mob_hitbox · 7 player_hurtbox.
 The katana hitbox masks 3 and 5; the wolf's bite hitbox masks 7.
-
-## Validation (headless tests)
-
-```
-bash tools/ci/validate.sh                  # downloads Godot 4.7.1 once, imports, runs every test
-bash tools/ci/validate.sh --filter=hit     # only tests whose file or method name contains "hit"
-```
-
-Tests live in `tests/test_*.gd` and extend `TestCase` (`tests/lib/test_case.gd`). Each test
-method gets a fresh stage in the running scene tree, so `_ready()`, physics and Area3D overlaps
-behave as in game, and it may `await`. A test fails on a failed expectation, on any engine or
-script error logged while it runs, or on a 10 s timeout. `tests/test_project.gd` loads every
-script and scene. It's the parse gate, because `godot --import` exits 0 even with broken
-scripts. CI (`.github/workflows/validate.yml`) runs the same script on every PR, and
-`.claude/hooks/session-start.sh` installs Godot in Claude Code web sessions.
 
 ## Placeholder art pipeline
 

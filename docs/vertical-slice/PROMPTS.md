@@ -22,7 +22,7 @@ Rules:
 - Engine.time_scale is only written through TimeScale (after M1).
 - Add or extend tests under tests/ for what you build.
 - Done means that `bash tools/ci/validate.sh` exits 0 (it installs Godot 4.7.1 if needed, imports,
-  and runs every test in tests/; new tests extend TestCase from tests/lib/test_case.gd). Then commit with `feat(<area>): <component> (validated)`, and update the manifest if the surface changed.
+  and runs every test in tests/; new tests `extends "res://tests/test_case.gd"`). Then commit with `feat(<area>): <component> (validated)`, and update the manifest if the surface changed.
 ```
 
 ---
@@ -35,8 +35,8 @@ TASK: Make the project headlessly verifiable in CI and in cloud Claude sessions.
    Node and has `func test_*() -> void` methods, which may `await`. For each file the runner
    adds a fresh test root Node3D to `root` (so `_ready()` runs and Area3D overlaps happen in a
    real physics world), adds the test node under it, `await`s each method, then frees the test
-   root. It collects failures from a tiny assert helper (tests/lib/test_case.gd: expect, expect_eq,
-   expect_near), prints a summary and calls quit(1) on any failure.
+   root. It collects failures from a tiny assert helper (tests/test_case.gd: check, check_eq,
+   check_near), prints a summary and calls quit(1) on any failure.
    Give tests a helper `await_physics(frames := 2)` that awaits `physics_frame` that many times.
 2. tests/test_smoke.gd: add scenes/player/player.tscn and scenes/mobs/wolf.tscn **into the test
    root** (never test them off-tree: HealthComponent._ready() sets current_health, and

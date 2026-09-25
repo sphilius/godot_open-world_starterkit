@@ -1,4 +1,4 @@
-extends TestCase
+extends "res://tests/test_case.gd"
 ## End-to-end combat on the shipped scenes: input → combat FSM → animated katana → Hitbox →
 ## Hurtbox → HealthComponent, and the wolf's AI bite against the player.
 
@@ -9,13 +9,13 @@ func test_attack_input_lands_the_katana_on_a_wolf() -> void:
 	var wolf := CombatFixtures.make_idle_wolf()
 	wolf.position = Vector3(0, 0, -1.4)
 	add_to_stage(wolf)
-	await await_physics(3)
+	await physics_frames(3)
 
 	_press_attack()
-	await await_seconds(0.8)
-	expect(wolf.health.current_health < wolf.health.max_health,
+	await seconds(0.8)
+	check(wolf.health.current_health < wolf.health.max_health,
 			"the first strike lands (wolf health %s)" % wolf.health.current_health)
-	await await_seconds(0.2)                              # let hit flash and hit-stop finish
+	await seconds(0.2)                              # let hit flash and hit-stop finish
 
 
 func test_wolf_bite_lands_on_the_player() -> void:
@@ -28,9 +28,9 @@ func test_wolf_bite_lands_on_the_player() -> void:
 	var player_health := HealthComponent.resolve(player)
 	var deadline := Time.get_ticks_msec() + 4000
 	while player_health.current_health >= player_health.max_health and Time.get_ticks_msec() < deadline:
-		await get_tree().physics_frame
-	expect(player_health.current_health < player_health.max_health, "the wolf's bite lands")
-	await await_seconds(0.2)
+		await tree.physics_frame
+	check(player_health.current_health < player_health.max_health, "the wolf's bite lands")
+	await seconds(0.2)
 
 
 ## Positioned before entering the tree, so no two bodies ever overlap at the origin.

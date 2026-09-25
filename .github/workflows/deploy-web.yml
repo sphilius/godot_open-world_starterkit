@@ -1,0 +1,74 @@
+# Tests the game headless, then exports the "Web" preset and deploys it to GitHub Pages.
+#   push to main   → test → export → deploy  (docs-only pushes are skipped)
+#   pull request   → test only
+#   manual run     → test → export → deploy  (Actions ▸ Run workflow)
+# Nothing deploys unless every test passes. Live build: https://sphilius.github.io/godot_open-world_starterkit/
+name: Test & deploy web build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", ".gitignore", ".gitattributes"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  GODOT_VERSION: "4.7.1"
+  GODOT_RELEASE: "4.7.1-stable"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-godot
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          release: ${{ env.GODOT_RELEASE }}
+      # Combat, wolf AI, touch controls and data consistency (res://tests). A failed check, a
+      # timeout, or any engine/script error logged during a test fails the job (and blocks deploy).
+      - name: Run headless tests
+        run: ~/godot/godot --headless --path . --script res://tests/run_tests.gd
+
+  export:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-godot
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          release: ${{ env.GODOT_RELEASE }}
+      - name: Export Web preset
+        run: |
+          mkdir -p build/web
+          ~/godot/godot --headless --path . --export-release "Web" build/web/index.html
+          test -s build/web/index.wasm && test -s build/web/index.pck   # fail loudly on a silent export error
+          ls -lh build/web
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: build/web
+
+  deploy:
+    needs: export
+    runs-on: ubuntu-latest
+    # One deploy at a time. A newer push queues behind a running deploy instead of cancelling it.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

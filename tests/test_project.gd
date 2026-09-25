@@ -1,4 +1,4 @@
-extends TestCase
+extends "res://tests/test_case.gd"
 ## Project-wide gate. `godot --import` exits 0 even when a script doesn't parse, so this test
 ## loads every script and scene; the runner fails it on any error logged while loading.
 
@@ -7,15 +7,15 @@ const SKIP_DIRS: Array[String] = ["res://.godot", "res://build"]
 
 func test_every_script_compiles() -> void:
 	var scripts := _files_with_extension("res://", "gd")
-	expect(scripts.size() > 10, "found only %d scripts" % scripts.size())
+	check(scripts.size() > 10, "found only %d scripts" % scripts.size())
 	for path in scripts:
 		var script := load(path) as GDScript
-		expect(script != null and script.can_instantiate(), "%s doesn't compile" % path)
+		check(script != null and script.can_instantiate(), "%s doesn't compile" % path)
 
 
 func test_every_scene_loads() -> void:
 	for path in _files_with_extension("res://", "tscn"):
-		expect(load(path) is PackedScene, "%s doesn't load" % path)
+		check(load(path) is PackedScene, "%s doesn't load" % path)
 
 
 func _files_with_extension(dir: String, extension: String) -> PackedStringArray:

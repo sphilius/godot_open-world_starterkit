@@ -207,5 +207,5 @@ bash tools/ci/validate.sh                  # downloads Godot 4.7.1 if needed, im
 bash tools/ci/validate.sh --filter=hit     # only tests whose file or method name contains "hit"
 ```
 `--import` alone exits 0 even when a script doesn't parse; `tests/test_project.gd` loads every
-script and scene and is the real parse gate. Tests extend `TestCase` (`tests/lib/test_case.gd`)
+script and scene and is the real parse gate. Tests `extends "res://tests/test_case.gd"` (`check`, `check_eq`, `check_near`, `wait_until`, `load_world()` for the full scene, `add_to_stage()` for component tests; builders in `tests/lib/combat_fixtures.gd`)
 and fail on any engine error logged while they run. Commit only when validation passes: `git commit -m "feat(combat): <component> (validated)"`.
