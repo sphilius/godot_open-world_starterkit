@@ -18,7 +18,7 @@ func test_action_buttons_press_and_release_their_actions() -> void:
 	await tree.process_frame
 	check(not attack.is_pressed and not Input.is_action_pressed(&"attack"), "ATK didn't release")
 
-	for button_name: String in ["Heavy", "Dodge"]:
+	for button_name: String in ["Heavy", "Dodge", "Lock", "Next"]:
 		var button := controls.buttons[button_name] as TouchActionButton
 		_touch(button, 9, true)
 		await tree.process_frame
@@ -40,13 +40,13 @@ func test_action_buttons_press_and_release_their_actions() -> void:
 func test_look_pad_turns_the_camera() -> void:
 	await load_world()
 	var pad := _controls().look_pad
-	var yaw_before := player()._target_yaw
+	var yaw_before := player().camera.target_yaw
 	_touch(pad, 6, true)
 	_drag(pad, 6, Vector2(100, 0))
-	check(is_equal_approx(player()._target_yaw - yaw_before, -100.0 * pad.sensitivity), "dragging the look pad didn't turn the camera")
-	var yaw_held := player()._target_yaw
+	check(is_equal_approx(player().camera.target_yaw - yaw_before, -100.0 * pad.sensitivity), "dragging the look pad didn't turn the camera")
+	var yaw_held := player().camera.target_yaw
 	_drag(pad, 7, Vector2(100, 0))                       # a second finger is ignored
-	check_eq(player()._target_yaw, yaw_held, "yaw after a second finger's drag")
+	check_eq(player().camera.target_yaw, yaw_held, "yaw after a second finger's drag")
 	_touch(pad, 6, false)
 
 

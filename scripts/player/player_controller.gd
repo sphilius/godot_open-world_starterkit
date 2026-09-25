@@ -2,12 +2,11 @@ class_name PlayerController
 extends CharacterBody3D
 ## Third-person explorer.
 ##
-## Camera   : the mouse feeds yaw/pitch *targets*, eased with frame-rate-independent
-##            exponential smoothing. A top-level rig follows the physics-*interpolated*
-##            body, so the view stays smooth at any refresh rate. SpringArm3D pulls the
-##            camera in when terrain or landmarks get between it and the player.
+## Camera   : CombatCamera on the CameraRig (free look, and lock-on framing). Mouse, touch and
+##            the gamepad right stick all feed it through add_look_input().
 ## Movement : camera-relative, with separate acceleration and deceleration rates and
-##            reduced air control.
+##            reduced air control. The model turns toward its travel direction, or, while
+##            locked on (TargetingSystem), keeps facing the target and strafes.
 ## Snapping : floor_snap_length keeps the body glued to the terrain when running downhill
 ##            or over crests, instead of launching off every bump.
 ## Also publishes its feet position to the `player_position` global shader uniform (grass push).
@@ -33,18 +32,13 @@ extends CharacterBody3D
 @export var snap_length := 0.6
 @export_range(0.0, 89.0) var max_slope_degrees := 50.0
 
-@export_group("Camera")
+@export_group("Look")
 ## Radians per screen pixel.
 @export var mouse_sensitivity := 0.0022
-## Exponential-decay rate for look smoothing (higher = snappier).
-@export_range(1.0, 50.0) var look_smoothing := 16.0
-## Exponential-decay rate for the rig chasing the body.
-@export_range(1.0, 50.0) var follow_smoothing := 12.0
-@export var camera_height := 1.6
-@export_range(-89.0, 0.0) var min_pitch_degrees := -65.0
-@export_range(0.0, 89.0) var max_pitch_degrees := 30.0
-@export var default_pitch_degrees := -6.0
-@export var invert_y := false
+## Gamepad right stick, radians per second at full tilt.
+@export var stick_look_speed := 3.2
+## Lock-on source; while it holds a target the body faces it.
+@export var targeting: TargetingSystem
 
 @export_group("Safety")
 ## Respawn if the player ever falls below this height.
@@ -63,18 +57,20 @@ const _DEFAULT_BINDINGS := {
 	&"attack": [["key", KEY_J], ["mouse", MOUSE_BUTTON_LEFT], ["joy", JOY_BUTTON_X]],
 	&"attack_heavy": [["key", KEY_K], ["mouse", MOUSE_BUTTON_RIGHT], ["joy", JOY_BUTTON_Y]],
 	&"dodge": [["key", KEY_L], ["key", KEY_C], ["joy", JOY_BUTTON_B]],
+	&"lock_on": [["mouse", MOUSE_BUTTON_MIDDLE], ["key", KEY_Q], ["joy", JOY_BUTTON_RIGHT_STICK]],
+	&"target_next": [["mouse", MOUSE_BUTTON_WHEEL_DOWN], ["key", KEY_E]],
+	&"target_prev": [["mouse", MOUSE_BUTTON_WHEEL_UP]],
+	&"look_left": [["axis", JOY_AXIS_RIGHT_X, -1.0]],
+	&"look_right": [["axis", JOY_AXIS_RIGHT_X, 1.0]],
+	&"look_up": [["axis", JOY_AXIS_RIGHT_Y, -1.0]],
+	&"look_down": [["axis", JOY_AXIS_RIGHT_Y, 1.0]],
 }
 ## Stick deadzone for the move actions.
 const _AXIS_DEADZONE := 0.2
 
 @onready var _visual: Node3D = $Visual
-@onready var _camera_rig: Node3D = $CameraRig
-@onready var _spring_arm: SpringArm3D = $CameraRig/SpringArm3D
+@onready var camera: CombatCamera = $CameraRig
 
-var _yaw := 0.0
-var _pitch := 0.0
-var _target_yaw := 0.0
-var _target_pitch := 0.0
 var _spawn_position := Vector3.ZERO
 var _spawn_yaw := 0.0
 var _look_blocked_until_msec := 0   # swallows the cursor-warp jump that follows a mouse capture
@@ -98,8 +94,8 @@ func _ready() -> void:
 	floor_max_angle = deg_to_rad(max_slope_degrees)
 	floor_constant_speed = true    # same ground speed uphill and downhill
 	floor_stop_on_slope = true     # no creeping down slopes while idle
-	_camera_rig.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # moved by hand in _process
-	_spring_arm.add_excluded_object(get_rid())
+	camera.follow = self
+	camera.spring_arm.add_excluded_object(get_rid())
 	var yaw := rotation.y
 	rotation = Vector3.ZERO          # the body stays upright/unrotated; only $Visual turns
 	spawn_at(global_position, yaw)
@@ -117,13 +113,8 @@ func spawn_at(pos: Vector3, yaw: float) -> void:
 	global_position = pos
 	velocity = Vector3.ZERO
 	_visual.rotation.y = yaw
-	_yaw = yaw
-	_target_yaw = yaw
-	_pitch = deg_to_rad(default_pitch_degrees)
-	_target_pitch = _pitch
 	reset_physics_interpolation()
-	_camera_rig.global_position = pos + Vector3.UP * camera_height
-	_apply_camera_rotation()
+	camera.snap_to(pos, yaw)
 
 
 ## Face `direction`, lock steering and burst forward (after `lunge_delay`). Called at the start
@@ -183,11 +174,10 @@ func respawn() -> void:
 	lock_controls(false)
 
 
-## Rotate the camera by a look delta in radians (x = yaw, y = pitch). Mouse and touch drags both land here.
+## Rotate the camera by a look delta in radians (x = yaw, y = pitch). Mouse, touch drags and the
+## right stick all land here.
 func add_look_input(delta: Vector2) -> void:
-	_target_yaw -= delta.x
-	_target_pitch -= delta.y * (-1.0 if invert_y else 1.0)
-	_target_pitch = clampf(_target_pitch, deg_to_rad(min_pitch_degrees), deg_to_rad(max_pitch_degrees))
+	camera.add_look_input(delta)
 
 
 ## Camera-relative movement input (unit length or zero). Still reported while attacking.
@@ -226,16 +216,10 @@ func _capture_mouse() -> void:
 
 
 func _process(delta: float) -> void:
-	# Mouse smoothing: exponential decay toward the target, alpha = 1 - e^(-k·dt).
-	var look_t := 1.0 - exp(-look_smoothing * delta)
-	_yaw = lerpf(_yaw, _target_yaw, look_t)
-	_pitch = lerpf(_pitch, _target_pitch, look_t)
-	_apply_camera_rotation()
-
-	var feet := get_global_transform_interpolated().origin
-	var anchor := feet + Vector3.UP * camera_height
-	_camera_rig.global_position = _camera_rig.global_position.lerp(anchor, 1.0 - exp(-follow_smoothing * delta))
-	RenderingServer.global_shader_parameter_set(&"player_position", feet)
+	var stick := Input.get_vector(&"look_left", &"look_right", &"look_up", &"look_down")
+	if stick != Vector2.ZERO:
+		add_look_input(stick * stick_look_speed * delta)
+	RenderingServer.global_shader_parameter_set(&"player_position", get_global_transform_interpolated().origin)
 
 
 func _physics_process(delta: float) -> void:
@@ -246,7 +230,7 @@ func _physics_process(delta: float) -> void:
 
 	# Camera-relative wish direction (yaw only, so looking down never slows you).
 	var input := Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back")
-	var wish := Vector3(input.x, 0.0, input.y).rotated(Vector3.UP, _yaw)
+	var wish := Vector3(input.x, 0.0, input.y).rotated(Vector3.UP, camera.yaw)
 	_move_direction = wish.normalized()
 	if _controls_locked:
 		wish = Vector3.ZERO           # strikes and flinches commit: no steering, just brake
@@ -273,17 +257,17 @@ func _physics_process(delta: float) -> void:
 	# velocity suspends the snap automatically, so jumps are never eaten.
 	move_and_slide()
 
-	if horizontal.length_squared() > 0.05 and not _controls_locked:
-		var facing := atan2(-horizontal.x, -horizontal.z)   # model faces -Z
-		_visual.rotation.y = lerp_angle(_visual.rotation.y, facing, 1.0 - exp(-turn_speed * delta))
+	if not _controls_locked:
+		var look := horizontal
+		if targeting and targeting.is_locked():
+			look = targeting.current_target.global_position - global_position   # strafe: face the target
+			look.y = 0.0
+		if look.length_squared() > 0.05:
+			var facing := atan2(-look.x, -look.z)   # model faces -Z
+			_visual.rotation.y = lerp_angle(_visual.rotation.y, facing, 1.0 - exp(-turn_speed * delta))
 
 	if global_position.y < kill_height:
 		spawn_at(_spawn_position, _spawn_yaw)
-
-
-func _apply_camera_rotation() -> void:
-	_camera_rig.rotation = Vector3(0.0, _yaw, 0.0)   # rig is top_level → global yaw
-	_spring_arm.rotation = Vector3(_pitch, 0.0, 0.0)
 
 
 static func _register_default_input_actions() -> void:
