@@ -1,5 +1,8 @@
 # Scenic Open World: Godot 4.7 Forward+ prototype
 
+[![Deploy web build](https://github.com/sphilius/godot_open-world_starterkit/actions/workflows/deploy-web.yml/badge.svg)](https://github.com/sphilius/godot_open-world_starterkit/actions/workflows/deploy-web.yml)
+**Play in the browser:** https://sphilius.github.io/godot_open-world_starterkit/ (add `?touch` for the tablet controls)
+
 Golden-hour valley: a samurai walks a gravel path lined with torii gates and stone lanterns
 through wind-rippled grass, lit by a physical sky, SDFGI and volumetric fog. Wolves roam the
 meadow and bite back, and a 3-hit katana combo deals with them. It plays on desktop and in the
@@ -40,9 +43,10 @@ This is set by `rendering/renderer/rendering_method.web` and needs no code chang
 4. On the tablet (same Wi-Fi), open `http://<this-PC's-IP>:8000`. Tap **FULL** for fullscreen.
    Or host the folder on any static host (itch.io, GitHub Pages).
 
-**Play it now:** https://sphilius.github.io/godot_open-world_starterkit/ (GitHub Pages).
-To update it after a new export, run `bash tools/publish_web.sh`. It force-pushes the build as a
-single commit on the `gh-pages` branch.
+**Auto-deploy:** every push to `main` runs `.github/workflows/deploy-web.yml`. It installs Godot
+4.7.1 and the web templates on a Linux runner (cached after the first run), exports the Web
+preset, and publishes it to https://sphilius.github.io/godot_open-world_starterkit/.
+Docs-only pushes are skipped. To redeploy by hand, use **Actions ▸ Deploy web build ▸ Run workflow**.
 
 URL options: `?touch` forces the touch UI, and `?quality=low|medium|high` picks a preset (web defaults to LOW).
 The overlay shows FPS, the quality preset and the samurai's combat state (IDLE, ATTACK_2, HURT…),
