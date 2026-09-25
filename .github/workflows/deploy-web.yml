@@ -1,12 +1,16 @@
-# Exports the "Web" preset with Godot and deploys it to GitHub Pages.
-# Runs on every push to main (docs-only changes are skipped) and on demand (Actions ▸ Run workflow).
-# Live build: https://sphilius.github.io/godot_open-world_starterkit/
-name: Deploy web build
+# Tests the game headless, then exports the "Web" preset and deploys it to GitHub Pages.
+#   push to main   → test → export → deploy  (docs-only pushes are skipped)
+#   pull request   → test only
+#   manual run     → test → export → deploy  (Actions ▸ Run workflow)
+# Nothing deploys unless every test passes. Live build: https://sphilius.github.io/godot_open-world_starterkit/
+name: Test & deploy web build
 
 on:
   push:
     branches: [main]
     paths-ignore: ["**.md", ".gitignore", ".gitattributes"]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -14,61 +18,43 @@ permissions:
   pages: write
   id-token: write
 
-# One deploy at a time. A newer push queues behind a running deploy instead of cancelling it.
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 env:
   GODOT_VERSION: "4.7.1"
   GODOT_RELEASE: "4.7.1-stable"
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-godot
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          release: ${{ env.GODOT_RELEASE }}
+      # Combat, wolf AI, touch controls and data consistency (res://tests). A failed check, a
+      # timeout, or any engine/script error logged during a test fails the job (and blocks deploy).
+      - name: Run headless tests
+        run: ~/godot/godot --headless --path . --script res://tests/run_tests.gd
+
   export:
+    needs: test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-
-      # Cached per Godot version: the editor binary plus only the web export templates.
-      - name: Cache Godot and web export templates
-        id: godot-cache
-        uses: actions/cache@v6
+      - uses: ./.github/actions/setup-godot
         with:
-          path: |
-            ~/godot
-            ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
-          key: godot-${{ env.GODOT_RELEASE }}-linux-web
-
-      - name: Install Godot and web templates (cache miss only)
-        if: steps.godot-cache.outputs.cache-hit != 'true'
-        run: |
-          base="https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}"
-          mkdir -p ~/godot
-          curl -fsSL -o /tmp/godot.zip "$base/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
-          unzip -q /tmp/godot.zip -d /tmp/godot
-          install -m 755 "/tmp/godot/Godot_v${GODOT_RELEASE}_linux.x86_64" ~/godot/godot
-          # The template archive is 1.2 GB; keep only the web templates (~85 MB) so the cache stays small.
-          curl -fsSL -o /tmp/templates.tpz "$base/Godot_v${GODOT_RELEASE}_export_templates.tpz"
-          dest=~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
-          mkdir -p "$dest"
-          unzip -q -j /tmp/templates.tpz 'templates/web*' 'templates/version.txt' -d "$dest"
-          rm -rf /tmp/godot.zip /tmp/godot /tmp/templates.tpz
-          ls -lh "$dest"
-
-      # Builds the .godot import cache and the global class list the scripts depend on.
-      - name: Import project
-        run: ~/godot/godot --headless --path . --import
-
+          version: ${{ env.GODOT_VERSION }}
+          release: ${{ env.GODOT_RELEASE }}
       - name: Export Web preset
         run: |
           mkdir -p build/web
           ~/godot/godot --headless --path . --export-release "Web" build/web/index.html
           test -s build/web/index.wasm && test -s build/web/index.pck   # fail loudly on a silent export error
           ls -lh build/web
-
       - uses: actions/configure-pages@v6
-
       - uses: actions/upload-pages-artifact@v5
         with:
           path: build/web
@@ -76,6 +62,10 @@ jobs:
   deploy:
     needs: export
     runs-on: ubuntu-latest
+    # One deploy at a time. A newer push queues behind a running deploy instead of cancelling it.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

@@ -43,10 +43,35 @@ This is set by `rendering/renderer/rendering_method.web` and needs no code chang
 4. On the tablet (same Wi-Fi), open `http://<this-PC's-IP>:8000`. Tap **FULL** for fullscreen.
    Or host the folder on any static host (itch.io, GitHub Pages).
 
-**Auto-deploy:** every push to `main` runs `.github/workflows/deploy-web.yml`. It installs Godot
-4.7.1 and the web templates on a Linux runner (cached after the first run), exports the Web
-preset, and publishes it to https://sphilius.github.io/godot_open-world_starterkit/.
-Docs-only pushes are skipped. To redeploy by hand, use **Actions ▸ Deploy web build ▸ Run workflow**.
+**Auto-deploy:** every push to `main` runs `.github/workflows/deploy-web.yml`: **test → export → deploy**.
+It installs Godot 4.7.1 and the web templates on a Linux runner (cached after the first run), runs the
+headless test suite, and only if every test passes, exports the Web preset and publishes it to
+https://sphilius.github.io/godot_open-world_starterkit/. Pull requests run the tests only.
+Docs-only pushes are skipped. To redeploy by hand, use **Actions ▸ Test & deploy web build ▸ Run workflow**.
+
+## Tests (the deploy gate)
+
+```
+godot --headless --path . --script res://tests/run_tests.gd                    # all tests, ~45 s
+godot --headless --path . --script res://tests/run_tests.gd -- --filter=wolves # file or test name substring
+```
+
+| File | Covers |
+|---|---|
+| `tests/test_data.gd` | Attack timing windows are sane; generated clips match `AttackData` durations (a stale rig build fails); every AnimationTree state exists |
+| `tests/test_combat.gd` | Buffered 3-hit combo kills a wolf (hits, hit-stop, death, collision off, freed); draw then sheathe after 3 s; uncaptured clicks don't attack but key and touch actions do |
+| `tests/test_wolves.gd` | Wander and chase on the navmesh; a bite damages and flinches the player; striking during the wind-up cancels the bite; player death, wolves disengaging, respawn |
+| `tests/test_touch.gd` | Touch buttons press and release actions (multi-touch safe), RUN latches, the look pad turns the camera (one finger), RESET respawns |
+
+A test fails on a failed check, a 60 s timeout, or **any engine or script error logged while it
+runs** (caught with a `Logger`). A test file that fails to load, or a run with zero tests, also
+fails. Failures show as annotations on the GitHub Actions run.
+
+To add a test, create `tests/test_<topic>.gd` that `extends "res://tests/test_case.gd"` and add
+`test_*` methods. Start with `await load_world()` for a fresh, seeded copy of the main scene, then
+use `check()`, `check_eq()`, `wait_until()` and helpers like `place_player_near()` and `press_attack()`.
+Headless mode doesn't dispatch input to the GUI, so feed UI events straight into `_gui_input()`
+(see `test_touch.gd`).
 
 URL options: `?touch` forces the touch UI, and `?quality=low|medium|high` picks a preset (web defaults to LOW).
 The overlay shows FPS, the quality preset and the samurai's combat state (IDLE, ATTACK_2, HURT…),
