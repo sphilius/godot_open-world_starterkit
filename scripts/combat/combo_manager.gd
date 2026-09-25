@@ -10,7 +10,9 @@ extends Node
 ##   `draw_root` while the weapon is sheathed: the quick-draw opener). Each strike's node says which action chains
 ##   into which strike; a chain that has no branch for an action ends there.
 ## • Reset: after a strike ends, the chain is remembered for `combo_reset_time` seconds, so a
-##   press soon after recovery still continues it. Then it returns to neutral.
+##   press soon after recovery still continues it. Then it returns to neutral. A press that has
+##   no branch from the finished strike (anything after a finisher) starts from neutral at once
+##   instead of being dropped.
 
 signal attack_triggered(attack: AttackData)
 signal combo_reset
@@ -100,12 +102,15 @@ func _process(_delta: float) -> void:
 func _node_for(action: StringName, sheathed: bool) -> ComboNode:
 	if _reset_at_msec >= 0 and Time.get_ticks_msec() >= _reset_at_msec:
 		reset()
-	var from := _current
-	if from == null and graph:
-		from = graph.draw_root if sheathed and graph.draw_root else graph.root
-	if from == null:
-		return null
-	return from.follow(action)
+	var neutral: ComboNode
+	if graph:
+		neutral = graph.draw_root if sheathed and graph.draw_root else graph.root
+	if _current == null:
+		return neutral.follow(action) if neutral else null
+	var node := _current.follow(action)
+	if node == null and _reset_at_msec >= 0 and neutral:
+		node = neutral.follow(action)          # the strike is over: no branch means a fresh chain
+	return node
 
 
 func _drop_expired() -> void:
