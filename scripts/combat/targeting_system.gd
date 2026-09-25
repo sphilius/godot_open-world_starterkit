@@ -29,6 +29,9 @@ signal target_changed(target: Node3D)
 @export_flags_3d_physics var sight_mask := 1
 ## Height above a target's origin for the reticle and sight checks (m).
 @export var aim_height := 0.7
+## Enemies whose angles off the view centre differ by less than this count as equally
+## centred, and the nearer one wins.
+@export var tie_degrees := 2.0
 ## Right-stick flick: past `x` it switches target; it must fall back under `y` before the next.
 @export var flick_thresholds := Vector2(0.7, 0.3)
 
@@ -86,18 +89,22 @@ func set_target(target: Node3D) -> void:
 func find_best_target(exclude: Node3D = null) -> Node3D:
 	var forward := _view_forward()
 	var min_dot := cos(deg_to_rad(cone_degrees * 0.5))
+	var tie := deg_to_rad(tie_degrees)
 	var best: Node3D
-	var best_score := INF
+	var best_angle := INF
+	var best_distance := INF
 	for enemy in _candidates(exclude):
 		var to_enemy := _flat(enemy.global_position - body.global_position)
 		var distance := to_enemy.length()
 		var dot := forward.dot(to_enemy / distance) if distance > 0.01 else 1.0
 		if dot < min_dot:
 			continue
-		var score := acos(clampf(dot, -1.0, 1.0)) + distance * 0.02   # angle first, distance breaks ties
-		if score < best_score:
+		# Angle first; distance only breaks near-ties.
+		var angle := acos(clampf(dot, -1.0, 1.0))
+		if angle < best_angle - tie or (absf(angle - best_angle) <= tie and distance < best_distance):
 			best = enemy
-			best_score = score
+			best_angle = angle
+			best_distance = distance
 	return best
 
 

@@ -17,6 +17,22 @@ func test_lock_picks_the_enemy_nearest_the_centre_of_view() -> void:
 	check(not targeting.is_locked(), "a second toggle releases the lock")
 
 
+func test_centring_beats_distance_when_acquiring() -> void:
+	var player := await _setup()
+	var centred := _wolf(Vector3(0, 0, -17))
+	var off_centre := _wolf(Vector3(5.0 * sin(deg_to_rad(10.0)), 0, -5.0 * cos(deg_to_rad(10.0))))
+	var tied := _wolf(Vector3(0.1, 0, -9))                    # ~0.6°: same as centred, but nearer
+	await physics_frames(2)
+	var targeting := player.targeting
+	targeting.toggle_lock()
+	check(targeting.current_target == tied, "near-equal angles fall back to distance")
+	targeting.toggle_lock()
+	tied.free()
+	targeting.toggle_lock()
+	check(targeting.current_target == centred, "a far centred enemy beats a near off-centre one")
+	check(targeting.current_target != off_centre, "the 10° enemy isn't picked")
+
+
 func test_cone_and_line_of_sight_filter_targets() -> void:
 	var player := await _setup()
 	var off_angle := _wolf(Vector3(5, 0, -5))                 # 45°: outside the 70° cone
