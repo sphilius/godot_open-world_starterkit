@@ -21,13 +21,13 @@ Rules:
 - Keep the 7 faction physics layers from the manifest. Never tween a CharacterBody3D's position.
 - Engine.time_scale is only written through TimeScale (after M1).
 - Add or extend tests under tests/ for what you build.
-- Done means that `godot --headless --path . --import` and `godot --headless --path . --script res://tests/run_tests.gd`
-  both exit 0. Then commit with `feat(<area>): <component> (validated)`, and update the manifest if the surface changed.
+- Done means that `bash tools/ci/validate.sh` exits 0 (it installs Godot 4.7.1 if needed, imports,
+  and runs every test in tests/; new tests extend TestCase from tests/lib/test_case.gd). Then commit with `feat(<area>): <component> (validated)`, and update the manifest if the surface changed.
 ```
 
 ---
 
-## M0: Toolchain and validation (LOW–MEDIUM)
+## M0: Toolchain and validation (LOW–MEDIUM) ✅ implemented
 
 ```text
 TASK: Make the project headlessly verifiable in CI and in cloud Claude sessions.
@@ -35,8 +35,8 @@ TASK: Make the project headlessly verifiable in CI and in cloud Claude sessions.
    Node and has `func test_*() -> void` methods, which may `await`. For each file the runner
    adds a fresh test root Node3D to `root` (so `_ready()` runs and Area3D overlaps happen in a
    real physics world), adds the test node under it, `await`s each method, then frees the test
-   root. It collects failures from a tiny assert helper (tests/assert.gd: eq, near, is_true,
-   fails_with), prints a summary and calls quit(1) on any failure.
+   root. It collects failures from a tiny assert helper (tests/lib/test_case.gd: expect, expect_eq,
+   expect_near), prints a summary and calls quit(1) on any failure.
    Give tests a helper `await_physics(frames := 2)` that awaits `physics_frame` that many times.
 2. tests/test_smoke.gd: add scenes/player/player.tscn and scenes/mobs/wolf.tscn **into the test
    root** (never test them off-tree: HealthComponent._ready() sets current_health, and
@@ -51,7 +51,7 @@ TASK: Make the project headlessly verifiable in CI and in cloud Claude sessions.
 5. README: a "Validation" section.
 ```
 
-## M1: Hit pipeline refactor (HIGH, and it must not change gameplay)
+## M1: Hit pipeline refactor (HIGH, and it must not change gameplay) ✅ implemented
 
 ```text
 READ: scripts/combat/{hitbox,hurtbox,hit_info,health_component,hit_stop}.gd, scripts/mobs/wolf.gd,
@@ -61,9 +61,9 @@ TASK:
    the minimum (1.0 when empty). Rewrite HitStop.trigger() on top of it (push, real-time timer, pop).
    Keep its "overlapping requests extend" behaviour.
 2. HitInfo v2: add poise_damage, damage_type, hit_position, unblockable, can_be_parried and attack
-   (defaults keep old call sites valid). Add `enum HitResult` per the manifest.
-3. Hurtbox v2: receive_hit(hit) -> HitResult, a defenders list (add_defender; each has
-   intercept(hit) -> HitResult, where IGNORED passes through), then health.take_damage, then an
+   (defaults keep old call sites valid). Add `enum Result` (HitInfo.Result) per the manifest.
+3. Hurtbox v2: receive_hit(hit) -> HitInfo.Result, a defenders list (add_defender; each has
+   intercept(hit) -> HitInfo.Result, where IGNORED passes through), then health.take_damage, then an
    optional posture.add_posture. Emits hit_received.
 4. Hitbox: when the touched node is a Hurtbox, fill hit_position (the closest point on the
    hurtbox shape, or the hurtbox origin) and call receive_hit(). Only trigger hit-stop and

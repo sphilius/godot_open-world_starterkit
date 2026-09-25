@@ -74,10 +74,11 @@ runtime in `PlayerController._DEFAULT_BINDINGS`). Groups: `enemies`, `navigation
 ## Planned (the contract that new code must implement)
 
 ```gdscript
-# M1: hit pipeline
+# M1: hit pipeline (implemented)
 class_name TimeScale extends RefCounted       # scripts/core/time_scale.gd
   static func push(id: StringName, scale: float) -> void   # effective scale = min of all pushed
   static func pop(id: StringName) -> void
+  static func has(id: StringName) -> bool; static func get_scale() -> float; static func reset() -> void
   # HitStop.trigger() becomes push(&"hitstop", 0.03) + a real-time timer + pop
   # Every push must have a pop on every exit path. The death slow-motion pops before respawn.
 
@@ -89,15 +90,21 @@ class_name HitInfo                            # v2, fields added (all optional, 
   poise_damage: float; damage_type: int (AttackData.DamageType); hit_position: Vector3
   unblockable: bool; can_be_parried: bool; attack: AttackData
 
-enum HitResult { IGNORED, HIT, BLOCKED, PARRIED, GUARD_BROKEN, KILLED }   # in hit_info.gd
+  enum Result { IGNORED, HIT, BLOCKED, PARRIED, GUARD_BROKEN, KILLED }   # HitInfo.Result
+  static func is_landed(result: Result) -> bool   # HIT or KILLED
 
 class_name Hurtbox                            # v2
-  signal hit_received(hit: HitInfo, result: HitResult)
-  @export var health: HealthComponent; @export var posture: PostureComponent   # posture optional
-  func receive_hit(hit: HitInfo) -> HitResult # runs defenders in order, then health and posture
-  func add_defender(d: Object) -> void        # anything with intercept(hit: HitInfo) -> HitResult (IGNORED = pass through)
+  signal hit_received(hit: HitInfo, result: HitInfo.Result)   # not emitted for IGNORED
+  @export var health: HealthComponent
+  @export var posture: Node                   # optional; anything with add_posture(amount) -> bool. Retype to PostureComponent in M5
+  func receive_hit(hit: HitInfo) -> HitInfo.Result   # runs defenders in order, then health and posture
+  func add_defender(d: Object) -> void        # anything with intercept(hit: HitInfo) -> HitInfo.Result (IGNORED = pass through)
+  func remove_defender(d: Object) -> void
+  static func find_for(node: Node, health: HealthComponent) -> Hurtbox   # a body's hurtbox, so body contacts can't bypass defenders
   # Returns IGNORED while health.is_invulnerable(), before any defender runs.
-  # Hitbox calls receive_hit() when it touched a Hurtbox; body-only targets keep the resolve() path.
+  # Hitbox routes every hit through the target's Hurtbox (found with find_for() when it touched the
+  # body). Only targets without a Hurtbox take damage directly. Hit-stop and hit_landed fire only
+  # on HIT or KILLED.
 
 # M3: offense
 class_name AttackData                         # v2, fields added
@@ -196,7 +203,9 @@ New input actions (M3, M5, M7, M9): `attack_heavy`, `attack_special`, `dodge`, `
 ## Validation (every handoff)
 
 ```
-godot --headless --path . --import                      # parse and import gate
-godot --headless --path . --script res://tests/run_tests.gd   # exit code 0 = pass
+bash tools/ci/validate.sh                  # downloads Godot 4.7.1 if needed, imports, runs every test
+bash tools/ci/validate.sh --filter=hit     # only tests whose file or method name contains "hit"
 ```
-Commit only when both pass: `git commit -m "feat(combat): <component> (validated)"`.
+`--import` alone exits 0 even when a script doesn't parse; `tests/test_project.gd` loads every
+script and scene and is the real parse gate. Tests extend `TestCase` (`tests/lib/test_case.gd`)
+and fail on any engine error logged while they run. Commit only when validation passes: `git commit -m "feat(combat): <component> (validated)"`.

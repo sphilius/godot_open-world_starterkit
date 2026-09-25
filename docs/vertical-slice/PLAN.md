@@ -59,7 +59,7 @@ should be changed (see §3).
 | Runbook component | Existing | Status | Delta |
 |---|---|---|---|
 | `HealthComponent.gd` | `scripts/combat/health_component.gd` | ✅⚠️ | Has i-frames and damaged, died and health_changed signals, plus revive and heal. **Keep `take_damage(hit: HitInfo)`.** The runbook's `take_damage(amount: float)` would drop the source, knockback and stagger |
-| `HurtboxArea3D.gd` | `scripts/combat/hurtbox.gd` (10 lines) | 🟡 | Add `receive_hit(hit: HitInfo) -> HitResult`, a defender chain (parry → guard → health and posture), and a `hit_received` signal |
+| `HurtboxArea3D.gd` | `scripts/combat/hurtbox.gd` (10 lines) | 🟡 | Add `receive_hit(hit: HitInfo) -> HitInfo.Result`, a defender chain (parry → guard → health and posture), and a `hit_received` signal |
 | `PostureComponent.gd` | — | ❌ | New |
 | `GuardComponent.gd` | — | ❌ | New. Needs a `guard` input action, guard animations and a guard-break state |
 | `ParrySystem.gd` | — | ❌ | New. 0.15 s window on guard *press*; reflects posture damage and recoils the attacker |
@@ -128,8 +128,10 @@ worse result.
    `SkeletonProfileHumanoid` `BoneMap` on import.
 9. **`godot --headless --script res://tests/test_validation.gd` is not a validation step by
    itself.** A `--script` entry point must extend `SceneTree`, and it doesn't parse the rest of
-   the project. Validation needs two steps: `godot --headless --path . --import` (catches parse
-   and import errors), then a `SceneTree` test runner that exits non-zero on failure (§6, M0).
+   the project. `godot --import` doesn't catch parse errors either: it exits 0 with a broken
+   script in the project (verified on 4.7.1). Validation is `bash tools/ci/validate.sh`: import,
+   then a `SceneTree` runner whose `test_project.gd` loads every script and scene, and which
+   fails any test that logs an engine error (§6, M0).
 10. **UNARMED stance doubles the animation bill.** It needs a second locomotion and attack set.
     Cut it for the slice, and keep "sheathed" only as the Iai quick-draw entry (decision D7).
 11. **"Knockdown ragdoll"** needs a `PhysicalBoneSimulator3D` setup per character plus a
@@ -210,6 +212,24 @@ Recommendations are marked ⭐. Nothing past M0 should start until D1–D5 are a
 | **D13** | Wolves | ⭐ **Keep them as Beat 1 tutorial enemies** · Remove | Free content that is already tuned |
 | **D14** | Multi-model routing | The runbook splits work across Claude, Gemini and Codex. ⭐ **Any model, with `HANDOFF_MANIFEST.md` plus one component per session, validated by CI** | Credit budget; the manifest and CI make the handoff safe regardless of model |
 
+### 5.1 Decision log (approved 2026-09-25)
+
+| # | Decision |
+|---|---|
+| D1, D2, D5–D14 | ⭐ defaults approved |
+| D3 / D3b | **AI 3D generation plus free assets**: AI-generated characters and props, rigged and animated with **Mixamo**, filled out with **Quaternius** and **Kenney** (CC0) assets and animation sets. No paid packs for now |
+| D4 | **Keep web and touch at parity, best effort.** Every new player action gets a touch button (heavy, dodge, guard, lock-on, interact) in the milestone that adds it, and `?quality=low` web builds must stay playable. Web-only fallbacks (no SDFGI or volumetric fog) are acceptable |
+
+Consequences:
+- **Katana animation is now the biggest art risk.** Mixamo and Quaternius have generic sword
+  sets, not katana-specific ones. Plan on retiming generic clips through `AttackData` and
+  hand-keying Iai, parry and execution in Blender. If combat feel falls short at the M5
+  playtest, revisit D3b.
+- AI-generated meshes need a clean-up pass (retopology or decimation, UV check, weight check)
+  before Mixamo auto-rigging. Budget it as part of M2.
+- Web parity means skinned-mesh counts and tri budgets have to be checked on the tablet at M6
+  and M8, not only at M10.
+
 ---
 
 ## 6. Milestones (mapped to runbook §7 steps 01–10)
@@ -221,8 +241,8 @@ either way.
 
 | M | Runbook step | Deliverable | Key files | Blocks on | AI | Human |
 |---|---|---|---|---|---|---|
-| **M0** | 01 | Godot 4.7 headless in CI and in the Claude session hook; `tests/run_tests.gd` runner; `--import` parse gate; smoke tests for the existing `Hitbox`, `HealthComponent` and `CombatStateMachine` | `.github/workflows/validate.yml`, `tests/`, `.claude/hooks/` | D11 | 1–2 h | 1–2 d |
-| **M1** | — (prereq) | **Hit pipeline refactor**: `TimeScale` arbiter, `HitInfo` v2, `Hurtbox.receive_hit`, `HitResult`. No gameplay change; the wolves and the samurai play the same | `scripts/core/time_scale.gd`, `scripts/combat/hit*.gd`, `hurtbox.gd` | D1, D2 | 1–2 h | 1–2 d |
+| **M0** ✅ | 01 | Godot 4.7 headless in CI and in the Claude session hook; `tests/run_tests.gd` runner; parse gate that loads every script and scene; smoke tests for the existing `Hitbox`, `HealthComponent` and `CombatStateMachine` | `.github/workflows/validate.yml`, `tests/`, `.claude/hooks/` | D11 | 1–2 h | 1–2 d |
+| **M1** ✅ | — (prereq) | **Hit pipeline refactor**: `TimeScale` arbiter, `HitInfo` v2, `Hurtbox.receive_hit`, `HitInfo.Result`. No gameplay change; the wolves and the samurai play the same | `scripts/core/time_scale.gd`, `scripts/combat/hit*.gd`, `hurtbox.gd` | D1, D2 | 1–2 h | 1–2 d |
 | **M2** | 02 | Art pass 1: blade, scabbard, courtyard kit and shrine via Blender MCP; characters via the D3 route; animation set via D3b; import presets with `BoneMap` retarget | `assets/**` | D3, D3b, D6, **purchases** | 2–4 h agent + user Blender sessions | 3–6 wk (art) |
 | **M3** | 03 | Offense: `AttackData` v2, `ComboManager` (FIFO buffer, branching graph, cancel windows), heavy, special, dodge with i-frames, `MotionWarping`, `WeaponManager` (hip sheath, Iai) | `scripts/combat/` | M1 (placeholder rig is fine until M2 lands) | 4–6 h | 1–2 wk |
 | **M4** | 04 | Headless validation #1: `tests/test_combat_core.gd` covers the buffer, chain branching, warp clamps and hitbox once-per-target | `tests/` | M3 | 1 h | 1–2 d |
