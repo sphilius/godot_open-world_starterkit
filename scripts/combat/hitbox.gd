@@ -53,13 +53,12 @@ func _on_struck(node: Node3D) -> void:
 		return
 	_hit_this_swing[health] = true
 
-	var push := Vector3.ZERO
-	if source:
-		push = node.global_position - source.global_position
-		push.y = 0.0
-		push = push.normalized()
-	var hit := HitInfo.new(_attack.damage, source, push * _attack.knockback, _attack.stagger_time)
+	var hit := HitInfo.new(_attack.damage, source, _knockback_direction(node) * _attack.knockback, _attack.stagger_time)
 	hit.attack = _attack
+	hit.poise_damage = _attack.poise_damage
+	hit.damage_type = _attack.damage_type
+	hit.unblockable = _attack.unblockable
+	hit.can_be_parried = _attack.can_be_parried
 	hit.hit_position = _contact_point(node)
 
 	var hurtbox := node as Hurtbox
@@ -73,6 +72,18 @@ func _on_struck(node: Node3D) -> void:
 	if landed:
 		HitStop.trigger(_attack.hitstop)
 		hit_landed.emit(health, hit)
+
+
+## Away from the attacker, or AttackData.knockback_direction_override turned into world space
+## by the attacker's facing. Horizontal, unit length (zero without a source).
+func _knockback_direction(target: Node3D) -> Vector3:
+	if source == null:
+		return Vector3.ZERO
+	var push := target.global_position - source.global_position
+	if _attack.knockback_direction_override != Vector3.ZERO:
+		push = source.global_basis * _attack.knockback_direction_override
+	push.y = 0.0
+	return push.normalized()
 
 
 ## Approximate contact point: midway between this hitbox's shape and the target's first shape

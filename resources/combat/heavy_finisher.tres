@@ -4,17 +4,16 @@
 
 [resource]
 script = ExtResource("1_attack")
-animation = &"bite"
-damage = 12.0
+animation = &"heavy_finisher"
+damage = 45.0
+poise_damage = 50.0
 duration = 0.9
-active_start = 0.38
-active_end = 0.52
+active_start = 0.3
+active_end = 0.48
 combo_window_open = 0.9
-lunge_speed = 5.0
-lunge_duration = 0.16
-lunge_delay = 0.34
-hitstop = 0.05
-stagger_time = 0.35
-knockback = 4.0
-poise_damage = 15.0
-damage_type = 2
+lunge_speed = 4.0
+lunge_duration = 0.22
+hitstop = 0.14
+stagger_time = 0.7
+knockback = 8.0
+trauma = 0.6

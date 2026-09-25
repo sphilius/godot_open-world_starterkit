@@ -18,6 +18,14 @@ func test_action_buttons_press_and_release_their_actions() -> void:
 	await tree.process_frame
 	check(not attack.is_pressed and not Input.is_action_pressed(&"attack"), "ATK didn't release")
 
+	for button_name: String in ["Heavy", "Dodge"]:
+		var button := controls.buttons[button_name] as TouchActionButton
+		_touch(button, 9, true)
+		await tree.process_frame
+		check(Input.is_action_pressed(button.action), "%s didn't press %s" % [button_name, button.action])
+		_touch(button, 9, false)
+		await tree.process_frame
+
 	var run := controls.buttons["Run"] as TouchActionButton
 	_touch(run, 5, true)
 	_touch(run, 5, false)

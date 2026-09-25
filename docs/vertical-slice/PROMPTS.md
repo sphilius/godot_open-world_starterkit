@@ -147,7 +147,7 @@ be baked.
 
 ---
 
-## M3: Offense
+## M3: Offense ✅ implemented (the quick-draw strike is `draw_attack`, not `iai_draw`)
 
 ### 3A. AttackData v2 (LOW–MEDIUM)
 ```text

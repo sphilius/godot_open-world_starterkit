@@ -5,8 +5,8 @@ extends SceneTree
 ##   godot --headless --path . --script res://tools/build_placeholder_rigs.gd
 ##
 ## Re-run after changing the bone layout, poses or AttackData timings (attack swings are keyed
-## from resources/combat/attack_*.tres). To swap in real art, keep the bone names (weapon_r,
-## scabbard, …) and animation names (idle, run, attack_1..3, hurt, death · idle, walk, run, bite, hurt, death),
+## from the AttackData resources in ATTACK_PATHS). To swap in real art, keep the bone names
+## (weapon_r, scabbard, …) and the clip names listed in docs/vertical-slice/HANDOFF_MANIFEST.md,
 ## or retarget the sockets and state machine.
 
 const SAMURAI_DIR := "res://assets/characters/samurai/"
@@ -15,7 +15,18 @@ const ATTACK_PATHS := [
 	"res://resources/combat/attack_1.tres",
 	"res://resources/combat/attack_2.tres",
 	"res://resources/combat/attack_3.tres",
+	"res://resources/combat/heavy_1.tres",
+	"res://resources/combat/heavy_2.tres",
+	"res://resources/combat/heavy_finisher.tres",
+	"res://resources/combat/draw_attack.tres",
 ]
+## Dodge clip length; CombatStateMachine.dodge_duration must match (tests/test_data.gd checks it).
+const DODGE_LENGTH := 0.45
+## Directional dodges: clip name → horizontal direction in model space (-Z forward, +X right).
+const DODGES := {
+	"dodge_f": Vector3(0, 0, -1), "dodge_b": Vector3(0, 0, 1),
+	"dodge_l": Vector3(-1, 0, 0), "dodge_r": Vector3(1, 0, 0),
+}
 const WOLF_BITE_PATH := "res://resources/combat/wolf_bite.tres"
 const DEG := PI / 180.0
 
@@ -41,10 +52,10 @@ const SAMURAI_BONES := [
 	["thigh_l", "hips", Vector3(-0.1, -0.02, 0)],
 	["shin_l", "thigh_l", Vector3(0, -0.44, 0)],
 	["foot_l", "shin_l", Vector3(0, -0.4, 0)],
-	["scabbard", "chest", Vector3(0.16, 0.14, 0.17)], # hilt over the right shoulder
+	["scabbard", "hips", Vector3(-0.21, 0.06, -0.06)], # left hip, mouth just forward of the obi
 ]
-## Sheathed blade direction: diagonally down-left across the back.
-const SCABBARD_DIRECTION := Vector3(-0.55, -0.83, 0.0)
+## Sheathed blade direction: back and slightly down from the left hip, edge up (decision D6).
+const SCABBARD_DIRECTION := Vector3(-0.1, -0.35, 1.0)
 const HIPS_REST := Vector3(0, 0.92, 0)
 
 ## Bones every samurai clip keys, so AnimationTree blends are deterministic.
@@ -110,7 +121,7 @@ func _build_samurai() -> void:
 			skeleton.set_bone_parent(index, skeleton.find_bone(bone[1]))
 		var basis := Basis.IDENTITY
 		if bone[0] == "scabbard":
-			basis = Basis.looking_at(SCABBARD_DIRECTION.normalized(), Vector3.BACK)
+			basis = Basis.looking_at(SCABBARD_DIRECTION.normalized(), Vector3.UP)
 		skeleton.set_bone_rest(index, Transform3D(basis, bone[2]))
 	skeleton.reset_bone_poses()
 
@@ -124,7 +135,7 @@ func _build_samurai() -> void:
 	body.skeleton = ^".."
 
 	# Weapon sockets: the katana moves between these two bone attachments.
-	for socket: Array in [["HandSocket", "weapon_r"], ["BackSocket", "scabbard"]]:
+	for socket: Array in [["HandSocket", "weapon_r"], ["SheathSocket", "scabbard"]]:
 		var attachment := BoneAttachment3D.new()
 		attachment.name = socket[0]
 		_own(root, skeleton, attachment)
@@ -138,12 +149,11 @@ func _build_samurai() -> void:
 		[2.4, SAMURAI_IDLE],
 	]))
 	library.add_animation(&"run", _samurai_run())
-	var attacks: Array[AttackData] = []
 	for path: String in ATTACK_PATHS:
-		attacks.append(load(path))
-	library.add_animation(attacks[0].animation, _slash_clip(attacks[0], 1.0))
-	library.add_animation(attacks[1].animation, _slash_clip(attacks[1], -1.0))
-	library.add_animation(attacks[2].animation, _overhead_clip(attacks[2]))
+		var attack: AttackData = load(path)
+		library.add_animation(attack.animation, _attack_clip(attack))
+	for dodge: String in DODGES:
+		library.add_animation(StringName(dodge), _dodge_clip(DODGES[dodge]))
 	library.add_animation(&"hurt", _samurai_hurt())
 	library.add_animation(&"death", _samurai_death())
 	library = _save(library, SAMURAI_DIR + "samurai_animations.tres")
@@ -203,6 +213,52 @@ func _samurai_run() -> Animation:
 		"thigh_l": Vector3(0, 0, 0), "shin_l": Vector3(-10, 0, 0),
 		"thigh_r": Vector3(15, 0, 0), "shin_r": Vector3(-80, 0, 0), "hips_offset": Vector3(0, 0.03, 0)})
 	return _samurai_clip(0.64, true, [[0.0, contact_r], [0.16, pass_l], [0.32, contact_l], [0.48, pass_r], [0.64, contact_r]])
+
+
+## The swing shape for each strike; timing comes from its AttackData.
+func _attack_clip(attack: AttackData) -> Animation:
+	match attack.animation:
+		&"attack_1", &"draw_attack":
+			return _slash_clip(attack, 1.0)
+		&"attack_2", &"heavy_finisher":
+			return _slash_clip(attack, -1.0)
+		&"attack_3", &"heavy_1":
+			return _overhead_clip(attack)
+		&"heavy_2":
+			return _thrust_clip(attack)
+	push_error("No placeholder swing for '%s'" % attack.animation)
+	return _slash_clip(attack, 1.0)
+
+
+## Thrust: draw the blade back at the hip, then drive it straight forward at chest height.
+func _thrust_clip(attack: AttackData) -> Animation:
+	var chambered := _pose(SLASH_STANCE, {"chest": Vector3(0, -30, 0),
+			"upper_arm_r": Vector3(20, 0, 20), "forearm_r": Vector3(100, 0, 0), "weapon_r": Vector3(-100, 0, 0)})
+	var coiled := _pose(chambered, {"chest": Vector3(0, -38, 0), "upper_arm_r": Vector3(10, 0, 25)})
+	var extended := _pose(SLASH_STANCE, {"spine": Vector3(-22, 0, 0), "chest": Vector3(0, 10, 0),
+			"upper_arm_r": Vector3(85, 0, 0), "forearm_r": Vector3(5, 0, 0), "weapon_r": Vector3(-90, 0, 0),
+			"thigh_l": Vector3(45, 0, -6), "shin_l": Vector3(-40, 0, 0), "hips_offset": Vector3(0, -0.12, -0.08)})
+	var recover := _pose(SAMURAI_IDLE, {"upper_arm_r": Vector3(35, 0, 10), "forearm_r": Vector3(35, 0, 0),
+			"weapon_r": Vector3(-40, 0, 0), "hips_offset": Vector3(0, -0.04, 0)})
+	var a := attack.active_start
+	var b := attack.active_end
+	return _samurai_clip(attack.duration, false, [
+		[0.0, chambered], [a, coiled], [(a + b) * 0.5, extended], [b, extended], [attack.duration, recover]])
+
+
+## Dodge: drop low and lean into the dash, then rise back into the guard.
+func _dodge_clip(direction: Vector3) -> Animation:
+	var lean := Vector3(-direction.z * -25.0, 0.0, -direction.x * 20.0)   # pitch toward travel, roll sideways
+	var crouch := _pose(SAMURAI_IDLE, {
+		"spine": Vector3(-20, 0, 0) + lean, "chest": Vector3(-10, 0, 0) + lean * 0.5, "head": Vector3(15, 0, 0),
+		"upper_arm_r": Vector3(40, 0, 25), "forearm_r": Vector3(60, 0, 0),
+		"upper_arm_l": Vector3(30, 0, -30), "forearm_l": Vector3(50, 0, 0),
+		"thigh_r": Vector3(55, 0, 8), "shin_r": Vector3(-80, 0, 0),
+		"thigh_l": Vector3(40, 0, -8), "shin_l": Vector3(-70, 0, 0),
+		"hips_offset": Vector3(0, -0.3, 0)})
+	var tucked := _pose(crouch, {"spine": Vector3(-30, 0, 0) + lean, "hips_offset": Vector3(0, -0.36, 0)})
+	return _samurai_clip(DODGE_LENGTH, false, [
+		[0.0, SAMURAI_IDLE], [0.08, crouch], [0.28, tucked], [DODGE_LENGTH, SAMURAI_IDLE]])
 
 
 ## Horizontal slash. side = +1 sweeps right → left (attack_1), -1 is the backhand (attack_2).
@@ -300,31 +356,33 @@ func _samurai_clip(length: float, loop: bool, keys: Array) -> Animation:
 
 func _samurai_state_machine() -> AnimationNodeStateMachine:
 	var machine := AnimationNodeStateMachine.new()
-	var layout := {
-		"idle": Vector2(300, 100), "run": Vector2(300, 280),
-		"attack_1": Vector2(600, 0), "attack_2": Vector2(850, 100), "attack_3": Vector2(1100, 200),
-		"hurt": Vector2(600, 420), "death": Vector2(900, 420)}
-	for state: String in layout:
+	var actions: Array[String] = []
+	for path: String in ATTACK_PATHS:
+		actions.append(String((load(path) as AttackData).animation))
+	actions.append_array(DODGES.keys())
+	var states: Array[String] = ["idle", "run"]
+	states.append_array(actions)
+	states.append_array(["hurt", "death"])
+	for i in states.size():
 		var node := AnimationNodeAnimation.new()
-		node.animation = StringName(state)
-		machine.add_node(StringName(state), node, layout[state])
+		node.animation = StringName(states[i])
+		machine.add_node(StringName(states[i]), node, Vector2(300 + 220 * (i % 4), 100 + 160 * (i / 4)))
 	_link(machine, "Start", "idle", 0.0, true)
 	_link(machine, "idle", "run", 0.15)
 	_link(machine, "run", "idle", 0.2)
-	for from: String in ["idle", "run"]:
-		_link(machine, from, "attack_1", 0.08)
-	_link(machine, "attack_1", "attack_2", 0.06)
-	_link(machine, "attack_2", "attack_3", 0.06)
-	for attack: String in ["attack_1", "attack_2", "attack_3"]:
-		_link(machine, attack, "idle", 0.2)
-		_link(machine, attack, "run", 0.2)
-	# Reactions can interrupt anything.
-	for from: String in ["idle", "run", "attack_1", "attack_2", "attack_3"]:
+	# Every action (strike or dodge) can start from, chain into, and return to any other state;
+	# CombatStateMachine decides what is allowed. Reactions can interrupt anything.
+	for action in actions:
+		for from: String in ["idle", "run", "hurt"] + actions:
+			if from != action:
+				_link(machine, from, action, 0.06 if from in actions else 0.08)
+		_link(machine, action, "idle", 0.2)
+		_link(machine, action, "run", 0.2)
+	for from: String in ["idle", "run"] + actions:
 		_link(machine, from, "hurt", 0.05)
 		_link(machine, from, "death", 0.1)
 	_link(machine, "hurt", "idle", 0.15)
 	_link(machine, "hurt", "run", 0.15)
-	_link(machine, "hurt", "attack_1", 0.08)
 	_link(machine, "hurt", "death", 0.1)
 	_link(machine, "death", "idle", 0.3)     # respawn
 	return machine

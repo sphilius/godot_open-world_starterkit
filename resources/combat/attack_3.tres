@@ -15,3 +15,5 @@ lunge_duration = 0.2
 hitstop = 0.12
 stagger_time = 0.6
 knockback = 7.0
+poise_damage = 25.0
+trauma = 0.45

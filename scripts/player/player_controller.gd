@@ -11,8 +11,9 @@ extends CharacterBody3D
 ## Snapping : floor_snap_length keeps the body glued to the terrain when running downhill
 ##            or over crests, instead of launching off every bump.
 ## Also publishes its feet position to the `player_position` global shader uniform (grass push).
-## Combat : CombatStateMachine calls begin_attack() / end_attack() to lock steering and lunge,
-##            and lock_controls() / apply_knockback() / respawn() when the samurai is hurt.
+## Combat : CombatStateMachine calls begin_attack() / begin_dodge() / end_attack() to lock
+##            steering and lunge (eased out, as velocity), and lock_controls() / apply_knockback()
+##            / respawn() when the samurai is hurt.
 ## Look     : mouse and touch both feed add_look_input(). Touch mode turns off mouse capture.
 
 @export_group("Movement")
@@ -49,17 +50,22 @@ extends CharacterBody3D
 ## Respawn if the player ever falls below this height.
 @export var kill_height := -40.0
 
-# Registered at runtime (physical keys → layout-independent WASD). Rebind in Project Settings ▸ Input Map to override.
-# MOUSE_BUTTON_* values (1, 2) never collide with Key codes, so one list can hold both.
+# Registered at runtime (physical keys → layout-independent WASD). Rebind in Project Settings ▸
+# Input Map to override. Each entry is [kind, code(, axis sign)]: "key", "mouse", "joy" (button)
+# or "axis" (joypad axis). Gamepad layout: Xbox names.
 const _DEFAULT_BINDINGS := {
-	&"move_forward": [KEY_W, KEY_UP],
-	&"move_back": [KEY_S, KEY_DOWN],
-	&"move_left": [KEY_A, KEY_LEFT],
-	&"move_right": [KEY_D, KEY_RIGHT],
-	&"jump": [KEY_SPACE],
-	&"sprint": [KEY_SHIFT],
-	&"attack": [KEY_J, MOUSE_BUTTON_LEFT],
+	&"move_forward": [["key", KEY_W], ["key", KEY_UP], ["axis", JOY_AXIS_LEFT_Y, -1.0]],
+	&"move_back": [["key", KEY_S], ["key", KEY_DOWN], ["axis", JOY_AXIS_LEFT_Y, 1.0]],
+	&"move_left": [["key", KEY_A], ["key", KEY_LEFT], ["axis", JOY_AXIS_LEFT_X, -1.0]],
+	&"move_right": [["key", KEY_D], ["key", KEY_RIGHT], ["axis", JOY_AXIS_LEFT_X, 1.0]],
+	&"jump": [["key", KEY_SPACE], ["joy", JOY_BUTTON_A]],
+	&"sprint": [["key", KEY_SHIFT], ["joy", JOY_BUTTON_LEFT_STICK]],
+	&"attack": [["key", KEY_J], ["mouse", MOUSE_BUTTON_LEFT], ["joy", JOY_BUTTON_X]],
+	&"attack_heavy": [["key", KEY_K], ["mouse", MOUSE_BUTTON_RIGHT], ["joy", JOY_BUTTON_Y]],
+	&"dodge": [["key", KEY_L], ["key", KEY_C], ["joy", JOY_BUTTON_B]],
 }
+## Stick deadzone for the move actions.
+const _AXIS_DEADZONE := 0.2
 
 @onready var _visual: Node3D = $Visual
 @onready var _camera_rig: Node3D = $CameraRig
@@ -74,7 +80,8 @@ var _spawn_yaw := 0.0
 var _look_blocked_until_msec := 0   # swallows the cursor-warp jump that follows a mouse capture
 var _move_direction := Vector3.ZERO # camera-relative input, even while attacking
 var _controls_locked := false      # attacking, flinching or dead: no steering or jumping
-var _lunge_velocity := Vector3.ZERO
+var _lunge_velocity := Vector3.ZERO   # average velocity; the lunge eases out around it
+var _lunge_duration := 0.0
 var _lunge_time_left := 0.0
 var _lunge_delay_left := 0.0
 
@@ -119,16 +126,39 @@ func spawn_at(pos: Vector3, yaw: float) -> void:
 	_apply_camera_rotation()
 
 
-## Face `direction`, lock steering and burst forward (after `lunge_delay`). Called at the start of every strike.
+## Face `direction`, lock steering and burst forward (after `lunge_delay`). Called at the start
+## of every strike. `lunge_speed` is the average: the burst starts at twice that and eases out
+## (quadratic), so it covers lunge_speed × lunge_duration metres.
 func begin_attack(direction: Vector3, lunge_speed: float, lunge_duration: float, lunge_delay := 0.0) -> void:
 	lock_controls(true)
 	direction.y = 0.0
 	direction = direction.normalized()
 	if direction != Vector3.ZERO:
-		_visual.rotation.y = atan2(-direction.x, -direction.z)
-	_lunge_velocity = direction * lunge_speed
-	_lunge_time_left = lunge_duration
-	_lunge_delay_left = lunge_delay
+		face(direction)
+	_start_lunge(direction * lunge_speed, lunge_duration, lunge_delay)
+
+
+## Dash along `direction` like a lunge. With `turn` off (strafing, locked on), the body keeps
+## its facing and the dash can go sideways or backwards.
+func begin_dodge(direction: Vector3, speed: float, duration: float, turn := true) -> void:
+	lock_controls(true)
+	direction.y = 0.0
+	direction = direction.normalized()
+	if turn and direction != Vector3.ZERO:
+		face(direction)
+	_start_lunge(direction * speed, duration, 0.0)
+
+
+## Turn the model to face `direction` at once (yaw only).
+func face(direction: Vector3) -> void:
+	_visual.rotation.y = atan2(-direction.x, -direction.z)
+
+
+func _start_lunge(average_velocity: Vector3, duration: float, delay: float) -> void:
+	_lunge_velocity = average_velocity
+	_lunge_duration = maxf(duration, 0.001)
+	_lunge_time_left = duration
+	_lunge_delay_left = delay
 
 
 func end_attack() -> void:
@@ -232,7 +262,8 @@ func _physics_process(delta: float) -> void:
 		if _lunge_delay_left > 0.0:
 			_lunge_delay_left -= delta
 		else:
-			horizontal = _lunge_velocity
+			var progress := 1.0 - _lunge_time_left / _lunge_duration
+			horizontal = _lunge_velocity * 2.0 * (1.0 - progress)   # ease-out quad, same distance
 			_lunge_time_left -= delta
 	velocity.x = horizontal.x
 	velocity.z = horizontal.z
@@ -259,15 +290,26 @@ static func _register_default_input_actions() -> void:
 	for action: StringName in _DEFAULT_BINDINGS:
 		if InputMap.has_action(action):
 			continue
-		InputMap.add_action(action)
-		for code: int in _DEFAULT_BINDINGS[action]:
-			var input_event: InputEvent
-			if code == MOUSE_BUTTON_LEFT or code == MOUSE_BUTTON_RIGHT:
-				var mouse_event := InputEventMouseButton.new()
-				mouse_event.button_index = code as MouseButton
-				input_event = mouse_event
-			else:
-				var key_event := InputEventKey.new()
-				key_event.physical_keycode = code as Key
-				input_event = key_event
-			InputMap.action_add_event(action, input_event)
+		InputMap.add_action(action, _AXIS_DEADZONE)
+		for binding: Array in _DEFAULT_BINDINGS[action]:
+			InputMap.action_add_event(action, _binding_event(binding))
+
+
+static func _binding_event(binding: Array) -> InputEvent:
+	match binding[0]:
+		"mouse":
+			var mouse_event := InputEventMouseButton.new()
+			mouse_event.button_index = binding[1] as MouseButton
+			return mouse_event
+		"joy":
+			var button_event := InputEventJoypadButton.new()
+			button_event.button_index = binding[1] as JoyButton
+			return button_event
+		"axis":
+			var axis_event := InputEventJoypadMotion.new()
+			axis_event.axis = binding[1] as JoyAxis
+			axis_event.axis_value = binding[2]
+			return axis_event
+	var key_event := InputEventKey.new()
+	key_event.physical_keycode = binding[1] as Key
+	return key_event
