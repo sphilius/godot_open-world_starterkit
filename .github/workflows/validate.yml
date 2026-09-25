@@ -1,0 +1,21 @@
+name: Validate
+
+on:
+  push:
+    branches: [main, vertical-slice-prototype]
+  pull_request:
+
+jobs:
+  godot-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GODOT_VERSION: 4.7.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/godot
+          key: godot-${{ env.GODOT_VERSION }}-linux-x86_64
+      - name: Import and run tests (headless)
+        run: bash tools/ci/validate.sh
