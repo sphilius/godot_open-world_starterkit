@@ -22,9 +22,14 @@ func _ready() -> void:
 	monitoring = false
 
 
-## Registers a defender: any object with intercept(hit: HitInfo) -> HitInfo.Result.
-func add_defender(defender: Object) -> void:
-	if not _defenders.has(defender):
+## Registers a defender: any object with intercept(hit: HitInfo) -> HitInfo.Result. `first`
+## puts it ahead of the others (ParrySystem runs before GuardComponent).
+func add_defender(defender: Object, first := false) -> void:
+	if _defenders.has(defender):
+		return
+	if first:
+		_defenders.push_front(defender)
+	else:
 		_defenders.append(defender)
 
 

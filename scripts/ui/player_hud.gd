@@ -1,16 +1,20 @@
 class_name PlayerHUD
 extends CanvasLayer
 ## Gameplay HUD: a health bar that drains smoothly (with a lighter "recent damage" segment),
-## a red flash when the player is hit, and a "Defeated" banner until respawn.
+## a posture bar under it that fills from the centre outward (red when broken), a red flash
+## when the player is hit, and a "Defeated" banner until respawn.
 ## Built in code, and every control ignores input, so touches pass through to TouchControls.
 
 @export var health: HealthComponent
+## Optional: shows the posture bar.
+@export var posture: PostureComponent
 @export var bar_position := Vector2(16, 44)
 @export var bar_size := Vector2(300, 14)
 ## How fast the "recent damage" segment catches up (fraction of the bar per second).
 @export var drain_speed := 0.8
 
 var _bar: Control
+var _posture_bar: Control
 var _flash: ColorRect
 var _banner: Label
 var _ratio := 1.0          # current health
@@ -30,6 +34,16 @@ func _ready() -> void:
 	_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bar.draw.connect(_draw_bar)
 	add_child(_bar)
+
+	if posture:
+		_posture_bar = Control.new()
+		_posture_bar.position = bar_position + Vector2(0, bar_size.y + 10)
+		_posture_bar.size = Vector2(bar_size.x, 6)
+		_posture_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_posture_bar.draw.connect(_draw_posture)
+		add_child(_posture_bar)
+		posture.posture_changed.connect(func(_current: float, _maximum: float) -> void: _posture_bar.queue_redraw())
+		posture.posture_recovered.connect(_posture_bar.queue_redraw)
 
 	_banner = Label.new()
 	_banner.text = "Defeated — returning to the path…"
@@ -71,3 +85,14 @@ func _draw_bar() -> void:
 	_bar.draw_rect(Rect2(Vector2.ZERO, Vector2(bar_size.x * _trail_ratio, bar_size.y)), Color(1.0, 0.9, 0.75, 0.8))
 	var fill := Color(0.78, 0.12, 0.08).lerp(Color(0.95, 0.72, 0.3), _ratio)
 	_bar.draw_rect(Rect2(Vector2.ZERO, Vector2(bar_size.x * _ratio, bar_size.y)), fill)
+
+
+func _draw_posture() -> void:
+	var size := _posture_bar.size
+	var ratio := clampf(posture.current / posture.max_posture, 0.0, 1.0) if posture.max_posture > 0.0 else 0.0
+	_posture_bar.draw_rect(Rect2(Vector2.ZERO, size).grow(2.0), Color(0, 0, 0, 0.45))
+	if ratio <= 0.0:
+		return
+	var width := size.x * ratio
+	var fill := Color(0.9, 0.2, 0.1) if posture.is_broken else Color(0.95, 0.75, 0.3).lerp(Color(1.0, 0.45, 0.15), ratio)
+	_posture_bar.draw_rect(Rect2(Vector2((size.x - width) * 0.5, 0.0), Vector2(width, size.y)), fill)

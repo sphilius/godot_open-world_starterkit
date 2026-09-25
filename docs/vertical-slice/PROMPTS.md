@@ -206,7 +206,7 @@ use iai_root when an attack is pressed while sheathed. Keep the 3.0 s idle sheat
 
 ---
 
-## M5: Defense
+## M5: Defense ✅ implemented (spam lockout counts from the end of each window; a successful parry lifts it)
 
 ### 5A. PostureComponent, GuardComponent, ParrySystem (HIGH)
 ```text

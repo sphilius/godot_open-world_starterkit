@@ -6,7 +6,8 @@ extends CanvasLayer
 ##
 ##   Left side  : floating thumbstick (built-in VirtualJoystick, move)       Anywhere else : drag to look
 ##   Bottom right: ATK (light: tap, keep tapping for the combo) · HVY (heavy) · DODGE · JUMP ·
-##                 RUN (sprint toggle) · LOCK (lock-on toggle) · NEXT (next target)
+##                 GUARD (hold; tap just before a hit to parry) · RUN (sprint toggle) ·
+##                 LOCK (lock-on toggle) · NEXT (next target)
 ##   Top right  : FULL (fullscreen) · QUAL (cycle quality) · RESET (back to the path start)
 
 @export var player: PlayerController
@@ -69,6 +70,7 @@ func _build() -> void:
 	_add_button("Run", &"sprint", "RUN", Rect2(-235, -410, 120, 120), true)
 	_add_button("Heavy", &"attack_heavy", "HVY", Rect2(-400, -360, 120, 120), false, Color(1.0, 0.7, 0.55), 24)
 	_add_button("Dodge", &"dodge", "DODGE", Rect2(-575, -170, 130, 130), false, Color(0.75, 0.9, 1.0), 22)
+	_add_button("Guard", &"guard", "GUARD", Rect2(-560, -330, 120, 120), false, Color(0.8, 0.85, 1.0), 20)
 	_add_button("Lock", &"lock_on", "LOCK", Rect2(-100, -400, 90, 90), false, Color(1.0, 0.85, 0.55), 18)
 	_add_button("Next", &"target_next", "NEXT", Rect2(-100, -510, 90, 90), false, Color(1.0, 0.85, 0.55), 18)
 

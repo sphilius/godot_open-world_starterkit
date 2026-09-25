@@ -12,6 +12,9 @@ const COMBO := [
 	"res://resources/combat/draw_attack.tres",
 ]
 const DODGES := ["dodge_f", "dodge_b", "dodge_l", "dodge_r"]
+## Guard and hit-reaction clips (M5); every stagger type's clip must be among them.
+const DEFENSE_CLIPS := ["guard_idle", "guard_hit", "parry_1", "parry_2",
+		"hurt_f", "hurt_b", "hurt_l", "hurt_r", "hurt_heavy", "knockdown", "guard_break"]
 const PLAYER_SCENE := "res://scenes/player/player.tscn"
 const SWORD_COMBO := "res://resources/combat/sword_combo.tres"
 const WOLF_BITE := "res://resources/combat/wolf_bite.tres"
@@ -38,8 +41,10 @@ func test_clips_match_their_attack_data() -> void:
 			var length := samurai.get_animation(attack.animation).length
 			check(is_equal_approx(length, attack.duration),
 					"clip '%s' is %.2f s but %s says %.2f s (rebuild the rigs)" % [attack.animation, length, path.get_file(), attack.duration])
-	for clip: String in ["idle", "run", "hurt", "death"]:
+	for clip: String in ["idle", "run", "death"] + DEFENSE_CLIPS:
 		check(samurai.has_animation(clip), "samurai clip '%s' is missing" % clip)
+	for type: StringName in CombatStateMachine.STAGGER_CLIPS:
+		check(String(CombatStateMachine.stagger_clip(type)) in DEFENSE_CLIPS, "stagger '%s' has no clip" % type)
 	var fsm := CombatStateMachine.new()
 	for clip: String in DODGES:
 		if check(samurai.has_animation(clip), "samurai clip '%s' is missing" % clip):
@@ -58,7 +63,8 @@ func test_clips_match_their_attack_data() -> void:
 
 func test_state_machine_has_every_combat_state() -> void:
 	var machine := load(SAMURAI_STATE_MACHINE) as AnimationNodeStateMachine
-	var states: Array[String] = ["idle", "run", "hurt", "death"]
+	var states: Array[String] = ["idle", "run", "death"]
+	states.append_array(DEFENSE_CLIPS)
 	states.append_array(DODGES)
 	for path: String in COMBO:
 		states.append(String((load(path) as AttackData).animation))

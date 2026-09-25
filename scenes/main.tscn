@@ -125,9 +125,10 @@ theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 15
 text = "Scenic Open World"
 
-[node name="PlayerHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("health")]
+[node name="PlayerHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("health", "posture")]
 script = ExtResource("14_player_hud")
 health = NodePath("../Player/HealthComponent")
+posture = NodePath("../Player/PostureComponent")
 
 [node name="TouchControls" type="CanvasLayer" parent="." node_paths=PackedStringArray("player", "dev_hud")]
 script = ExtResource("15_touch")
