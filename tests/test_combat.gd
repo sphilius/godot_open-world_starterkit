@@ -14,7 +14,11 @@ func test_buffered_combo_kills_a_wolf() -> void:
 
 	place_player_near(target, 6.0)
 	check(await wait_until(func() -> bool: return target.state == Wolf.State.CHASE, 2.0), "wolf never started chasing")
-	check(await wait_until(func() -> bool: return _gap(target) < target.chase_stop_distance + 0.4, 4.0), "wolf never closed in")
+	# The wolf stops steering once it's within chase_stop_distance + bite_range_slack (3D) and then
+	# brakes, so its flat gap settles just around that line: allow a margin, and time for the
+	# chase path (1.8-3.5 s here). Motion warping covers the rest of the gap.
+	check(await wait_until(func() -> bool:
+		return _gap(target) < target.chase_stop_distance + target.bite_range_slack + 0.3, 6.0), "wolf never closed in")
 
 	# The 2nd and 3rd presses land during the previous strike, so they must be buffered. The
 	# katana starts sheathed, so the chain opens with the quick-draw strike.
