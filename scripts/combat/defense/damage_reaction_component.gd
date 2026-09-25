@@ -8,12 +8,13 @@ extends Node
 ##   below `poise_threshold`          → a light flinch by direction: &"front", &"back",
 ##                                      &"left" or &"right" (where the attacker stands)
 ##   from `poise_threshold`           → &"heavy"
-##   from `knockdown_threshold`, or
-##   when the hit broke the posture   → &"knockdown" (animated; decision D8)
+##   from `knockdown_threshold`       → &"knockdown" (animated; decision D8)
+##   when this hit broke the posture  → &"knockdown", held for the whole posture break
 ## GUARD_BROKEN → &"guard_break" for GuardComponent.guard_break_stagger.
 ## BLOCKED      → no stagger; `blocked_push` of the knockback.
 ## play_parried() (called by the defender's ParrySystem) → &"parried".
-## Lethal hits are left to the owner's death handling.
+## Lethal hits are left to the owner's death handling. A knockdown, guard break or parried
+## stagger is never cut short by a later, shorter one (hits during a posture break, say).
 ##
 ## Knockback: a body with apply_knockback() (PlayerController) gets it there and brakes itself;
 ## any other CharacterBody3D gets its velocity set, and it decays here with `friction`.
@@ -42,6 +43,9 @@ signal stagger_ended
 ## Share of the knockback a blocked hit still pushes.
 @export_range(0.0, 1.0) var blocked_push := 0.35
 
+## Staggers a later, shorter reaction must not cut short.
+const HELD_TYPES: Array[StringName] = [&"knockdown", &"guard_break", &"parried"]
+
 var is_staggered := false
 var stagger_type := &""
 var _time_left := 0.0
@@ -52,18 +56,21 @@ func _ready() -> void:
 		hurtbox.hit_received.connect(_on_hit_received)
 
 
-## Staggers for `duration` seconds (replacing any current stagger).
+## Staggers for `duration` seconds, replacing the current stagger unless that is a held one
+## (knockdown, guard break, parried) with more time left.
 func react(type: StringName, duration: float) -> void:
+	if is_staggered and stagger_type in HELD_TYPES and _time_left >= duration:
+		return
 	is_staggered = true
 	stagger_type = type
 	_time_left = duration
 	stagger_started.emit(type)
 
 
-## The attacker side of a parry. A parry that also broke the posture holds for its break.
-func play_parried() -> void:
+## The attacker side of a parry. A parry that also broke the posture holds for the break.
+func play_parried(broke_posture := false) -> void:
 	var duration := parried_time
-	if posture and posture.is_broken:
+	if broke_posture and posture:
 		duration = maxf(duration, posture.break_duration)
 	react(&"parried", duration)
 
@@ -79,8 +86,11 @@ func clear() -> void:
 
 
 ## The stagger type and duration for a landed, non-lethal hit.
-func classify(hit: HitInfo, posture_broke := false) -> Array:
-	if posture_broke or hit.poise_damage >= knockdown_threshold:
+func classify(hit: HitInfo) -> Array:
+	if hit.broke_posture:
+		var hold := posture.break_duration if posture else 0.0
+		return [&"knockdown", maxf(maxf(knockdown_time, hit.stagger_time), hold)]
+	if hit.poise_damage >= knockdown_threshold:
 		return [&"knockdown", maxf(knockdown_time, hit.stagger_time)]
 	if hit.poise_damage >= poise_threshold:
 		return [&"heavy", maxf(heavy_time, hit.stagger_time)]
@@ -125,7 +135,7 @@ func _physics_process(delta: float) -> void:
 func _on_hit_received(hit: HitInfo, result: HitInfo.Result) -> void:
 	match result:
 		HitInfo.Result.HIT:
-			var reaction := classify(hit, posture != null and posture.is_broken)
+			var reaction := classify(hit)
 			_push(hit.knockback)
 			react(reaction[0], reaction[1])
 		HitInfo.Result.GUARD_BROKEN:

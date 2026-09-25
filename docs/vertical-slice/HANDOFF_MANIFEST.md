@@ -99,6 +99,7 @@ class_name HealthComponent                    # v2, methods added
 class_name HitInfo                            # v2, fields added (all optional, with defaults)
   poise_damage: float; damage_type: int (AttackData.DamageType); hit_position: Vector3
   unblockable: bool; can_be_parried: bool; attack: AttackData
+  broke_posture: bool                        # set by the Hurtbox (M5): this hit, not an earlier one, broke posture
 
   enum Result { IGNORED, HIT, BLOCKED, PARRIED, GUARD_BROKEN, KILLED }   # HitInfo.Result
   static func is_landed(result: Result) -> bool   # HIT or KILLED
@@ -172,7 +173,9 @@ class_name DamageReactionComponent extends Node   # node name "DamageReaction"
   @export poise_threshold := 30.0; knockdown_threshold := 60.0; friction := 18.0
   @export flinch_time := 0.3; heavy_time := 0.7; knockdown_time := 1.8; parried_time := 1.0; blocked_push := 0.35
   var is_staggered: bool; var stagger_type: StringName
-  func react(type: StringName, duration: float) -> void; func play_parried() -> void; func clear() -> void
+  func react(type: StringName, duration: float) -> void   # a held knockdown / guard_break / parried with more time left isn't cut short
+  func play_parried(broke_posture := false) -> void; func clear() -> void; func classify(hit: HitInfo) -> Array   # [type, duration]
+  # A hit that breaks posture knocks down for max(knockdown_time, stagger_time, posture.break_duration).
   static func direction_of(facing: Vector3, to_attacker: Vector3) -> StringName; static func find_on(node: Node) -> DamageReactionComponent
   # Knockback: bodies with apply_knockback() (PlayerController) brake themselves; others brake here with `friction`.
 CombatStateMachine: State adds GUARD; exports guard, parry, reaction, posture; guard_pressed() / guard_released();

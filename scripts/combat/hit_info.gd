@@ -36,6 +36,8 @@ var unblockable := false
 var can_be_parried := true
 ## The strike that produced this hit, if any.
 var attack: AttackData
+## Set by the Hurtbox: this hit's poise damage broke the target's posture (not an earlier hit's).
+var broke_posture := false
 
 
 func _init(p_damage := 0.0, p_source: Node3D = null, p_knockback := Vector3.ZERO, p_stagger_time := 0.0) -> void:

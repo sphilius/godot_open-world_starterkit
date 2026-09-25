@@ -49,7 +49,7 @@ func receive_hit(hit: HitInfo) -> HitInfo.Result:
 		return HitInfo.Result.IGNORED
 	var result := HitInfo.Result.KILLED if health.is_dead else HitInfo.Result.HIT
 	if posture and result == HitInfo.Result.HIT and hit.poise_damage > 0.0:
-		posture.call(&"add_posture", hit.poise_damage)
+		hit.broke_posture = bool(posture.call(&"add_posture", hit.poise_damage))
 	hit_received.emit(hit, result)
 	return result
 

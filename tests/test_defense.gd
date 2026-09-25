@@ -211,6 +211,26 @@ func test_reaction_tiers_follow_poise_damage_and_posture() -> void:
 	check_eq(_reaction(fragile).stagger_type, &"knockdown", "a light hit that breaks posture knocks down")
 
 
+func test_a_posture_break_holds_the_knockdown_and_later_hits_dont_restart_it() -> void:
+	var fighter := _fighter(func(node: Node) -> void:
+		if node is PostureComponent:
+			node.max_posture = 20.0
+			node.break_duration = 3.0)
+	var reaction := _reaction(fighter)
+	var hurtbox := _hurtbox(fighter)
+	var behind := _attacker(Vector3(0, 0, 3))
+	hurtbox.receive_hit(CombatFixtures.make_hit(behind, 1.0, 25.0))
+	check_eq(reaction.stagger_type, &"knockdown", "the breaking hit knocks down")
+	check_near(reaction._time_left, 3.0, 0.05, "the knockdown lasts the whole posture break")
+	await seconds(0.3)
+	var left := reaction._time_left
+	hurtbox.receive_hit(CombatFixtures.make_hit(behind, 1.0, 5.0))
+	check_eq(reaction.stagger_type, &"knockdown", "a later hit during the break")
+	check_near(reaction._time_left, left, 0.05, "a later hit doesn't restart the knockdown")
+	hurtbox.receive_hit(CombatFixtures.make_hit(behind, 1.0, 35.0))
+	check_near(reaction._time_left, left, 0.05, "nor does a heavy one that would stagger for less")
+
+
 func test_stagger_ends_and_knockback_decays_with_friction() -> void:
 	var fighter := _fighter()
 	var reaction := _reaction(fighter)

@@ -62,11 +62,10 @@ func intercept(hit: HitInfo) -> HitInfo.Result:
 	_locked_until_msec = now                            # but the next press may parry again
 	var attacker := hit.source if is_instance_valid(hit.source) else null
 	var attacker_posture := PostureComponent.find_on(attacker)
-	if attacker_posture:
-		attacker_posture.add_posture(hit.poise_damage * posture_reflect_multiplier)
+	var broke := attacker_posture != null and attacker_posture.add_posture(hit.poise_damage * posture_reflect_multiplier)
 	var attacker_reaction := DamageReactionComponent.find_on(attacker)
 	if attacker_reaction:
-		attacker_reaction.play_parried()
+		attacker_reaction.play_parried(broke)
 	HitStop.trigger(parry_hitstop)
 	parry_successful.emit(attacker, hit.hit_position)
 	return HitInfo.Result.PARRIED
