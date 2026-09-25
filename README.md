@@ -17,8 +17,10 @@ browser, with on-screen touch controls for tablets and phones.
 
 | Action | Keyboard + mouse | Touch (tablet / phone) |
 |---|---|---|
-| Move (camera-relative) | WASD / arrows | Thumbstick: touch anywhere on the left side |
-| Look | Mouse | Drag anywhere else |
+| Move (camera-relative) | WASD / arrows · left stick | Thumbstick: touch anywhere on the left side |
+| Look | Mouse · right stick | Drag anywhere else |
+| **Lock on / release** | **MMB / Q** · right-stick click | **LOCK** |
+| Switch target (left / right on screen) | Mouse wheel (E = next) · flick the right stick | **NEXT** |
 | **Light attack (combo)** | **LMB / J** (keep pressing) | **ATK** (keep tapping) |
 | **Heavy attack** (branches the combo) | **RMB / K** | **HVY** |
 | **Dodge** (i-frames; backstep with no input) | **L / C** | **DODGE** |
@@ -148,14 +150,17 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 ├─ Combat               CombatStateMachine: IDLE/RUN/ATTACK/DODGE/HURT/DEAD, active frames, sheathing
 │  ├─ ComboManager      FIFO input buffer + combo graph (resources/combat/sword_combo.tres)
 │  └─ MotionWarping     steers each lunge at the lock-on target or a nearby enemy
-└─ CameraRig/SpringArm3D/Camera3D
+├─ TargetingSystem      lock-on: acquire, cycle, retarget, release; reticle over the target
+└─ CameraRig            CombatCamera: free look, lock-on framing → SpringArm3D/Camera3D
 ```
 
 ### World
 
 | System | File | Key ideas |
 |---|---|---|
-| Player | `scripts/player/player_controller.gd` | Exponential look/follow smoothing; rig follows the *physics-interpolated* body; separate accel/decel and air control; `floor_snap_length` ground snapping; `begin_attack()` locks steering and lunges |
+| Player | `scripts/player/player_controller.gd` | Separate accel/decel and air control; `floor_snap_length` ground snapping; `begin_attack()`/`begin_dodge()` lock steering and lunge (eased out); faces the lock-on target and strafes while locked. Keyboard, mouse and gamepad bindings are registered at runtime |
+| Camera | `scripts/camera/combat_camera.gd` | Exponential look/follow smoothing; the rig follows the *physics-interpolated* body. Locked on, it turns to look past the player at the target, shifts its anchor 30% toward it, pitches down and lengthens the arm (4.2 → 6 m) as they spread apart; releasing keeps the view |
+| Lock-on | `scripts/combat/targeting_system.gd` | Picks the enemy nearest the view centre within 18 m and a 70° cone, in line of sight. Wheel or a right-stick flick switches by screen position. Retargets when the target dies, releases past 24 m or after 1.5 s out of sight |
 | Terrain | `scripts/world/heightmap_terrain.gd` | FBM meadow + ridged mountains; path cross-section levelled; path mask in vertex colour; triangle-exact `height_at()` |
 | Grass | `scripts/world/grass_field.gd` + `shaders/grass.gdshader` | 100 MultiMesh chunks; scrolling simplex wind gusts; radial player push; distance shrink-fade |
 | Path + landmarks | `scripts/world/scenic_path.gd` | Torii every 36 m, lanterns every 11 m on alternating sides, all on the terrain surface |
@@ -220,6 +225,7 @@ the AttackData timings to match the clips.
 | Wolf behaviour | `wolf.tscn` → `wander_radius`, `wander_interval`, `run_speed`, `chase_stop_distance`, `bite_cooldown`; `resources/combat/wolf_bite.tres`; HealthComponent `max_health`; DetectionArea sphere radius |
 | Player toughness | `player.tscn` ▸ HealthComponent `max_health`, `invulnerability_time`; Combat `respawn_delay` |
 | Touch layout / feel | `scripts/ui/touch/touch_controls.gd` (button rects, joystick size); TouchLookPad `sensitivity` |
+| Lock-on range, cone, camera framing | Player ▸ TargetingSystem → `radius`, `cone_degrees`, `break_distance`; Player ▸ CameraRig → `lock_*` |
 | Wind / grass | `grass_material.tres` → `wind_*`, `push_*`; GrassField density |
 | Sun / haze | Sun rotation X; Environment volumetric fog; ValleyMist density |
 | Path route | Edit the ScenicPath curve, then **Terrain ▸ Regenerate** (landmarks and grass follow) |

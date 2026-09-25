@@ -171,13 +171,21 @@ class_name EnemyCombatController extends CharacterBody3D
   @export attacks: Array[AttackData]; @export director: CombatDirector
   func reset_to_spawn() -> void               # used by GameManager encounter reset
 
-# M7: targeting and camera
-class_name TargetingSystem extends Node
+# M7: targeting and camera (implemented)
+class_name TargetingSystem extends Node       # player child "TargetingSystem"
   signal target_changed(target: Node3D)       # null = unlocked
-  @export radius := 18.0; @export cone_degrees := 70.0
-  var current_target: Node3D; func toggle_lock() -> void; func cycle(direction: int) -> void
-class_name CombatCamera3D extends SpringArm3D
-  @export targeting: TargetingSystem; func add_look_input(delta: Vector2) -> void
+  @export body: PlayerController; camera: CombatCamera
+  @export radius := 18.0; cone_degrees := 70.0 (full angle); break_distance := 24.0; lost_sight_time := 1.5; sight_mask := 1; aim_height := 0.7
+  var current_target: Node3D
+  func is_locked() -> bool; func toggle_lock() -> void; func set_target(t: Node3D) -> void
+  func cycle(direction: int) -> void          # +1 = next to the right on screen, -1 = left
+  func find_best_target(exclude: Node3D = null) -> Node3D
+class_name CombatCamera extends Node3D         # the player's top-level "CameraRig" (SpringArm3D → Camera3D)
+  @export follow: Node3D; targeting: TargetingSystem; look/follow smoothing, height, pitch limits; lock_* framing
+  var yaw, pitch, target_yaw, target_pitch: float; spring_arm: SpringArm3D; camera: Camera3D
+  func add_look_input(delta: Vector2) -> void # ignored while locked
+  func snap_to(feet: Vector3, yaw: float) -> void; func is_locked() -> bool
+PlayerController: `camera: CombatCamera`, `@export targeting`; faces the target while locked (strafe).
 class_name CameraTrauma extends Node          # child of the Camera3D
   func add_trauma(amount: float) -> void      # presets: LIGHT 0.2, HEAVY 0.45, PARRY 0.35, EXECUTION 0.75
 
@@ -208,8 +216,8 @@ Use these exact identifiers; retargeted source clips get renamed to them on impo
 machine keeps working until the new clips land. The Duelist's single `hurt` state maps to
 `hurt_f` until DamageReaction (M5) picks the directional clips.
 
-Still to add (M5, M7, M9): `attack_special`, `guard`, `lock_on`, `target_next`, `target_prev`,
-`interact`, `pause`. (`attack_heavy` and `dodge` landed in M3.) Register them in
+Still to add (M5, M9): `attack_special`, `guard`, `interact`, `pause`. (`attack_heavy` and `dodge`
+landed in M3; `lock_on`, `target_next`, `target_prev` and the right-stick `look_*` axes in M7.) Register them in
 `_DEFAULT_BINDINGS`, with gamepad events if D10 is approved.
 
 ## Validation (every handoff)

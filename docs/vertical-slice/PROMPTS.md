@@ -277,7 +277,7 @@ and the execution deals 40% max HP. It has its own health and posture bar at the
 
 ---
 
-## M7: TargetingSystem and CombatCamera3D (HIGH)
+## M7: TargetingSystem and CombatCamera3D (HIGH) ✅ implemented (the camera class is `CombatCamera`, on the CameraRig)
 
 ```text
 READ: PlayerController camera code (look smoothing, interpolated follow, SpringArm3D sphere).

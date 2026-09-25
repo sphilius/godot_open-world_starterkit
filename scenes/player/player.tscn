@@ -9,6 +9,8 @@
 [ext_resource type="Script" path="res://scripts/combat/combo_manager.gd" id="7_combo"]
 [ext_resource type="Resource" path="res://resources/combat/sword_combo.tres" id="8_graph"]
 [ext_resource type="Script" path="res://scripts/combat/motion_warping.gd" id="9_warping"]
+[ext_resource type="Script" path="res://scripts/camera/combat_camera.gd" id="13_camera"]
+[ext_resource type="Script" path="res://scripts/combat/targeting_system.gd" id="14_targeting"]
 [ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="11_health"]
 [ext_resource type="Script" path="res://scripts/combat/hurtbox.gd" id="12_hurtbox"]
 
@@ -19,10 +21,11 @@ height = 1.8
 [sub_resource type="SphereShape3D" id="SphereShape3D_camera"]
 radius = 0.2
 
-[node name="Player" type="CharacterBody3D"]
+[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("targeting")]
 collision_layer = 2
 collision_mask = 5
 script = ExtResource("1_controller")
+targeting = NodePath("TargetingSystem")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 position = Vector3(0, 0.9, 0)
@@ -62,7 +65,7 @@ katana = NodePath("../Katana")
 hand_socket = NodePath("../Visual/SamuraiModel/Skeleton3D/HandSocket")
 sheath_socket = NodePath("../Visual/SamuraiModel/Skeleton3D/SheathSocket")
 
-[node name="Combat" type="Node" parent="." node_paths=PackedStringArray("body", "animation_tree", "katana", "holster", "health", "combo", "warping")]
+[node name="Combat" type="Node" parent="." node_paths=PackedStringArray("body", "animation_tree", "katana", "holster", "health", "combo", "warping", "targeting")]
 script = ExtResource("6_combat")
 body = NodePath("..")
 animation_tree = NodePath("../AnimationTree")
@@ -71,17 +74,26 @@ holster = NodePath("../WeaponHolster")
 health = NodePath("../HealthComponent")
 combo = NodePath("ComboManager")
 warping = NodePath("MotionWarping")
+targeting = NodePath("../TargetingSystem")
 
 [node name="ComboManager" type="Node" parent="Combat"]
 script = ExtResource("7_combo")
 graph = ExtResource("8_graph")
 
-[node name="MotionWarping" type="Node" parent="Combat" node_paths=PackedStringArray("body")]
+[node name="MotionWarping" type="Node" parent="Combat" node_paths=PackedStringArray("body", "targeting")]
 script = ExtResource("9_warping")
 body = NodePath("../..")
+targeting = NodePath("../../TargetingSystem")
 
-[node name="CameraRig" type="Node3D" parent="."]
+[node name="TargetingSystem" type="Node" parent="." node_paths=PackedStringArray("body", "camera")]
+script = ExtResource("14_targeting")
+body = NodePath("..")
+camera = NodePath("../CameraRig")
+
+[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("targeting")]
 top_level = true
+script = ExtResource("13_camera")
+targeting = NodePath("../TargetingSystem")
 
 [node name="SpringArm3D" type="SpringArm3D" parent="CameraRig"]
 shape = SubResource("SphereShape3D_camera")
