@@ -1,0 +1,110 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_vermilion"]
+albedo_color = Color(0.8, 0.17, 0.07, 1)
+roughness = 0.5
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lacquer"]
+albedo_color = Color(0.04, 0.035, 0.03, 1)
+roughness = 0.3
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_pillar"]
+material = SubResource("StandardMaterial3D_vermilion")
+top_radius = 0.19
+bottom_radius = 0.23
+height = 5.4
+radial_segments = 16
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_foot"]
+material = SubResource("StandardMaterial3D_lacquer")
+top_radius = 0.27
+bottom_radius = 0.29
+height = 0.7
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxMesh" id="BoxMesh_nuki"]
+material = SubResource("StandardMaterial3D_vermilion")
+size = Vector3(5.6, 0.26, 0.24)
+
+[sub_resource type="BoxMesh" id="BoxMesh_gakuzuka"]
+material = SubResource("StandardMaterial3D_vermilion")
+size = Vector3(0.24, 0.8, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_shimaki"]
+material = SubResource("StandardMaterial3D_vermilion")
+size = Vector3(5.9, 0.3, 0.42)
+
+[sub_resource type="BoxMesh" id="BoxMesh_kasagi"]
+material = SubResource("StandardMaterial3D_lacquer")
+size = Vector3(4.8, 0.34, 0.56)
+
+[sub_resource type="BoxMesh" id="BoxMesh_kasagi_tip"]
+material = SubResource("StandardMaterial3D_lacquer")
+size = Vector3(1.1, 0.32, 0.56)
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_pillar"]
+height = 5.4
+radius = 0.26
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_beams"]
+size = Vector3(6.8, 1.6, 0.6)
+
+[node name="ToriiGate" type="StaticBody3D"]
+
+[node name="PillarLeft" type="MeshInstance3D" parent="."]
+position = Vector3(-2.2, 2.45, 0)
+rotation = Vector3(0, 0, -0.035)
+mesh = SubResource("CylinderMesh_pillar")
+
+[node name="PillarRight" type="MeshInstance3D" parent="."]
+position = Vector3(2.2, 2.45, 0)
+rotation = Vector3(0, 0, 0.035)
+mesh = SubResource("CylinderMesh_pillar")
+
+[node name="FootLeft" type="MeshInstance3D" parent="."]
+position = Vector3(-2.2, 0.1, 0)
+mesh = SubResource("CylinderMesh_foot")
+
+[node name="FootRight" type="MeshInstance3D" parent="."]
+position = Vector3(2.2, 0.1, 0)
+mesh = SubResource("CylinderMesh_foot")
+
+[node name="Nuki" type="MeshInstance3D" parent="."]
+position = Vector3(0, 4, 0)
+mesh = SubResource("BoxMesh_nuki")
+
+[node name="Gakuzuka" type="MeshInstance3D" parent="."]
+position = Vector3(0, 4.53, 0)
+mesh = SubResource("BoxMesh_gakuzuka")
+
+[node name="Shimaki" type="MeshInstance3D" parent="."]
+position = Vector3(0, 5.08, 0)
+mesh = SubResource("BoxMesh_shimaki")
+
+[node name="Kasagi" type="MeshInstance3D" parent="."]
+position = Vector3(0, 5.4, 0)
+mesh = SubResource("BoxMesh_kasagi")
+
+[node name="KasagiTipLeft" type="MeshInstance3D" parent="."]
+position = Vector3(-2.85, 5.46, 0)
+rotation = Vector3(0, 0, -0.12)
+mesh = SubResource("BoxMesh_kasagi_tip")
+
+[node name="KasagiTipRight" type="MeshInstance3D" parent="."]
+position = Vector3(2.85, 5.46, 0)
+rotation = Vector3(0, 0, 0.12)
+mesh = SubResource("BoxMesh_kasagi_tip")
+
+[node name="PillarLeftHull" type="CollisionShape3D" parent="."]
+position = Vector3(-2.2, 2.45, 0)
+shape = SubResource("CylinderShape3D_pillar")
+
+[node name="PillarRightHull" type="CollisionShape3D" parent="."]
+position = Vector3(2.2, 2.45, 0)
+shape = SubResource("CylinderShape3D_pillar")
+
+[node name="BeamHull" type="CollisionShape3D" parent="."]
+position = Vector3(0, 4.8, 0)
+shape = SubResource("BoxShape3D_beams")

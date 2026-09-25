@@ -1,0 +1,20 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/grass.gdshader" id="1_grass"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_wind"]
+noise_type = 1
+seed = 21
+frequency = 0.018
+fractal_octaves = 3
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_wind"]
+width = 256
+height = 256
+seamless = true
+noise = SubResource("FastNoiseLite_wind")
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_grass")
+shader_parameter/wind_noise = SubResource("NoiseTexture2D_wind")

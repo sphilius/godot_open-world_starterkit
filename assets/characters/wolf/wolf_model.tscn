@@ -1,0 +1,189 @@
+[gd_scene format=3]
+
+[ext_resource type="AnimationLibrary" path="res://assets/characters/wolf/wolf_animations.tres" id="1_cax5m"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_04423"]
+albedo_color = Color(0.45, 0.43, 0.41, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_b41e2"]
+material = SubResource("StandardMaterial3D_04423")
+size = Vector3(0.34, 0.32, 0.8)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jn6qk"]
+albedo_color = Color(0.64, 0.61, 0.57, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_4cpdj"]
+material = SubResource("StandardMaterial3D_jn6qk")
+size = Vector3(0.38, 0.38, 0.3)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pgeof"]
+albedo_color = Color(0.24, 0.23, 0.23, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_akymh"]
+material = SubResource("StandardMaterial3D_pgeof")
+size = Vector3(0.2, 0.06, 0.7)
+
+[sub_resource type="BoxMesh" id="BoxMesh_ghli2"]
+material = SubResource("StandardMaterial3D_04423")
+size = Vector3(0.24, 0.22, 0.26)
+
+[sub_resource type="BoxMesh" id="BoxMesh_aul4l"]
+material = SubResource("StandardMaterial3D_jn6qk")
+size = Vector3(0.12, 0.1, 0.2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_sgoba"]
+albedo_color = Color(0.05, 0.04, 0.04, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_e1jen"]
+material = SubResource("StandardMaterial3D_sgoba")
+size = Vector3(0.05, 0.04, 0.04)
+
+[sub_resource type="PrismMesh" id="PrismMesh_p5x7p"]
+material = SubResource("StandardMaterial3D_pgeof")
+size = Vector3(0.07, 0.12, 0.05)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_yjqwo"]
+albedo_color = Color(1, 0.72, 0.25, 1)
+roughness = 0.9
+emission_enabled = true
+emission = Color(1, 0.62, 0.15, 1)
+emission_energy_multiplier = 3.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_btaeg"]
+material = SubResource("StandardMaterial3D_yjqwo")
+size = Vector3(0.035, 0.022, 0.01)
+
+[sub_resource type="PrismMesh" id="PrismMesh_b0u3j"]
+material = SubResource("StandardMaterial3D_pgeof")
+size = Vector3(0.07, 0.12, 0.05)
+
+[sub_resource type="BoxMesh" id="BoxMesh_gcwg6"]
+material = SubResource("StandardMaterial3D_yjqwo")
+size = Vector3(0.035, 0.022, 0.01)
+
+[sub_resource type="BoxMesh" id="BoxMesh_qp2gx"]
+material = SubResource("StandardMaterial3D_pgeof")
+size = Vector3(0.08, 0.08, 0.42)
+
+[sub_resource type="BoxMesh" id="BoxMesh_h4o8o"]
+material = SubResource("StandardMaterial3D_04423")
+size = Vector3(0.09, 0.5, 0.09)
+
+[sub_resource type="BoxMesh" id="BoxMesh_awqi6"]
+material = SubResource("StandardMaterial3D_04423")
+size = Vector3(0.09, 0.5, 0.09)
+
+[sub_resource type="BoxMesh" id="BoxMesh_w2j2s"]
+material = SubResource("StandardMaterial3D_04423")
+size = Vector3(0.09, 0.5, 0.09)
+
+[sub_resource type="BoxMesh" id="BoxMesh_u4god"]
+material = SubResource("StandardMaterial3D_04423")
+size = Vector3(0.09, 0.5, 0.09)
+
+[node name="WolfModel" type="Node3D" unique_id=1533456803]
+
+[node name="Rig" type="Node3D" parent="." unique_id=297463888]
+
+[node name="Body" type="Node3D" parent="Rig" unique_id=1084845680]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
+
+[node name="Torso" type="MeshInstance3D" parent="Rig/Body" unique_id=1697517807]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.04)
+gi_mode = 2
+mesh = SubResource("BoxMesh_b41e2")
+
+[node name="Ruff" type="MeshInstance3D" parent="Rig/Body" unique_id=703278091]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, -0.3)
+gi_mode = 2
+mesh = SubResource("BoxMesh_4cpdj")
+
+[node name="Back" type="MeshInstance3D" parent="Rig/Body" unique_id=280054440]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.17, 0.05)
+gi_mode = 2
+mesh = SubResource("BoxMesh_akymh")
+
+[node name="Head" type="Node3D" parent="Rig/Body" unique_id=118412]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, -0.46)
+
+[node name="Skull" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=1159101225]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, -0.08)
+gi_mode = 2
+mesh = SubResource("BoxMesh_ghli2")
+
+[node name="Snout" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=1228770386]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03, -0.28)
+gi_mode = 2
+mesh = SubResource("BoxMesh_aul4l")
+
+[node name="Nose" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=221249470]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.39)
+gi_mode = 2
+mesh = SubResource("BoxMesh_e1jen")
+
+[node name="EarL" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=117713790]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, 0.17, -0.02)
+gi_mode = 2
+mesh = SubResource("PrismMesh_p5x7p")
+
+[node name="EyeL" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=1586299634]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.065, 0.05, -0.215)
+gi_mode = 2
+mesh = SubResource("BoxMesh_btaeg")
+
+[node name="EarR" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=1836247130]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.07, 0.17, -0.02)
+gi_mode = 2
+mesh = SubResource("PrismMesh_b0u3j")
+
+[node name="EyeR" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=2040590406]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.065, 0.05, -0.215)
+gi_mode = 2
+mesh = SubResource("BoxMesh_gcwg6")
+
+[node name="Tail" type="Node3D" parent="Rig/Body" unique_id=145529988]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0.4)
+
+[node name="TailMesh" type="MeshInstance3D" parent="Rig/Body/Tail" unique_id=99967831]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.2)
+gi_mode = 2
+mesh = SubResource("BoxMesh_qp2gx")
+
+[node name="LegFL" type="Node3D" parent="Rig/Body" unique_id=135954140]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12, -0.05, -0.3)
+
+[node name="Leg" type="MeshInstance3D" parent="Rig/Body/LegFL" unique_id=1294850887]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
+gi_mode = 2
+mesh = SubResource("BoxMesh_h4o8o")
+
+[node name="LegFR" type="Node3D" parent="Rig/Body" unique_id=621123088]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, -0.05, -0.3)
+
+[node name="Leg" type="MeshInstance3D" parent="Rig/Body/LegFR" unique_id=1875984359]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
+gi_mode = 2
+mesh = SubResource("BoxMesh_awqi6")
+
+[node name="LegBL" type="Node3D" parent="Rig/Body" unique_id=1695058887]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12, -0.05, 0.3)
+
+[node name="Leg" type="MeshInstance3D" parent="Rig/Body/LegBL" unique_id=1201718846]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
+gi_mode = 2
+mesh = SubResource("BoxMesh_w2j2s")
+
+[node name="LegBR" type="Node3D" parent="Rig/Body" unique_id=704072225]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, -0.05, 0.3)
+
+[node name="Leg" type="MeshInstance3D" parent="Rig/Body/LegBR" unique_id=60193120]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
+gi_mode = 2
+mesh = SubResource("BoxMesh_u4god")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=673288924]
+libraries/ = ExtResource("1_cax5m")

@@ -1,0 +1,67 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_controller"]
+[ext_resource type="PackedScene" path="res://assets/characters/samurai/samurai_model.tscn" id="2_model"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/katana.tscn" id="3_katana"]
+[ext_resource type="AnimationNodeStateMachine" path="res://assets/characters/samurai/samurai_state_machine.tres" id="4_state_machine"]
+[ext_resource type="Script" path="res://scripts/combat/weapon_holster.gd" id="5_holster"]
+[ext_resource type="Script" path="res://scripts/combat/combat_state_machine.gd" id="6_combat"]
+[ext_resource type="Script" path="res://scripts/combat/attack_data.gd" id="7_attack_data"]
+[ext_resource type="Resource" path="res://resources/combat/attack_1.tres" id="8_attack_1"]
+[ext_resource type="Resource" path="res://resources/combat/attack_2.tres" id="9_attack_2"]
+[ext_resource type="Resource" path="res://resources/combat/attack_3.tres" id="10_attack_3"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.35
+height = 1.8
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_camera"]
+radius = 0.2
+
+[node name="Player" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 5
+script = ExtResource("1_controller")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="SamuraiModel" parent="Visual" instance=ExtResource("2_model")]
+
+[node name="Katana" parent="." instance=ExtResource("3_katana")]
+
+[node name="AnimationTree" type="AnimationTree" parent="."]
+root_node = NodePath("../Visual/SamuraiModel")
+callback_mode_process = 0
+tree_root = ExtResource("4_state_machine")
+anim_player = NodePath("../Visual/SamuraiModel/AnimationPlayer")
+
+[node name="WeaponHolster" type="Node" parent="." node_paths=PackedStringArray("katana", "hand_socket", "back_socket")]
+script = ExtResource("5_holster")
+katana = NodePath("../Katana")
+hand_socket = NodePath("../Visual/SamuraiModel/Skeleton3D/HandSocket")
+back_socket = NodePath("../Visual/SamuraiModel/Skeleton3D/BackSocket")
+
+[node name="Combat" type="Node" parent="." node_paths=PackedStringArray("body", "animation_tree", "katana", "holster")]
+script = ExtResource("6_combat")
+body = NodePath("..")
+animation_tree = NodePath("../AnimationTree")
+katana = NodePath("../Katana")
+holster = NodePath("../WeaponHolster")
+combo = Array[ExtResource("7_attack_data")]([ExtResource("8_attack_1"), ExtResource("9_attack_2"), ExtResource("10_attack_3")])
+
+[node name="CameraRig" type="Node3D" parent="."]
+top_level = true
+
+[node name="SpringArm3D" type="SpringArm3D" parent="CameraRig"]
+shape = SubResource("SphereShape3D_camera")
+spring_length = 4.2
+margin = 0.15
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/SpringArm3D"]
+current = true
+fov = 68.0
+far = 1500.0

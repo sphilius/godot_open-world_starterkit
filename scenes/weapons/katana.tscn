@@ -1,0 +1,113 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/katana.gd" id="1_katana"]
+[ext_resource type="Shader" path="res://shaders/sword_trail_particles.gdshader" id="2_trail_process"]
+[ext_resource type="Shader" path="res://shaders/sword_trail.gdshader" id="3_trail_draw"]
+[ext_resource type="Script" path="res://scripts/combat/sword_trail_mesh.gd" id="4_mesh_trail"]
+[ext_resource type="Shader" path="res://shaders/sword_trail_mesh.gdshader" id="5_mesh_trail_draw"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_steel"]
+albedo_color = Color(0.82, 0.84, 0.88, 1)
+metallic = 1.0
+roughness = 0.22
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wrap"]
+albedo_color = Color(0.08, 0.07, 0.1, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_brass"]
+albedo_color = Color(0.55, 0.42, 0.18, 1)
+metallic = 0.8
+roughness = 0.35
+
+[sub_resource type="BoxMesh" id="BoxMesh_blade"]
+material = SubResource("StandardMaterial3D_steel")
+size = Vector3(0.012, 0.034, 0.82)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_tsuba"]
+material = SubResource("StandardMaterial3D_brass")
+top_radius = 0.045
+bottom_radius = 0.045
+height = 0.012
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxMesh" id="BoxMesh_tsuka"]
+material = SubResource("StandardMaterial3D_wrap")
+size = Vector3(0.028, 0.034, 0.24)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_hitbox"]
+size = Vector3(0.2, 0.3, 0.95)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_trail_process"]
+shader = ExtResource("2_trail_process")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_trail_draw"]
+render_priority = 0
+shader = ExtResource("3_trail_draw")
+
+[sub_resource type="RibbonTrailMesh" id="RibbonTrailMesh_blade"]
+material = SubResource("ShaderMaterial_trail_draw")
+size = 0.8
+sections = 16
+section_length = 0.05
+section_segments = 1
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_mesh_trail"]
+render_priority = 0
+shader = ExtResource("5_mesh_trail_draw")
+
+[node name="Katana" type="Node3D"]
+script = ExtResource("1_katana")
+
+[node name="Blade" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0, -0.52)
+mesh = SubResource("BoxMesh_blade")
+
+[node name="Tsuba" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0, -0.1)
+rotation = Vector3(1.5708, 0, 0)
+mesh = SubResource("CylinderMesh_tsuba")
+
+[node name="Tsuka" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0, 0.03)
+mesh = SubResource("BoxMesh_tsuka")
+
+[node name="Hitbox" type="Area3D" parent="."]
+collision_layer = 8
+collision_mask = 20
+monitoring = false
+monitorable = false
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hitbox"]
+position = Vector3(0, 0, -0.52)
+shape = SubResource("BoxShape3D_hitbox")
+
+[node name="Trail" type="GPUParticles3D" parent="."]
+position = Vector3(0, 0, -0.52)
+rotation = Vector3(0, 1.5708, 0)
+cast_shadow = 0
+emitting = false
+amount = 1
+lifetime = 0.3
+one_shot = true
+explosiveness = 1.0
+fixed_fps = 60
+local_coords = false
+visibility_aabb = AABB(-2, -2, -2, 4, 4, 4)
+trail_enabled = false
+trail_lifetime = 0.14
+process_material = SubResource("ShaderMaterial_trail_process")
+draw_pass_1 = SubResource("RibbonTrailMesh_blade")
+
+[node name="BladeBase" type="Marker3D" parent="."]
+position = Vector3(0, 0, -0.12)
+
+[node name="BladeTip" type="Marker3D" parent="."]
+position = Vector3(0, 0, -0.93)
+
+[node name="MeshTrail" type="MeshInstance3D" parent="." node_paths=PackedStringArray("base_marker", "tip_marker")]
+material_override = SubResource("ShaderMaterial_mesh_trail")
+script = ExtResource("4_mesh_trail")
+base_marker = NodePath("../BladeBase")
+tip_marker = NodePath("../BladeTip")

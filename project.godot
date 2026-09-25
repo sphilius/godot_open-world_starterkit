@@ -1,0 +1,58 @@
+; Engine configuration file.
+; Godot 4.7 · Forward+ · Scenic open-world prototype.
+
+config_version=5
+
+[application]
+
+config/name="Scenic Open World"
+config/description="Golden-hour third-person open-world prototype: wind grass, torii path, SDFGI + volumetric fog."
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.7", "Forward Plus")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+
+[layer_names]
+
+3d_physics/layer_1="world"
+3d_physics/layer_2="player"
+3d_physics/layer_3="mobs"
+3d_physics/layer_4="player_hitbox"
+3d_physics/layer_5="hurtbox"
+
+[navigation]
+
+3d/default_cell_size=0.5
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+common/physics_interpolation=true
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+; Forward+ through Direct3D 12 on Windows: the Intel UHD Vulkan driver on the dev laptop
+; (31.0.101.2135) intermittently loses the device with this scene; D3D12 is stable and ~30% faster.
+rendering_device/driver.windows="d3d12"
+; Defaults are MEDIUM-cost so the editor viewport stays usable on integrated GPUs.
+; At runtime, scripts/debug/dev_hud.gd sets every knob per quality preset (HIGH raises these).
+lights_and_shadows/directional_shadow/size=2048
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=2
+global_illumination/gi/use_half_resolution=true
+global_illumination/sdfgi/probe_ray_count=1
+global_illumination/sdfgi/frames_to_converge=5
+environment/volumetric_fog/volume_size=48
+environment/volumetric_fog/volume_depth=32
+anti_aliasing/quality/screen_space_aa=1
+
+[shader_globals]
+
+player_position={
+"type": "vec3",
+"value": Vector3(0, -1000, 0)
+}

@@ -1,0 +1,7 @@
+# Godot 4 import cache / editor state
+.godot/
+/android/
+*.translation
+
+# Local web export output
+/build/

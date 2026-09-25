@@ -1,0 +1,121 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Environment" path="res://resources/environment/golden_hour_environment.tres" id="2_env"]
+[ext_resource type="Script" path="res://scripts/world/heightmap_terrain.gd" id="3_terrain"]
+[ext_resource type="Material" path="res://resources/materials/terrain_material.tres" id="4_terrain_mat"]
+[ext_resource type="Script" path="res://scripts/world/scenic_path.gd" id="5_path"]
+[ext_resource type="PackedScene" path="res://scenes/landmarks/torii_gate.tscn" id="6_torii"]
+[ext_resource type="PackedScene" path="res://scenes/landmarks/stone_lantern.tscn" id="7_lantern"]
+[ext_resource type="Script" path="res://scripts/world/grass_field.gd" id="8_grass"]
+[ext_resource type="Material" path="res://resources/materials/grass_material.tres" id="9_grass_mat"]
+[ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="10_player"]
+[ext_resource type="Script" path="res://scripts/debug/dev_hud.gd" id="11_hud"]
+[ext_resource type="Script" path="res://scripts/world/navigation_baker.gd" id="12_nav"]
+[ext_resource type="PackedScene" path="res://scenes/mobs/wolf.tscn" id="13_wolf"]
+
+[sub_resource type="NavigationMesh" id="NavigationMesh_valley"]
+geometry_parsed_geometry_type = 1
+geometry_collision_mask = 1
+geometry_source_geometry_mode = 1
+geometry_source_group_name = &"navigation_source"
+agent_height = 1.0
+agent_radius = 0.5
+agent_max_climb = 0.5
+agent_max_slope = 40.0
+cell_size = 0.5
+filter_baking_aabb = AABB(-80, -10, -85, 160, 40, 170)
+
+[sub_resource type="FogMaterial" id="FogMaterial_mist"]
+density = 0.012
+albedo = Color(1, 0.88, 0.76, 1)
+height_falloff = 0.3
+edge_fade = 0.3
+
+[sub_resource type="Curve3D" id="Curve3D_path"]
+bake_interval = 0.5
+_data = {
+"points": PackedVector3Array(4, 0, 8.67, -4, 0, -8.67, 0, 0, 66, -0.67, 0, 8.67, 0.67, 0, -8.67, -12, 0, 40, -5, 0, 8, 5, 0, -8, 4, 0, 14, -0.33, 0, 7.67, 0.33, 0, -7.67, 18, 0, -8, 5.33, 0, 7, -5.33, 0, -7, 6, 0, -32, 2, 0, 6, -2, 0, -6, -14, 0, -50, -2.67, 0, 6, 2.67, 0, -6, -6, 0, -68),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 7
+
+[node name="Main" type="Node3D" node_paths=PackedStringArray("terrain", "scenic_path", "player")]
+script = ExtResource("1_main")
+terrain = NodePath("Terrain")
+scenic_path = NodePath("ScenicPath")
+player = NodePath("Player")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("2_env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation = Vector3(-0.14, 3.49, 0)
+light_color = Color(1, 0.72, 0.46, 1)
+light_energy = 2.4
+light_angular_distance = 1.5
+light_volumetric_fog_energy = 2.0
+shadow_enabled = true
+shadow_blur = 1.5
+directional_shadow_max_distance = 140.0
+
+[node name="ValleyMist" type="FogVolume" parent="."]
+position = Vector3(0, -2, 0)
+size = Vector3(180, 10, 180)
+shape = 3
+material = SubResource("FogMaterial_mist")
+
+[node name="Terrain" type="StaticBody3D" parent="." node_paths=PackedStringArray("scenic_path") groups=["navigation_source"]]
+script = ExtResource("3_terrain")
+scenic_path = NodePath("../ScenicPath")
+terrain_material = ExtResource("4_terrain_mat")
+
+[node name="ScenicPath" type="Path3D" parent="." node_paths=PackedStringArray("terrain") groups=["navigation_source"]]
+curve = SubResource("Curve3D_path")
+script = ExtResource("5_path")
+terrain = NodePath("../Terrain")
+torii_scene = ExtResource("6_torii")
+lantern_scene = ExtResource("7_lantern")
+
+[node name="GrassField" type="Node3D" parent="." node_paths=PackedStringArray("terrain")]
+script = ExtResource("8_grass")
+terrain = NodePath("../Terrain")
+grass_material = ExtResource("9_grass_mat")
+
+[node name="NavigationRegion3D" type="NavigationRegion3D" parent="." node_paths=PackedStringArray("terrain")]
+navigation_mesh = SubResource("NavigationMesh_valley")
+script = ExtResource("12_nav")
+terrain = NodePath("../Terrain")
+
+[node name="Wolves" type="Node3D" parent="."]
+
+[node name="Wolf1" parent="Wolves" instance=ExtResource("13_wolf")]
+position = Vector3(-24, 8, 48)
+
+[node name="Wolf2" parent="Wolves" instance=ExtResource("13_wolf")]
+position = Vector3(22, 8, 30)
+
+[node name="Wolf3" parent="Wolves" instance=ExtResource("13_wolf")]
+position = Vector3(30, 8, -20)
+
+[node name="Wolf4" parent="Wolves" instance=ExtResource("13_wolf")]
+position = Vector3(-28, 8, -30)
+
+[node name="Player" parent="." instance=ExtResource("10_player")]
+position = Vector3(0, 10, 70)
+
+[node name="DevHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("world_environment", "grass", "sun")]
+script = ExtResource("11_hud")
+world_environment = NodePath("../WorldEnvironment")
+grass = NodePath("../GrassField")
+sun = NodePath("../Sun")
+
+[node name="Label" type="Label" parent="DevHUD"]
+offset_left = 14.0
+offset_top = 10.0
+offset_right = 700.0
+offset_bottom = 40.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 15
+text = "Scenic Open World"
