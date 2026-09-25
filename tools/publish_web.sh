@@ -19,6 +19,7 @@ cp -r "$build"/. "$stage"/
 touch "$stage/.nojekyll"                       # serve files as-is (no Jekyll processing)
 
 git -C "$stage" init -q -b gh-pages
+git -C "$stage" config core.autocrlf false     # ship the web files byte-exact
 git -C "$stage" config user.name "$(git -C "$root" config user.name)"
 git -C "$stage" config user.email "$(git -C "$root" config user.email)"
 git -C "$stage" add -A

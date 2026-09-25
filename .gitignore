@@ -3,5 +3,6 @@
 /android/
 *.translation
 
-# Local web export output
-/build/
+# Local web export output (the .gdignore stops Godot importing exported files)
+/build/*
+!/build/.gdignore
