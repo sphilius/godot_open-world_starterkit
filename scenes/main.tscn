@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://scripts/debug/dev_hud.gd" id="11_hud"]
 [ext_resource type="Script" path="res://scripts/world/navigation_baker.gd" id="12_nav"]
 [ext_resource type="PackedScene" path="res://scenes/mobs/wolf.tscn" id="13_wolf"]
+[ext_resource type="Script" path="res://scripts/ui/player_hud.gd" id="14_player_hud"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_valley"]
 geometry_parsed_geometry_type = 1
@@ -119,3 +120,7 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 15
 text = "Scenic Open World"
+
+[node name="PlayerHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("health")]
+script = ExtResource("14_player_hud")
+health = NodePath("../Player/HealthComponent")

@@ -29,10 +29,11 @@ func take_damage(hit: HitInfo) -> bool:
 		return false
 	current_health = maxf(current_health - hit.damage, 0.0)
 	_invulnerable_until_msec = Time.get_ticks_msec() + int(invulnerability_time * 1000.0)
+	var lethal := current_health <= 0.0
+	is_dead = lethal                  # set first, so `damaged` listeners can skip lethal hits
 	health_changed.emit(current_health, max_health)
 	damaged.emit(hit)
-	if current_health <= 0.0:
-		is_dead = true
+	if lethal:
 		died.emit(hit)
 	return true
 
@@ -41,6 +42,14 @@ func heal(amount: float) -> void:
 	if is_dead:
 		return
 	current_health = minf(current_health + amount, max_health)
+	health_changed.emit(current_health, max_health)
+
+
+## Back to full health after death (respawn).
+func revive() -> void:
+	is_dead = false
+	current_health = max_health
+	_invulnerable_until_msec = 0
 	health_changed.emit(current_health, max_health)
 
 

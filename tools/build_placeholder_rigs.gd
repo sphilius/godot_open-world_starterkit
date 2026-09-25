@@ -6,7 +6,7 @@ extends SceneTree
 ##
 ## Re-run after changing the bone layout, poses or AttackData timings (attack swings are keyed
 ## from resources/combat/attack_*.tres). To swap in real art, keep the bone names (weapon_r,
-## scabbard, …) and animation names (idle, run, attack_1..3 · idle, walk, run, hurt, death),
+## scabbard, …) and animation names (idle, run, attack_1..3, hurt, death · idle, walk, run, bite, hurt, death),
 ## or retarget the sockets and state machine.
 
 const SAMURAI_DIR := "res://assets/characters/samurai/"
@@ -16,6 +16,7 @@ const ATTACK_PATHS := [
 	"res://resources/combat/attack_2.tres",
 	"res://resources/combat/attack_3.tres",
 ]
+const WOLF_BITE_PATH := "res://resources/combat/wolf_bite.tres"
 const DEG := PI / 180.0
 
 # --- Samurai skeleton ------------------------------------------------------------------------
@@ -143,6 +144,8 @@ func _build_samurai() -> void:
 	library.add_animation(attacks[0].animation, _slash_clip(attacks[0], 1.0))
 	library.add_animation(attacks[1].animation, _slash_clip(attacks[1], -1.0))
 	library.add_animation(attacks[2].animation, _overhead_clip(attacks[2]))
+	library.add_animation(&"hurt", _samurai_hurt())
+	library.add_animation(&"death", _samurai_death())
 	library = _save(library, SAMURAI_DIR + "samurai_animations.tres")
 
 	var player := AnimationPlayer.new()
@@ -247,6 +250,33 @@ func _overhead_clip(attack: AttackData) -> Animation:
 		[0.0, raised], [a, peak], [(a + b) * 0.5, through], [b, impact], [attack.duration, recover]])
 
 
+## Flinch: snap back from the blow, then settle into the idle guard.
+func _samurai_hurt() -> Animation:
+	var recoil := _pose(SAMURAI_IDLE, {
+		"spine": Vector3(12, 0, 0), "chest": Vector3(10, 0, 0), "head": Vector3(15, 0, 0),
+		"upper_arm_r": Vector3(5, 0, 30), "forearm_r": Vector3(20, 0, 0),
+		"upper_arm_l": Vector3(5, 0, -30), "forearm_l": Vector3(20, 0, 0),
+		"hips_offset": Vector3(0, -0.05, 0.05)})
+	return _samurai_clip(0.4, false, [[0.0, SAMURAI_IDLE], [0.08, recoil], [0.4, SAMURAI_IDLE]])
+
+
+## Defeat: knees buckle, then he kneels on the right knee, head bowed (held until respawn).
+func _samurai_death() -> Animation:
+	var buckle := {
+		"spine": Vector3(-15, 0, 0), "chest": Vector3(-10, 0, 0), "head": Vector3(-10, 0, 0),
+		"upper_arm_r": Vector3(15, 0, 20), "upper_arm_l": Vector3(15, 0, -20),
+		"thigh_r": Vector3(30, 0, 5), "shin_r": Vector3(-60, 0, 0),
+		"thigh_l": Vector3(45, 0, -5), "shin_l": Vector3(-60, 0, 0), "hips_offset": Vector3(0, -0.2, 0)}
+	var kneel := {
+		"spine": Vector3(-25, 0, 0), "chest": Vector3(-15, 0, 0), "head": Vector3(-20, 0, 0),
+		"upper_arm_r": Vector3(10, 0, 20), "forearm_r": Vector3(10, 0, 0),
+		"upper_arm_l": Vector3(40, 0, -10), "forearm_l": Vector3(40, 0, 0),   # hand resting on the knee
+		"thigh_r": Vector3(0, 0, 5), "shin_r": Vector3(-90, 0, 0),           # right knee on the ground
+		"thigh_l": Vector3(80, 0, -5), "shin_l": Vector3(-80, 0, 0),         # left foot planted
+		"hips_offset": Vector3(0, -0.43, 0)}
+	return _samurai_clip(1.6, false, [[0.0, SAMURAI_IDLE], [0.35, buckle], [0.9, kneel], [1.6, kneel]])
+
+
 func _samurai_clip(length: float, loop: bool, keys: Array) -> Animation:
 	var anim := Animation.new()
 	anim.length = length
@@ -272,7 +302,8 @@ func _samurai_state_machine() -> AnimationNodeStateMachine:
 	var machine := AnimationNodeStateMachine.new()
 	var layout := {
 		"idle": Vector2(300, 100), "run": Vector2(300, 280),
-		"attack_1": Vector2(600, 0), "attack_2": Vector2(850, 100), "attack_3": Vector2(1100, 200)}
+		"attack_1": Vector2(600, 0), "attack_2": Vector2(850, 100), "attack_3": Vector2(1100, 200),
+		"hurt": Vector2(600, 420), "death": Vector2(900, 420)}
 	for state: String in layout:
 		var node := AnimationNodeAnimation.new()
 		node.animation = StringName(state)
@@ -287,6 +318,15 @@ func _samurai_state_machine() -> AnimationNodeStateMachine:
 	for attack: String in ["attack_1", "attack_2", "attack_3"]:
 		_link(machine, attack, "idle", 0.2)
 		_link(machine, attack, "run", 0.2)
+	# Reactions can interrupt anything.
+	for from: String in ["idle", "run", "attack_1", "attack_2", "attack_3"]:
+		_link(machine, from, "hurt", 0.05)
+		_link(machine, from, "death", 0.1)
+	_link(machine, "hurt", "idle", 0.15)
+	_link(machine, "hurt", "run", 0.15)
+	_link(machine, "hurt", "attack_1", 0.08)
+	_link(machine, "hurt", "death", 0.1)
+	_link(machine, "death", "idle", 0.3)     # respawn
 	return machine
 
 
@@ -364,6 +404,7 @@ func _build_wolf() -> void:
 			"head": Vector3(-10, 0, 0), "tail": Vector3(10, 0, 0), "body_pos": Vector3(0, 0.04, 0)}
 	library.add_animation(&"run", _wolf_clip(0.5, true, [
 		[0.0, reach], [0.125, flight], [0.25, gather], [0.375, push], [0.5, reach]]))
+	library.add_animation(&"bite", _wolf_bite_clip(load(WOLF_BITE_PATH)))
 	library.add_animation(&"hurt", _wolf_clip(0.35, false, [
 		[0.0, WOLF_BASE],
 		[0.07, {"body": Vector3(14, 0, 0), "body_pos": Vector3(0, 0.05, 0.1), "head": Vector3(25, 0, 0),
@@ -385,6 +426,21 @@ func _build_wolf() -> void:
 	_own(root, root, player)
 	player.add_animation_library(&"", library)
 	_save_scene(root, WOLF_DIR + "wolf_model.tscn")
+
+
+## Bite: crouch and gather (the telegraph), spring forward with the head snapping down during
+## the active window, then recover. Keyed from the bite's AttackData timings.
+func _wolf_bite_clip(attack: AttackData) -> Animation:
+	var gathered := {"body": Vector3(8, 0, 0), "body_pos": Vector3(0, -0.07, 0.12), "head": Vector3(15, 0, 0),
+			"fl": Vector3(-25, 0, 0), "fr": Vector3(-25, 0, 0), "bl": Vector3(20, 0, 0), "br": Vector3(20, 0, 0),
+			"tail": Vector3(50, 0, 0)}
+	var snap := {"body": Vector3(-8, 0, 0), "body_pos": Vector3(0, 0.02, -0.18), "head": Vector3(-18, 0, 0),
+			"fl": Vector3(35, 0, 0), "fr": Vector3(35, 0, 0), "bl": Vector3(-30, 0, 0), "br": Vector3(-30, 0, 0),
+			"tail": Vector3(20, 0, 0)}
+	return _wolf_clip(attack.duration, false, [
+		[0.0, WOLF_BASE], [attack.lunge_delay, gathered], [attack.active_start, gathered],
+		[(attack.active_start + attack.active_end) * 0.5, snap], [attack.active_end, snap],
+		[attack.duration, WOLF_BASE]])
 
 
 func _wolf_clip(length: float, loop: bool, keys: Array) -> Animation:

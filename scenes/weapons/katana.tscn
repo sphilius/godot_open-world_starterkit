@@ -5,6 +5,7 @@
 [ext_resource type="Shader" path="res://shaders/sword_trail.gdshader" id="3_trail_draw"]
 [ext_resource type="Script" path="res://scripts/combat/sword_trail_mesh.gd" id="4_mesh_trail"]
 [ext_resource type="Shader" path="res://shaders/sword_trail_mesh.gdshader" id="5_mesh_trail_draw"]
+[ext_resource type="Script" path="res://scripts/combat/hitbox.gd" id="6_hitbox"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_steel"]
 albedo_color = Color(0.82, 0.84, 0.88, 1)
@@ -78,6 +79,7 @@ collision_layer = 8
 collision_mask = 20
 monitoring = false
 monitorable = false
+script = ExtResource("6_hitbox")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Hitbox"]
 position = Vector3(0, 0, -0.52)

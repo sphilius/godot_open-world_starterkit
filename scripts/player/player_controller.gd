@@ -11,7 +11,9 @@ extends CharacterBody3D
 ## Snapping : floor_snap_length keeps the body glued to the terrain when running downhill
 ##            or over crests, instead of launching off every bump.
 ## Also publishes its feet position to the `player_position` global shader uniform (grass push).
-## Combat : CombatStateMachine calls begin_attack() / end_attack() to lock steering and lunge.
+## Combat : CombatStateMachine calls begin_attack() / end_attack() to lock steering and lunge,
+##            and lock_controls() / apply_knockback() / respawn() when the samurai is hurt.
+## Look     : mouse and touch both feed add_look_input(). Touch mode turns off mouse capture.
 
 @export_group("Movement")
 @export var walk_speed := 4.5
@@ -71,9 +73,13 @@ var _spawn_position := Vector3.ZERO
 var _spawn_yaw := 0.0
 var _look_blocked_until_msec := 0   # swallows the cursor-warp jump that follows a mouse capture
 var _move_direction := Vector3.ZERO # camera-relative input, even while attacking
-var _attack_locked := false
+var _controls_locked := false      # attacking, flinching or dead: no steering or jumping
 var _lunge_velocity := Vector3.ZERO
 var _lunge_time_left := 0.0
+var _lunge_delay_left := 0.0
+
+## Off in touch mode (TouchControls): clicks and taps never grab the pointer.
+var mouse_capture_enabled := true
 
 
 func _enter_tree() -> void:
@@ -109,19 +115,45 @@ func spawn_at(pos: Vector3, yaw: float) -> void:
 	_apply_camera_rotation()
 
 
-## Face `direction`, lock steering and burst forward. Called at the start of every strike.
-func begin_attack(direction: Vector3, lunge_speed: float, lunge_duration: float) -> void:
-	_attack_locked = true
+## Face `direction`, lock steering and burst forward (after `lunge_delay`). Called at the start of every strike.
+func begin_attack(direction: Vector3, lunge_speed: float, lunge_duration: float, lunge_delay := 0.0) -> void:
+	lock_controls(true)
 	direction.y = 0.0
 	direction = direction.normalized()
 	if direction != Vector3.ZERO:
 		_visual.rotation.y = atan2(-direction.x, -direction.z)
 	_lunge_velocity = direction * lunge_speed
 	_lunge_time_left = lunge_duration
+	_lunge_delay_left = lunge_delay
 
 
 func end_attack() -> void:
-	_attack_locked = false
+	lock_controls(false)
+
+
+## While locked, input can't steer or jump; the body just brakes (plus any lunge or knockback).
+func lock_controls(locked: bool) -> void:
+	_controls_locked = locked
+
+
+## Shove the body horizontally (cancels any lunge). Braking then uses `deceleration`.
+func apply_knockback(knockback: Vector3) -> void:
+	velocity.x = knockback.x
+	velocity.z = knockback.z
+	_lunge_time_left = 0.0
+
+
+## Back to the last spawn point with controls unlocked.
+func respawn() -> void:
+	spawn_at(_spawn_position, _spawn_yaw)
+	lock_controls(false)
+
+
+## Rotate the camera by a look delta in radians (x = yaw, y = pitch). Mouse and touch drags both land here.
+func add_look_input(delta: Vector2) -> void:
+	_target_yaw -= delta.x
+	_target_pitch -= delta.y * (-1.0 if invert_y else 1.0)
+	_target_pitch = clampf(_target_pitch, deg_to_rad(min_pitch_degrees), deg_to_rad(max_pitch_degrees))
 
 
 ## Camera-relative movement input (unit length or zero). Still reported while attacking.
@@ -145,10 +177,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if Time.get_ticks_msec() < _look_blocked_until_msec:
 			return
 		# screen_relative ignores viewport stretch, so sensitivity is resolution-independent.
-		var motion := (event as InputEventMouseMotion).screen_relative * mouse_sensitivity
-		_target_yaw -= motion.x
-		_target_pitch -= motion.y * (-1.0 if invert_y else 1.0)
-		_target_pitch = clampf(_target_pitch, deg_to_rad(min_pitch_degrees), deg_to_rad(max_pitch_degrees))
+		add_look_input((event as InputEventMouseMotion).screen_relative * mouse_sensitivity)
 	elif event.is_action_pressed(&"ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and event.is_pressed() and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
@@ -156,6 +185,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _capture_mouse() -> void:
+	if not mouse_capture_enabled:
+		return
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_look_blocked_until_msec = Time.get_ticks_msec() + 200
 
@@ -176,15 +207,15 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity += get_gravity() * delta
-	if Input.is_action_just_pressed(&"jump") and is_on_floor() and not _attack_locked:
+	if Input.is_action_just_pressed(&"jump") and is_on_floor() and not _controls_locked:
 		velocity.y = jump_velocity
 
 	# Camera-relative wish direction (yaw only, so looking down never slows you).
 	var input := Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back")
 	var wish := Vector3(input.x, 0.0, input.y).rotated(Vector3.UP, _yaw)
 	_move_direction = wish.normalized()
-	if _attack_locked:
-		wish = Vector3.ZERO           # strikes commit: no steering, just brake (plus the lunge)
+	if _controls_locked:
+		wish = Vector3.ZERO           # strikes and flinches commit: no steering, just brake
 	var top_speed := sprint_speed if Input.is_action_pressed(&"sprint") else walk_speed
 
 	# Acceleration / deceleration: steer horizontal velocity toward the target at a capped rate.
@@ -194,8 +225,11 @@ func _physics_process(delta: float) -> void:
 		rate *= air_control
 	horizontal = horizontal.move_toward(wish * top_speed, rate * delta)
 	if _lunge_time_left > 0.0:
-		horizontal = _lunge_velocity
-		_lunge_time_left -= delta
+		if _lunge_delay_left > 0.0:
+			_lunge_delay_left -= delta
+		else:
+			horizontal = _lunge_velocity
+			_lunge_time_left -= delta
 	velocity.x = horizontal.x
 	velocity.z = horizontal.z
 
@@ -204,7 +238,7 @@ func _physics_process(delta: float) -> void:
 	# velocity suspends the snap automatically, so jumps are never eaten.
 	move_and_slide()
 
-	if horizontal.length_squared() > 0.05 and not _attack_locked:
+	if horizontal.length_squared() > 0.05 and not _controls_locked:
 		var facing := atan2(-horizontal.x, -horizontal.z)   # model faces -Z
 		_visual.rotation.y = lerp_angle(_visual.rotation.y, facing, 1.0 - exp(-turn_speed * delta))
 

@@ -10,6 +10,8 @@
 [ext_resource type="Resource" path="res://resources/combat/attack_1.tres" id="8_attack_1"]
 [ext_resource type="Resource" path="res://resources/combat/attack_2.tres" id="9_attack_2"]
 [ext_resource type="Resource" path="res://resources/combat/attack_3.tres" id="10_attack_3"]
+[ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="11_health"]
+[ext_resource type="Script" path="res://scripts/combat/hurtbox.gd" id="12_hurtbox"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.35
@@ -24,6 +26,22 @@ collision_mask = 5
 script = ExtResource("1_controller")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("11_health")
+max_health = 100.0
+invulnerability_time = 0.8
+
+[node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health")]
+collision_layer = 64
+collision_mask = 0
+monitoring = false
+script = ExtResource("12_hurtbox")
+health = NodePath("../HealthComponent")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hurtbox"]
 position = Vector3(0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_body")
 
@@ -45,12 +63,13 @@ katana = NodePath("../Katana")
 hand_socket = NodePath("../Visual/SamuraiModel/Skeleton3D/HandSocket")
 back_socket = NodePath("../Visual/SamuraiModel/Skeleton3D/BackSocket")
 
-[node name="Combat" type="Node" parent="." node_paths=PackedStringArray("body", "animation_tree", "katana", "holster")]
+[node name="Combat" type="Node" parent="." node_paths=PackedStringArray("body", "animation_tree", "katana", "holster", "health")]
 script = ExtResource("6_combat")
 body = NodePath("..")
 animation_tree = NodePath("../AnimationTree")
 katana = NodePath("../Katana")
 holster = NodePath("../WeaponHolster")
+health = NodePath("../HealthComponent")
 combo = Array[ExtResource("7_attack_data")]([ExtResource("8_attack_1"), ExtResource("9_attack_2"), ExtResource("10_attack_3")])
 
 [node name="CameraRig" type="Node3D" parent="."]

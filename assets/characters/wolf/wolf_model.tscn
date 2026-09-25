@@ -85,105 +85,105 @@ size = Vector3(0.09, 0.5, 0.09)
 material = SubResource("StandardMaterial3D_04423")
 size = Vector3(0.09, 0.5, 0.09)
 
-[node name="WolfModel" type="Node3D" unique_id=1533456803]
+[node name="WolfModel" type="Node3D" unique_id=683629217]
 
-[node name="Rig" type="Node3D" parent="." unique_id=297463888]
+[node name="Rig" type="Node3D" parent="." unique_id=1333712281]
 
-[node name="Body" type="Node3D" parent="Rig" unique_id=1084845680]
+[node name="Body" type="Node3D" parent="Rig" unique_id=1460416356]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
 
-[node name="Torso" type="MeshInstance3D" parent="Rig/Body" unique_id=1697517807]
+[node name="Torso" type="MeshInstance3D" parent="Rig/Body" unique_id=1544735203]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.04)
 gi_mode = 2
 mesh = SubResource("BoxMesh_b41e2")
 
-[node name="Ruff" type="MeshInstance3D" parent="Rig/Body" unique_id=703278091]
+[node name="Ruff" type="MeshInstance3D" parent="Rig/Body" unique_id=925936371]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, -0.3)
 gi_mode = 2
 mesh = SubResource("BoxMesh_4cpdj")
 
-[node name="Back" type="MeshInstance3D" parent="Rig/Body" unique_id=280054440]
+[node name="Back" type="MeshInstance3D" parent="Rig/Body" unique_id=1030164950]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.17, 0.05)
 gi_mode = 2
 mesh = SubResource("BoxMesh_akymh")
 
-[node name="Head" type="Node3D" parent="Rig/Body" unique_id=118412]
+[node name="Head" type="Node3D" parent="Rig/Body" unique_id=195310639]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, -0.46)
 
-[node name="Skull" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=1159101225]
+[node name="Skull" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=17415631]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, -0.08)
 gi_mode = 2
 mesh = SubResource("BoxMesh_ghli2")
 
-[node name="Snout" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=1228770386]
+[node name="Snout" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=66173868]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03, -0.28)
 gi_mode = 2
 mesh = SubResource("BoxMesh_aul4l")
 
-[node name="Nose" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=221249470]
+[node name="Nose" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=362845348]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.39)
 gi_mode = 2
 mesh = SubResource("BoxMesh_e1jen")
 
-[node name="EarL" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=117713790]
+[node name="EarL" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=522431236]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, 0.17, -0.02)
 gi_mode = 2
 mesh = SubResource("PrismMesh_p5x7p")
 
-[node name="EyeL" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=1586299634]
+[node name="EyeL" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=253549372]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.065, 0.05, -0.215)
 gi_mode = 2
 mesh = SubResource("BoxMesh_btaeg")
 
-[node name="EarR" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=1836247130]
+[node name="EarR" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=863361153]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.07, 0.17, -0.02)
 gi_mode = 2
 mesh = SubResource("PrismMesh_b0u3j")
 
-[node name="EyeR" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=2040590406]
+[node name="EyeR" type="MeshInstance3D" parent="Rig/Body/Head" unique_id=1162380617]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.065, 0.05, -0.215)
 gi_mode = 2
 mesh = SubResource("BoxMesh_gcwg6")
 
-[node name="Tail" type="Node3D" parent="Rig/Body" unique_id=145529988]
+[node name="Tail" type="Node3D" parent="Rig/Body" unique_id=1865219712]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0.4)
 
-[node name="TailMesh" type="MeshInstance3D" parent="Rig/Body/Tail" unique_id=99967831]
+[node name="TailMesh" type="MeshInstance3D" parent="Rig/Body/Tail" unique_id=1395619828]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.2)
 gi_mode = 2
 mesh = SubResource("BoxMesh_qp2gx")
 
-[node name="LegFL" type="Node3D" parent="Rig/Body" unique_id=135954140]
+[node name="LegFL" type="Node3D" parent="Rig/Body" unique_id=492811454]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12, -0.05, -0.3)
 
-[node name="Leg" type="MeshInstance3D" parent="Rig/Body/LegFL" unique_id=1294850887]
+[node name="Leg" type="MeshInstance3D" parent="Rig/Body/LegFL" unique_id=1857844176]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
 gi_mode = 2
 mesh = SubResource("BoxMesh_h4o8o")
 
-[node name="LegFR" type="Node3D" parent="Rig/Body" unique_id=621123088]
+[node name="LegFR" type="Node3D" parent="Rig/Body" unique_id=634500354]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, -0.05, -0.3)
 
-[node name="Leg" type="MeshInstance3D" parent="Rig/Body/LegFR" unique_id=1875984359]
+[node name="Leg" type="MeshInstance3D" parent="Rig/Body/LegFR" unique_id=1208421870]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
 gi_mode = 2
 mesh = SubResource("BoxMesh_awqi6")
 
-[node name="LegBL" type="Node3D" parent="Rig/Body" unique_id=1695058887]
+[node name="LegBL" type="Node3D" parent="Rig/Body" unique_id=439906853]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12, -0.05, 0.3)
 
-[node name="Leg" type="MeshInstance3D" parent="Rig/Body/LegBL" unique_id=1201718846]
+[node name="Leg" type="MeshInstance3D" parent="Rig/Body/LegBL" unique_id=134179248]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
 gi_mode = 2
 mesh = SubResource("BoxMesh_w2j2s")
 
-[node name="LegBR" type="Node3D" parent="Rig/Body" unique_id=704072225]
+[node name="LegBR" type="Node3D" parent="Rig/Body" unique_id=28988141]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, -0.05, 0.3)
 
-[node name="Leg" type="MeshInstance3D" parent="Rig/Body/LegBR" unique_id=60193120]
+[node name="Leg" type="MeshInstance3D" parent="Rig/Body/LegBR" unique_id=1461706935]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
 gi_mode = 2
 mesh = SubResource("BoxMesh_u4god")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=673288924]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=944053801]
 libraries/ = ExtResource("1_cax5m")

@@ -6,10 +6,13 @@ extends CharacterBody3D
 ##           `wander_radius` of home.
 ## CHASE   : the player entered the detection Area3D (10 m), so run at them and stop at
 ##           `chase_stop_distance`. Leaving the area drops back to WANDER.
+## BITE    : in range, facing the player, cooldown ready. A telegraphed wind-up (it keeps
+##           tracking the player), then a lunge while the jaw Hitbox is active (AttackData
+##           `bite`). Hitting the wolf during the wind-up cancels the bite.
 ## STAGGER : reaction to a non-lethal hit: knockback, flinch, flash. Then it resumes and aggros.
 ## DEAD    : lethal hit. Plays the death animation, disables collision, sinks and frees itself.
 
-enum State { WANDER, CHASE, STAGGER, DEAD }
+enum State { WANDER, CHASE, BITE, STAGGER, DEAD }
 
 @export_group("Wander")
 @export var wander_radius := 15.0
@@ -21,6 +24,14 @@ enum State { WANDER, CHASE, STAGGER, DEAD }
 @export var chase_stop_distance := 1.8
 ## Seconds between path updates toward the moving player.
 @export var repath_interval := 0.25
+
+@export_group("Bite")
+## Damage, timing and lunge of the bite (resources/combat/wolf_bite.tres).
+@export var bite: AttackData
+## A bite starts when the wolf is within this distance of its stop line (m).
+@export var bite_range_slack := 0.3
+## Random pause between bites (s).
+@export var bite_cooldown := Vector2(1.4, 2.2)
 
 @export_group("Motion")
 @export var acceleration := 14.0
@@ -39,11 +50,15 @@ static var _flash_material: StandardMaterial3D
 @onready var health: HealthComponent = $HealthComponent
 @onready var hurtbox: Hurtbox = $Hurtbox
 @onready var model: Node3D = $Model
+@onready var bite_hitbox: Hitbox = $BiteHitbox
 @onready var anim: AnimationPlayer = $Model/AnimationPlayer
 
 var state := State.WANDER
 var _home := Vector3.ZERO
 var _target: Node3D
+var _target_health: HealthComponent
+var _bite_time := 0.0
+var _bite_cooldown_left := 0.0
 var _wander_timer := 0.0
 var _repath_timer := 0.0
 var _stagger_timer := 0.0
@@ -59,6 +74,7 @@ func _ready() -> void:
 	detection.body_exited.connect(_on_detection_exited)
 	health.damaged.connect(_on_damaged)
 	health.died.connect(_on_died)
+	bite_hitbox.source = self
 	anim.play(&"idle")
 
 
@@ -70,6 +86,8 @@ func _physics_process(delta: float) -> void:
 			_tick_wander(delta)
 		State.CHASE:
 			_tick_chase(delta)
+		State.BITE:
+			_tick_bite(delta)
 		State.STAGGER:
 			_tick_stagger(delta)
 	move_and_slide()
@@ -87,9 +105,10 @@ func _tick_wander(delta: float) -> void:
 
 
 func _tick_chase(delta: float) -> void:
-	if not is_instance_valid(_target):
-		_enter_wander()
+	if not is_instance_valid(_target) or (_target_health and _target_health.is_dead):
+		_enter_wander()                              # target gone or defeated: lose interest
 		return
+	_bite_cooldown_left -= delta
 	_repath_timer -= delta
 	if _repath_timer <= 0.0:
 		_repath_timer = repath_interval
@@ -97,12 +116,51 @@ func _tick_chase(delta: float) -> void:
 	var to_target := _target.global_position - global_position
 	to_target.y = 0.0
 	var gap := to_target.length() - chase_stop_distance
-	if gap <= 0.0:
+	if gap <= bite_range_slack:
 		_steer(0.0, delta)
 		_face(to_target, delta)                      # hold ground, stare down the player
+		var facing := -global_basis.z
+		if _bite_cooldown_left <= 0.0 and bite and facing.dot(to_target.normalized()) > 0.8:
+			_start_bite()
 	else:
 		# Arrival: cap speed so braking at `acceleration` ends exactly at the stop distance (v = √(2·a·d)).
 		_steer(minf(run_speed, sqrt(2.0 * acceleration * gap)), delta)
+
+
+func _start_bite() -> void:
+	state = State.BITE
+	_bite_time = 0.0
+	bite_hitbox.begin(bite)
+	anim.speed_scale = 1.0
+	anim.play(bite.animation, 0.08)
+	anim.seek(0.0, true)
+
+
+func _tick_bite(delta: float) -> void:
+	_bite_time += delta
+	var t := _bite_time
+	var lunge_end := bite.lunge_delay + bite.lunge_duration
+	if t < bite.lunge_delay:
+		_steer(0.0, delta)                           # wind-up: crouch and keep tracking the target
+		if is_instance_valid(_target):
+			var to_target := _target.global_position - global_position
+			to_target.y = 0.0
+			_face(to_target, delta)
+	elif t < lunge_end:
+		var forward := -global_basis.z
+		velocity.x = forward.x * bite.lunge_speed
+		velocity.z = forward.z * bite.lunge_speed
+	else:
+		_steer(0.0, delta)
+	bite_hitbox.set_active(t >= bite.active_start and t < bite.active_end)
+	if t >= bite.duration:
+		_end_bite()
+		state = State.CHASE
+
+
+func _end_bite() -> void:
+	bite_hitbox.set_active(false)
+	_bite_cooldown_left = randf_range(bite_cooldown.x, bite_cooldown.y)
 
 
 func _tick_stagger(delta: float) -> void:
@@ -120,6 +178,7 @@ func _tick_stagger(delta: float) -> void:
 func _enter_wander() -> void:
 	state = State.WANDER
 	_target = null
+	_target_health = null
 	_wander_timer = 0.0                                # choose a fresh point right away
 
 
@@ -158,7 +217,7 @@ func _face(direction: Vector3, delta: float) -> void:
 
 
 func _update_animation() -> void:
-	if state == State.STAGGER:
+	if state == State.STAGGER or state == State.BITE:
 		return
 	var speed := Vector2(velocity.x, velocity.z).length()
 	var next := &"idle"
@@ -178,6 +237,7 @@ func _update_animation() -> void:
 func _on_detection_entered(body: Node3D) -> void:
 	if body is PlayerController and state != State.DEAD:
 		_target = body
+		_target_health = HealthComponent.resolve(body)
 		if state == State.WANDER:
 			state = State.CHASE
 			_repath_timer = 0.0
@@ -191,12 +251,15 @@ func _on_detection_exited(body: Node3D) -> void:
 func _on_damaged(hit: HitInfo) -> void:
 	if health.is_dead:
 		return                                         # died() handles lethal hits
+	if state == State.BITE:
+		_end_bite()                                    # interrupted mid-bite
 	state = State.STAGGER
 	_stagger_timer = hit.stagger_time
 	velocity.x = hit.knockback.x
 	velocity.z = hit.knockback.z
 	if hit.source:
 		_target = hit.source                           # getting hit always aggros
+		_target_health = HealthComponent.resolve(hit.source)
 	anim.speed_scale = 1.0
 	anim.play(&"hurt", 0.05)
 	anim.seek(0.0, true)
@@ -205,6 +268,7 @@ func _on_damaged(hit: HitInfo) -> void:
 
 func _on_died(_hit: HitInfo) -> void:
 	state = State.DEAD
+	bite_hitbox.set_active(false)
 	remove_from_group(&"enemies")
 	# Collision changes are deferred: we are inside the katana's physics callback.
 	$CollisionShape3D.set_deferred(&"disabled", true)

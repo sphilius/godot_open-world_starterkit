@@ -25,6 +25,8 @@ extends Resource
 ## Forward burst (m/s) at the start of the strike.
 @export var lunge_speed := 3.0
 @export var lunge_duration := 0.15
+## Seconds after the strike starts before the lunge kicks in (a bite's wind-up, for example).
+@export var lunge_delay := 0.0
 ## Real-time seconds the world freezes when this strike connects.
 @export var hitstop := 0.06
 ## How long the target is staggered (movement and AI interrupted).
