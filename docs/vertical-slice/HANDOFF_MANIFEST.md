@@ -182,17 +182,38 @@ CombatStateMachine: State adds GUARD; exports guard, parry, reaction, posture; g
   static stagger_clip(type) -> StringName (STAGGER_CLIPS). PlayerController: move_speed_scale, hold_facing.
 Wolf: PostureComponent (60) + DamageReaction; a parried bite staggers it.
 
-# M6: AI
-class_name CombatDirector extends Node        # one per encounter
-  @export max_attack_tokens := 2; @export max_flank_tokens := 3; @export token_cooldown := 0.8; @export ring_radius := 5.0
+# M6: AI (implemented; scripts/ai/, scenes/mobs/enemy_*.tscn)
+class_name CombatDirector extends Node        # one per encounter (real-time leases)
+  @export max_attack_tokens := 2; max_flank_tokens := 3; token_cooldown := 0.8 (after any release); token_lease_time := 4.0
+  @export ring_radius := 5.0; outer_ring_radius := 8.0; slot_hysteresis := 1.5
   func request_attack_token(enemy: Node3D) -> bool; func release_attack_token(enemy: Node3D) -> void
-  func get_flank_position(enemy: Node3D, player: Node3D) -> Vector3
-  func register(enemy: Node3D) -> void; func unregister(enemy: Node3D) -> void
-class_name EnemyCombatController extends CharacterBody3D
-  signal telegraph_glint(position: Vector3, is_unblockable: bool); signal defeated
+  func has_attack_token(enemy: Node3D) -> bool; func token_count() -> int
+  func get_flank_position(enemy: Node3D, player: Node3D) -> Vector3   # ring slot, or the outer ring when full
+  func slot_direction(index: int, player: Node3D) -> Vector3            # evenly spaced; the gap sits behind the player (camera side)
+  func register(enemy: Node3D) -> void; func unregister(enemy: Node3D) -> void   # unregister releases the token
+  static func view_forward(player: Node3D) -> Vector3                   # camera yaw if the player has one, else its facing
+class_name EnemyCombo extends Resource         # strikes: Array[AttackData], played on one token
+class_name EnemyCombatController extends CharacterBody3D   # group "enemies"; target = first node in group "player"
+  signal telegraph_glint(position: Vector3, is_unblockable: bool); signal defeated; signal executed(by: Node3D)
+  signal state_changed(previous: State, current: State)
   enum State { IDLE, APPROACH, FLANKING, ATTACK_WINDUP, ATTACK_ACTIVE, RECOVER, STAGGERED, DEAD }
-  @export attacks: Array[AttackData]; @export director: CombatDirector
-  func reset_to_spawn() -> void               # used by GameManager encounter reset
+  @export attacks: Array[AttackData]; combos: Array[EnemyCombo]; director: CombatDirector
+  @export walk_speed, run_speed, approach_distance := 2.0, aggro_radius := 14.0, telegraph_lead := 0.4, attack_cooldown, recovery_scale := 1.0
+  @export execution_damage_ratio := 1.0 (grunt; brute 0.6, gatekeeper 0.4); free_on_death := true
+  const STAGGER_CLIPS                         # DamageReaction type → enemy clip
+  var state; var target: Node3D; var current_attack: AttackData; var glint: TelegraphGlint
+  func is_executable() -> bool; func execute(by: Node3D) -> bool; func has_attack_token() -> bool
+  func reset_to_spawn() -> void               # used by GameManager encounter reset; releases the token
+  # Children: HealthComponent, PostureComponent, Hurtbox, DamageReaction, WeaponHitbox (moved under the
+  # model's WeaponSocket at runtime), NavigationAgent3D, Model (with AnimationPlayer, WeaponSocket/Socket_Telegraph_Glint).
+class_name Gatekeeper extends EnemyCombatController
+  signal phase_changed(phase: int); signal roared(trauma: float)   # roar trauma 0.45 → CameraTrauma (M9)
+  @export boss_name; phase_two_ratio := 0.5; phase_two_combos: Array[EnemyCombo]; roar_time := 1.2
+  var phase: int                              # phase 2: invulnerable roar, recovery x0.8, posture regen x2, red combo added
+class_name TelegraphGlint extends Node3D      # scenes/vfx/telegraph_glint.tscn: flash(unblockable); GOLD / RED; last_color
+CombatStateMachine: execution: AttackData (execution.tres); execute_range := 2.8; execute_angle := 70;
+  func execution_target() -> Node3D           # a light attack on a posture-broken enemy in front executes it
+PlayerHUD: combat (execution prompt); group "boss_hud": set_boss(enemy), showing_boss()
 
 # M7: targeting and camera (implemented)
 class_name TargetingSystem extends Node       # player child "TargetingSystem"

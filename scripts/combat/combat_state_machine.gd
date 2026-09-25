@@ -20,6 +20,10 @@ extends Node
 ## • Guard (hold): walks slowly with the facing held, blocks frontal hits (GuardComponent),
 ##   and each press opens a parry window (ParrySystem). Guard can start from locomotion, from a
 ##   strike's recovery and from a dodge's recovery; strikes and dodges can leave it.
+## • Execution: a light attack pressed while an enemy with a broken posture stands in front
+##   (within `execute_range` and `execute_angle`, the lock-on target first) plays the
+##   `execution` strike instead: invulnerable, no hitbox, and at its active frame the enemy's
+##   execute() deals its execution damage.
 ## • Sheathing: after `sheathe_delay` seconds without attacking or guarding, the weapon is
 ##   sheathed.
 ## • Reactions come from DamageReactionComponent: a stagger cancels the swing or guard and plays
@@ -58,6 +62,11 @@ const STAGGER_CLIPS := {
 @export var reaction: DamageReactionComponent
 ## Reset on respawn.
 @export var posture: PostureComponent
+## The deathblow strike (resources/combat/execution.tres).
+@export var execution: AttackData
+## Farthest an executable enemy can be (m), and widest angle off the facing.
+@export var execute_range := 2.8
+@export_range(0.0, 180.0) var execute_angle := 70.0
 ## Idle timer (s) before the weapon is sheathed.
 @export var sheathe_delay := 3.0
 ## Horizontal speed (m/s) above which locomotion counts as RUN.
@@ -86,6 +95,8 @@ var _playback: AnimationNodeStateMachinePlayback
 var _iframes_granted := false
 var _guard_held := false
 var _parries := 0
+var _execution_target: Node3D
+var _executed := false
 
 
 func _ready() -> void:
@@ -190,6 +201,9 @@ func _tick_locomotion(delta: float) -> void:
 
 func _tick_attack() -> void:
 	var attack := current_attack
+	if attack == execution:
+		_tick_execution()
+		return
 	katana.set_active(_state_time >= attack.active_start and _state_time < attack.active_end)
 	# Never chain before the active frames finish, or mashing would cut every swing short.
 	var allowed: Array[StringName] = []
@@ -227,6 +241,69 @@ func _tick_dodge() -> void:
 		_enter_locomotion()
 
 
+func _tick_execution() -> void:
+	if not _executed and _state_time >= execution.active_start:
+		_executed = true
+		if is_instance_valid(_execution_target) and _execution_target.call(&"execute", body):
+			HitStop.trigger(execution.hitstop)
+	if _state_time >= execution.duration:
+		body.end_attack()
+		combo.reset()
+		_time_since_attack = 0.0
+		_execution_target = null
+		_enter_locomotion()
+
+
+## The enemy a light attack would execute right now, or null: posture broken, in front and in
+## reach. The lock-on target wins when it qualifies.
+func execution_target() -> Node3D:
+	if execution == null:
+		return null
+	var locked: Node3D = targeting.get(&"current_target") if targeting else null
+	if _can_execute(locked):
+		return locked
+	var best: Node3D
+	var best_distance := execute_range
+	for enemy: Node3D in get_tree().get_nodes_in_group(&"enemies"):
+		if _can_execute(enemy):
+			var distance := (enemy.global_position - body.global_position).length()
+			if distance <= best_distance:
+				best = enemy
+				best_distance = distance
+	return best
+
+
+func _can_execute(enemy: Node3D) -> bool:
+	if not is_instance_valid(enemy) or not enemy.has_method(&"is_executable") or not enemy.call(&"is_executable"):
+		return false
+	var to_enemy := enemy.global_position - body.global_position
+	to_enemy.y = 0.0
+	if to_enemy.length() > execute_range:
+		return false
+	return to_enemy.length() < 0.3 or body.get_facing().angle_to(to_enemy.normalized()) <= deg_to_rad(execute_angle)
+
+
+func _start_execution(enemy: Node3D) -> void:
+	_end_guard()
+	katana.set_active(false)
+	holster.draw()
+	combo.reset()
+	var to_enemy := enemy.global_position - body.global_position
+	to_enemy.y = 0.0
+	var direction := to_enemy.normalized() if to_enemy.length() > 0.01 else body.get_facing()
+	body.face(direction)
+	var travel := maxf(to_enemy.length() - 1.3, 0.0)
+	body.begin_attack(direction, travel / execution.lunge_duration if execution.lunge_duration > 0.0 else 0.0,
+			execution.lunge_duration, execution.lunge_delay)
+	health.grant_invulnerability(execution.duration)
+	current_attack = execution
+	_execution_target = enemy
+	_executed = false
+	_time_since_attack = 0.0
+	_change_state(State.ATTACK, execution.animation)
+	attack_started.emit(execution)
+
+
 func _tick_guard() -> void:
 	_time_since_attack = 0.0                     # the weapon stays out while guarding
 	if not _guard_held:
@@ -259,6 +336,12 @@ func _end_guard() -> void:
 ## Starts the oldest buffered action if it's allowed now and leads somewhere. Returns true if
 ## something started.
 func _take_action(allowed: Array[StringName]) -> bool:
+	if LIGHT in allowed and combo.peek() == LIGHT:
+		var victim := execution_target()
+		if victim:
+			combo.consume([LIGHT] as Array[StringName])
+			_start_execution(victim)
+			return true
 	var sheathed := not holster.is_drawn()
 	var ready: Array[StringName] = []
 	for action in allowed:

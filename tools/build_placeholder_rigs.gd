@@ -1,6 +1,8 @@
 extends SceneTree
-## Placeholder art generator. Builds the skinned samurai rig and the wolf model, their animation
-## libraries, and the samurai AnimationTree state machine, then saves them as editable resources.
+## Placeholder art generator. Builds the skinned samurai rig, the humanoid enemies (Grunt, Brute,
+## Gatekeeper: the samurai skeleton, one shared animation library) and the wolf model, their
+## animation libraries, and the samurai AnimationTree state machine, then saves them as editable
+## resources.
 ##
 ##   godot --headless --path . --script res://tools/build_placeholder_rigs.gd
 ##
@@ -11,6 +13,15 @@ extends SceneTree
 
 const SAMURAI_DIR := "res://assets/characters/samurai/"
 const WOLF_DIR := "res://assets/characters/wolf/"
+const ENEMY_DIR := "res://assets/characters/enemy/"
+## Enemy strikes; each clip is keyed from its AttackData timings like the samurai's.
+const ENEMY_ATTACK_PATHS := [
+	"res://resources/combat/enemies/grunt_slash.tres",
+	"res://resources/combat/enemies/grunt_cut.tres",
+	"res://resources/combat/enemies/brute_slam.tres",
+	"res://resources/combat/enemies/brute_sweep.tres",
+	"res://resources/combat/enemies/brute_thrust.tres",
+]
 const ATTACK_PATHS := [
 	"res://resources/combat/attack_1.tres",
 	"res://resources/combat/attack_2.tres",
@@ -19,6 +30,7 @@ const ATTACK_PATHS := [
 	"res://resources/combat/heavy_2.tres",
 	"res://resources/combat/heavy_finisher.tres",
 	"res://resources/combat/draw_attack.tres",
+	"res://resources/combat/execution.tres",
 ]
 ## Dodge clip length; CombatStateMachine.dodge_duration must match (tests/test_data.gd checks it).
 const DODGE_LENGTH := 0.45
@@ -97,6 +109,13 @@ const SKIN := Color(0.86, 0.68, 0.54)
 const STRAW := Color(0.72, 0.6, 0.36)
 const HAIR := Color(0.06, 0.05, 0.05)
 const LACQUER := Color(0.05, 0.04, 0.04)
+const ROBE := Color(0.16, 0.13, 0.15)
+const ROBE_TRIM := Color(0.42, 0.08, 0.07)
+const GREY_SKIN := Color(0.52, 0.5, 0.5)
+const IRON := Color(0.26, 0.27, 0.29)
+const STEEL := Color(0.72, 0.74, 0.78)
+const LEATHER := Color(0.3, 0.2, 0.13)
+const GOLD := Color(0.78, 0.6, 0.22)
 const FUR := Color(0.45, 0.43, 0.41)
 const FUR_LIGHT := Color(0.64, 0.61, 0.57)
 const FUR_DARK := Color(0.24, 0.23, 0.23)
@@ -104,6 +123,7 @@ const FUR_DARK := Color(0.24, 0.23, 0.23)
 
 func _initialize() -> void:
 	_build_samurai()
+	_build_enemies()
 	_build_wolf()
 	print("Placeholder rigs rebuilt.")
 	quit()
@@ -114,29 +134,8 @@ func _initialize() -> void:
 # ==============================================================================================
 
 func _build_samurai() -> void:
-	var root := Node3D.new()
-	root.name = "SamuraiModel"
-	var skeleton := Skeleton3D.new()
-	skeleton.name = "Skeleton3D"
-	_own(root, root, skeleton)
-	for bone: Array in SAMURAI_BONES:
-		var index := skeleton.add_bone(bone[0])
-		if bone[1] != "":
-			skeleton.set_bone_parent(index, skeleton.find_bone(bone[1]))
-		var basis := Basis.IDENTITY
-		if bone[0] == "scabbard":
-			basis = Basis.looking_at(SCABBARD_DIRECTION.normalized(), Vector3.UP)
-		skeleton.set_bone_rest(index, Transform3D(basis, bone[2]))
-	skeleton.reset_bone_poses()
-
-	# One skinned mesh: each primitive part is rigidly weighted to its bone.
-	var body := MeshInstance3D.new()
-	body.name = "Body"
-	body.mesh = _skinned_mesh(skeleton, _samurai_parts())
-	body.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
-	_own(root, skeleton, body)
-	body.skin = skeleton.create_skin_from_rest_transforms()
-	body.skeleton = ^".."
+	var root := _humanoid("SamuraiModel", _samurai_parts())
+	var skeleton: Skeleton3D = root.get_node("Skeleton3D")
 
 	# Weapon sockets: the katana moves between these two bone attachments.
 	for socket: Array in [["HandSocket", "weapon_r"], ["SheathSocket", "scabbard"]]:
@@ -174,6 +173,33 @@ func _build_samurai() -> void:
 	_save(_samurai_state_machine(), SAMURAI_DIR + "samurai_state_machine.tres")
 
 
+## A root with the samurai skeleton and one skinned mesh built from `parts` (each primitive part
+## rigidly weighted to its bone). Shared by the samurai and the humanoid enemies.
+func _humanoid(root_name: String, parts: Array) -> Node3D:
+	var root := Node3D.new()
+	root.name = root_name
+	var skeleton := Skeleton3D.new()
+	skeleton.name = "Skeleton3D"
+	_own(root, root, skeleton)
+	for bone: Array in SAMURAI_BONES:
+		var index := skeleton.add_bone(bone[0])
+		if bone[1] != "":
+			skeleton.set_bone_parent(index, skeleton.find_bone(bone[1]))
+		var basis := Basis.IDENTITY
+		if bone[0] == "scabbard":
+			basis = Basis.looking_at(SCABBARD_DIRECTION.normalized(), Vector3.UP)
+		skeleton.set_bone_rest(index, Transform3D(basis, bone[2]))
+	skeleton.reset_bone_poses()
+	var body := MeshInstance3D.new()
+	body.name = "Body"
+	body.mesh = _skinned_mesh(skeleton, parts)
+	body.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+	_own(root, skeleton, body)
+	body.skin = skeleton.create_skin_from_rest_transforms()
+	body.skeleton = ^".."
+	return root
+
+
 func _samurai_parts() -> Array:
 	# [bone, mesh, offset in bone space, colour]
 	return [
@@ -201,6 +227,11 @@ func _samurai_parts() -> Array:
 
 
 func _samurai_run() -> Animation:
+	return _gait_clip(0.64, 1.0)
+
+
+## A run cycle; `stride` scales every limb swing (0.5 reads as a walk at a longer `length`).
+func _gait_clip(length: float, stride: float) -> Animation:
 	var base := {"spine": Vector3(-12, 0, 0), "head": Vector3(8, 0, 0),
 			"forearm_r": Vector3(50, 0, 0), "forearm_l": Vector3(40, 0, 0)}
 	var contact_r := _pose(base, {   # right foot forward, left arm forward
@@ -219,7 +250,19 @@ func _samurai_run() -> Animation:
 		"upper_arm_r": Vector3(25, 0, 10), "upper_arm_l": Vector3(5, 0, -8),
 		"thigh_l": Vector3(0, 0, 0), "shin_l": Vector3(-10, 0, 0),
 		"thigh_r": Vector3(15, 0, 0), "shin_r": Vector3(-80, 0, 0), "hips_offset": Vector3(0, 0.03, 0)})
-	return _samurai_clip(0.64, true, [[0.0, contact_r], [0.16, pass_l], [0.32, contact_l], [0.48, pass_r], [0.64, contact_r]])
+	var poses := [contact_r, pass_l, contact_l, pass_r, contact_r]
+	var keys := []
+	for i in poses.size():
+		keys.append([length * i / 4.0, _scaled(poses[i], stride)])
+	return _samurai_clip(length, true, keys)
+
+
+## `pose` with every angle and offset multiplied by `factor`.
+static func _scaled(pose: Dictionary, factor: float) -> Dictionary:
+	var result := {}
+	for key: String in pose:
+		result[key] = pose[key] * factor
+	return result
 
 
 ## The swing shape for each strike; timing comes from its AttackData.
@@ -233,6 +276,8 @@ func _attack_clip(attack: AttackData) -> Animation:
 			return _overhead_clip(attack)
 		&"heavy_2":
 			return _thrust_clip(attack)
+		&"execution":
+			return _overhead_clip(attack)
 	push_error("No placeholder swing for '%s'" % attack.animation)
 	return _slash_clip(attack, 1.0)
 
@@ -499,6 +544,170 @@ func _link(machine: AnimationNodeStateMachine, from: String, to: String, xfade: 
 			else AnimationNodeStateMachineTransition.ADVANCE_MODE_ENABLED   # ENABLED: only travel() moves it
 	machine.add_transition(StringName(from), StringName(to), transition)
 
+
+
+# ==============================================================================================
+# Humanoid enemies (decision D15 art is pending: these share the samurai skeleton and clips)
+# ==============================================================================================
+
+## One library for every humanoid enemy; the Brute and Gatekeeper use the extra heavy clips.
+func _build_enemies() -> void:
+	var library := AnimationLibrary.new()
+	library.add_animation(&"idle", _samurai_clip(2.0, true, [
+		[0.0, ENEMY_STANCE], [1.0, _pose(ENEMY_STANCE, {"chest": Vector3(3, 0, 0), "hips_offset": Vector3(0, -0.06, 0)})],
+		[2.0, ENEMY_STANCE]]))
+	library.add_animation(&"walk", _gait_clip(1.0, 0.55))
+	library.add_animation(&"run", _gait_clip(0.64, 1.0))
+	library.add_animation(&"strafe_l", _strafe_clip(-1.0))
+	library.add_animation(&"strafe_r", _strafe_clip(1.0))
+	for path: String in ENEMY_ATTACK_PATHS:
+		var attack: AttackData = load(path)
+		library.add_animation(attack.animation, _enemy_attack_clip(attack))
+	library.add_animation(&"hurt_f", _reaction_clip("hurt_f"))
+	library.add_animation(&"hurt_b", _reaction_clip("hurt_b"))
+	library.add_animation(&"stagger", _reaction_clip("hurt_heavy"))
+	library.add_animation(&"parried", _flinch(1.0, {"spine": Vector3(22, 0, 0), "chest": Vector3(12, -15, 0), "head": Vector3(18, 0, 0),
+			"upper_arm_r": Vector3(-40, 0, 40), "forearm_r": Vector3(20, 0, 0), "weapon_r": Vector3(-20, 0, 0),
+			"upper_arm_l": Vector3(-5, 0, -40), "thigh_r": Vector3(-25, 0, 6), "shin_r": Vector3(-20, 0, 0),
+			"thigh_l": Vector3(35, 0, -6), "shin_l": Vector3(-40, 0, 0), "hips_offset": Vector3(0, -0.1, 0.15)}))
+	library.add_animation(&"posture_break", _dazed_clip())
+	library.add_animation(&"executed", _samurai_death())
+	library.add_animation(&"death", _samurai_death())
+	library.add_animation(&"roar", _roar_clip())
+	library = _save(library, ENEMY_DIR + "enemy_animations.tres")
+	_save_enemy("GruntModel", _grunt_parts(), library, 0.95, ENEMY_DIR + "grunt_model.tscn")
+	_save_enemy("BruteModel", _brute_parts(IRON, LEATHER), library, 1.15, ENEMY_DIR + "brute_model.tscn")
+	_save_enemy("GatekeeperModel", _brute_parts(Color(0.12, 0.1, 0.1), GOLD), library, 1.25, ENEMY_DIR + "gatekeeper_model.tscn")
+
+
+## Model scene: skeleton, body, a WeaponSocket on the weapon bone (the weapon Hitbox is moved
+## under it at runtime) with a Socket_Telegraph_Glint marker near the weapon's tip.
+func _save_enemy(root_name: String, parts: Array, library: AnimationLibrary, tip: float, path: String) -> void:
+	var root := _humanoid(root_name, parts)
+	var skeleton: Skeleton3D = root.get_node("Skeleton3D")
+	var socket := BoneAttachment3D.new()
+	socket.name = "WeaponSocket"
+	_own(root, skeleton, socket)
+	socket.bone_name = "weapon_r"
+	var glint := Marker3D.new()
+	glint.name = "Socket_Telegraph_Glint"
+	glint.position = Vector3(0, 0, -tip)
+	_own(root, socket, glint)
+	var player := AnimationPlayer.new()
+	player.name = "AnimationPlayer"
+	_own(root, root, player)
+	player.add_animation_library(&"", library)
+	_save_scene(root, path)
+
+
+## Guard-up stance shared by the enemies: weapon held forward, weight low.
+const ENEMY_STANCE := {
+	"spine": Vector3(-8, 0, 0), "head": Vector3(6, 0, 0),
+	"upper_arm_r": Vector3(35, 0, 15), "forearm_r": Vector3(40, 0, 0), "weapon_r": Vector3(-30, 0, 0),
+	"upper_arm_l": Vector3(20, 0, -15), "forearm_l": Vector3(35, 0, 0),
+	"thigh_r": Vector3(-10, 0, 6), "shin_r": Vector3(-18, 0, 0),
+	"thigh_l": Vector3(20, 0, -6), "shin_l": Vector3(-24, 0, 0),
+	"hips_offset": Vector3(0, -0.06, 0),
+}
+
+
+func _enemy_attack_clip(attack: AttackData) -> Animation:
+	match attack.animation:
+		&"attack_1", &"sweep":
+			return _slash_clip(attack, 1.0)
+		&"attack_2":
+			return _slash_clip(attack, -1.0)
+		&"slam":
+			return _overhead_clip(attack)
+		&"thrust_unblockable":
+			return _thrust_clip(attack)
+	push_error("No placeholder enemy swing for '%s'" % attack.animation)
+	return _slash_clip(attack, 1.0)
+
+
+## Side-step cycle toward `side` (+1 right, -1 left), weapon kept up.
+func _strafe_clip(side: float) -> Animation:
+	var open := _pose(ENEMY_STANCE, {"thigh_r": Vector3(-5, 0, 18 * side), "thigh_l": Vector3(15, 0, 4 * side),
+			"hips_offset": Vector3(0.04 * side, -0.05, 0)})
+	var closed := _pose(ENEMY_STANCE, {"thigh_r": Vector3(-5, 0, -4 * side), "thigh_l": Vector3(15, 0, -14 * side),
+			"hips_offset": Vector3(-0.02 * side, -0.08, 0)})
+	return _samurai_clip(0.7, true, [[0.0, open], [0.35, closed], [0.7, open]])
+
+
+## Posture broken: staggers to one knee, weapon down, open for an execution (held).
+func _dazed_clip() -> Animation:
+	var sag := {"spine": Vector3(-30, 0, 0), "chest": Vector3(-15, 0, 0), "head": Vector3(-25, 0, 0),
+			"upper_arm_r": Vector3(0, 0, 15), "forearm_r": Vector3(10, 0, 0), "weapon_r": Vector3(40, 0, 0),
+			"upper_arm_l": Vector3(30, 0, -10), "forearm_l": Vector3(40, 0, 0),
+			"thigh_r": Vector3(0, 0, 5), "shin_r": Vector3(-90, 0, 0),
+			"thigh_l": Vector3(80, 0, -5), "shin_l": Vector3(-80, 0, 0), "hips_offset": Vector3(0, -0.43, 0)}
+	var sway := _pose(sag, {"spine": Vector3(-26, 6, 0), "head": Vector3(-18, 8, 0)})
+	return _samurai_clip(2.5, false, [[0.0, ENEMY_STANCE], [0.35, sag], [1.2, sway], [2.2, sag], [2.5, sag]])
+
+
+## Phase-2 roar: rear back, arms wide, then settle into the stance.
+func _roar_clip() -> Animation:
+	var rear := {"spine": Vector3(20, 0, 0), "chest": Vector3(20, 0, 0), "head": Vector3(25, 0, 0),
+			"upper_arm_r": Vector3(-20, 0, 80), "forearm_r": Vector3(20, 0, 0), "weapon_r": Vector3(-60, 0, 0),
+			"upper_arm_l": Vector3(-20, 0, -80), "forearm_l": Vector3(20, 0, 0),
+			"thigh_r": Vector3(-15, 0, 10), "thigh_l": Vector3(15, 0, -10), "hips_offset": Vector3(0, -0.1, 0.05)}
+	return _samurai_clip(1.2, false, [[0.0, ENEMY_STANCE], [0.3, rear], [0.9, rear], [1.2, ENEMY_STANCE]])
+
+
+func _grunt_parts() -> Array:
+	return [
+		["hips", _box(0.32, 0.22, 0.22), Vector3(0, -0.02, 0), ROBE],
+		["hips", _box(0.34, 0.06, 0.24), Vector3(0, 0.08, 0), ROBE_TRIM],
+		["spine", _box(0.3, 0.2, 0.2), Vector3(0, 0.1, 0), ROBE],
+		["chest", _box(0.38, 0.3, 0.23), Vector3(0, 0.12, 0), ROBE],
+		["chest", _box(0.06, 0.26, 0.02), Vector3(0, 0.12, -0.12), ROBE_TRIM],   # glowing seam
+		["head", _sphere(0.115), Vector3(0, 0.12, 0), GREY_SKIN],
+		["head", _cone(0.0, 0.16, 0.2), Vector3(0, 0.22, 0.02), ROBE],           # hood
+		["upper_arm_r", _box(0.13, 0.3, 0.13), Vector3(0, -0.15, 0), ROBE],
+		["forearm_r", _box(0.08, 0.27, 0.08), Vector3(0, -0.13, 0), LEATHER],
+		["hand_r", _sphere(0.05), Vector3(0, -0.03, 0), GREY_SKIN],
+		["upper_arm_l", _box(0.13, 0.3, 0.13), Vector3(0, -0.15, 0), ROBE],
+		["forearm_l", _box(0.08, 0.27, 0.08), Vector3(0, -0.13, 0), LEATHER],
+		["hand_l", _sphere(0.05), Vector3(0, -0.03, 0), GREY_SKIN],
+		["thigh_r", _box(0.18, 0.44, 0.2), Vector3(0, -0.22, 0), ROBE],
+		["shin_r", _box(0.16, 0.4, 0.18), Vector3(0, -0.2, 0), LEATHER],
+		["foot_r", _box(0.1, 0.06, 0.24), Vector3(0, -0.03, -0.05), LEATHER],
+		["thigh_l", _box(0.18, 0.44, 0.2), Vector3(0, -0.22, 0), ROBE],
+		["shin_l", _box(0.16, 0.4, 0.18), Vector3(0, -0.2, 0), LEATHER],
+		["foot_l", _box(0.1, 0.06, 0.24), Vector3(0, -0.03, -0.05), LEATHER],
+		["weapon_r", _box(0.035, 0.12, 0.035), Vector3(0, 0, 0), LEATHER],       # grip
+		["weapon_r", _box(0.16, 0.03, 0.04), Vector3(0, 0, -0.08), IRON],        # crossguard
+		["weapon_r", _box(0.05, 0.012, 0.85), Vector3(0, 0, -0.52), STEEL],      # straight blade
+	]
+
+
+## Bulkier armoured humanoid with a two-handed maul; `metal` and `trim` recolour it.
+func _brute_parts(metal: Color, trim: Color) -> Array:
+	return [
+		["hips", _box(0.42, 0.26, 0.3), Vector3(0, -0.02, 0), LEATHER],
+		["hips", _box(0.46, 0.08, 0.32), Vector3(0, 0.09, 0), trim],
+		["spine", _box(0.4, 0.22, 0.28), Vector3(0, 0.1, 0), metal],
+		["chest", _box(0.56, 0.36, 0.34), Vector3(0, 0.13, 0), metal],
+		["chest", _box(0.66, 0.1, 0.3), Vector3(0, 0.3, 0), trim],               # pauldrons
+		["head", _sphere(0.13), Vector3(0, 0.12, 0), GREY_SKIN],
+		["head", _box(0.28, 0.24, 0.28), Vector3(0, 0.13, 0), metal],            # helm
+		["head", _box(0.2, 0.03, 0.02), Vector3(0, 0.13, -0.145), trim],         # visor slit
+		["upper_arm_r", _box(0.2, 0.32, 0.2), Vector3(0, -0.15, 0), metal],
+		["forearm_r", _box(0.14, 0.28, 0.14), Vector3(0, -0.13, 0), LEATHER],
+		["hand_r", _sphere(0.07), Vector3(0, -0.03, 0), LEATHER],
+		["upper_arm_l", _box(0.2, 0.32, 0.2), Vector3(0, -0.15, 0), metal],
+		["forearm_l", _box(0.14, 0.28, 0.14), Vector3(0, -0.13, 0), LEATHER],
+		["hand_l", _sphere(0.07), Vector3(0, -0.03, 0), LEATHER],
+		["thigh_r", _box(0.24, 0.44, 0.26), Vector3(0, -0.22, 0), LEATHER],
+		["shin_r", _box(0.22, 0.4, 0.24), Vector3(0, -0.2, 0), metal],
+		["foot_r", _box(0.13, 0.08, 0.28), Vector3(0, -0.03, -0.05), metal],
+		["thigh_l", _box(0.24, 0.44, 0.26), Vector3(0, -0.22, 0), LEATHER],
+		["shin_l", _box(0.22, 0.4, 0.24), Vector3(0, -0.2, 0), metal],
+		["foot_l", _box(0.13, 0.08, 0.28), Vector3(0, -0.03, -0.05), metal],
+		["weapon_r", _box(0.05, 0.05, 1.1), Vector3(0, 0, -0.45), LEATHER],      # haft
+		["weapon_r", _box(0.26, 0.2, 0.32), Vector3(0, 0, -1.02), metal],        # maul head
+		["weapon_r", _box(0.28, 0.04, 0.34), Vector3(0, 0, -1.02), trim],
+	]
 
 # ==============================================================================================
 # Wolf (rigid node rig: no skeleton needed)

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="AttackData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_data.gd" id="1_attack"]
+
+[resource]
+script = ExtResource("1_attack")
+animation = &"attack_1"
+damage = 12.0
+poise_damage = 15.0
+duration = 0.95
+active_start = 0.45
+active_end = 0.58
+combo_window_open = 0.95
+lunge_speed = 3.5
+lunge_duration = 0.15
+lunge_delay = 0.38
+hitstop = 0.05
+stagger_time = 0.35
+knockback = 3.0
+trauma = 0.2

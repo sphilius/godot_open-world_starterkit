@@ -240,7 +240,7 @@ Tests: direction classification over 8 angles, threshold tiers.
 
 ---
 
-## M6: AI
+## M6: AI ✅ implemented (executions use the light attack on a posture-broken enemy, not a separate `interact` press; the roar's trauma is a `roared(trauma)` signal until CameraTrauma lands in M9)
 
 ### 6A. CombatDirector (HIGH)
 ```text
