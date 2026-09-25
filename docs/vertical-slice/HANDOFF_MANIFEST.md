@@ -49,18 +49,26 @@ class_name HealthComponent extends Node       # scripts/combat/health_component.
 
 class_name HitStop extends RefCounted         # static trigger(duration: float); writes Engine.time_scale
 
-class_name WeaponHolster extends Node         # signals drawn, sheathed; draw(); sheathe(); is_drawn()
+class_name WeaponHolster extends Node         # (runbook: WeaponManager) signals drawn, sheathed; draw(); sheathe(); is_drawn()
+  @export hand_socket, sheath_socket: BoneAttachment3D   # sheath = `scabbard` bone on the left hip (D6)
+  func snap_weapon_to_hand() -> void; func snap_weapon_to_sheath() -> void   # AnimationPlayer method-track hooks
 
 class_name Katana extends Node3D              # hitbox: Hitbox; begin_swing(attack); set_active(on)
 
-class_name CombatStateMachine extends Node    # player "Combat" node
-  signal state_changed(previous: State, current: State)
-  enum State { IDLE, RUN, ATTACK_1, ATTACK_2, ATTACK_3, HURT, DEAD }
-  func is_attacking() -> bool
+class_name CombatStateMachine extends Node    # player "Combat" node (runbook: CombatController)
+  signal state_changed(previous: State, current: State)   # not emitted for ATTACK → ATTACK chains
+  signal attack_started(attack: AttackData); signal dodge_started(direction: Vector3)
+  enum State { IDLE, RUN, ATTACK, DODGE, HURT, DEAD }
+  const ALL_ACTIONS := [ComboManager.LIGHT, ComboManager.HEAVY, ComboManager.DODGE]
+  @export combo: ComboManager; @export warping: MotionWarping; @export targeting: Node   # targeting optional (M7)
+  @export dodge_duration := 0.45; dodge_distance := 3.2; dodge_move_time := 0.32; dodge_iframes := Vector2(0.08, 0.3); dodge_cancel_time := 0.3
+  var state: State; var current_attack: AttackData   # null outside ATTACK
+  func is_attacking() -> bool; static func dodge_clip(facing: Vector3, direction: Vector3) -> StringName
 
 class_name PlayerController extends CharacterBody3D
   func spawn_at(pos: Vector3, yaw: float) -> void; func respawn() -> void
-  func begin_attack(direction: Vector3, lunge_speed: float, lunge_duration: float, lunge_delay := 0.0) -> void
+  func begin_attack(direction: Vector3, lunge_speed: float, lunge_duration: float, lunge_delay := 0.0) -> void   # lunge_speed = average; eases out
+  func begin_dodge(direction: Vector3, speed: float, duration: float, turn := true) -> void; func face(direction: Vector3) -> void
   func end_attack() -> void; func lock_controls(locked: bool) -> void
   func apply_knockback(knockback: Vector3) -> void; func add_look_input(delta: Vector2) -> void
   func get_move_direction() -> Vector3; func get_facing() -> Vector3; func get_planar_speed() -> float
@@ -68,8 +76,9 @@ class_name PlayerController extends CharacterBody3D
 class_name Wolf extends CharacterBody3D       # group "enemies"; enum State { WANDER, CHASE, BITE, STAGGER, DEAD }
 ```
 
-Input actions: `move_forward/back/left/right`, `jump`, `sprint`, `attack` (registered at
-runtime in `PlayerController._DEFAULT_BINDINGS`). Groups: `enemies`, `navigation_source`.
+Input actions: `move_forward/back/left/right`, `jump`, `sprint`, `attack` (light), `attack_heavy`,
+`dodge` (registered at runtime in `PlayerController._DEFAULT_BINDINGS`, keyboard, mouse and gamepad).
+Groups: `enemies`, `navigation_source`.
 
 ## Planned (the contract that new code must implement)
 
@@ -106,30 +115,33 @@ class_name Hurtbox                            # v2
   # body). Only targets without a Hurtbox take damage directly. Hit-stop and hit_landed fire only
   # on HIT or KILLED.
 
-# M3: offense
+# M3: offense (implemented)
 class_name AttackData                         # v2, fields added
   enum DamageType { BLUNT, SLASH, PIERCE }
-  poise_damage: float; damage_type: DamageType; knockback_direction_override: Vector3
+  poise_damage: float; damage_type: DamageType; knockback_direction_override: Vector3   # override is attacker-local (-Z forward)
   unblockable: bool; can_be_parried: bool; trauma: float; warp: bool
-  cancel_open: float; cancel_into: Array[StringName]   # e.g. [&"dodge", &"attack_light"]
+  cancel_open: float (-1 = none); cancel_into: Array[StringName]   # e.g. [&"dodge"]
+  # Strikes: attack_1..3, heavy_1, heavy_2, heavy_finisher, draw_attack (resources/combat/)
 
-class_name ComboNode extends Resource         # a combo graph node
-  attack: AttackData; next: Dictionary        # StringName action -> ComboNode
+class_name ComboNode extends Resource         # attack: AttackData; next: Dictionary[StringName, Resource] (ComboNodes); follow(action) -> ComboNode
+class_name ComboGraph extends Resource        # root: ComboNode; draw_root: ComboNode (openers while sheathed)
+  # resources/combat/sword_combo.tres: L→L→L, L→H(heavy_2), L→L→H(heavy_finisher), H(heavy_1)→L; sheathed: draw_attack → L2 / H2
 
-class_name ComboManager extends Node          # player CombatController/ComboManager
-  signal attack_triggered(attack: AttackData); signal dodge_requested(direction: Vector2); signal combo_reset
-  @export buffer_window := 0.25; @export combo_reset_time := 1.1; @export root: ComboNode; @export iai_root: ComboNode
-  func push_input(action: StringName) -> void
-  func open_cancel_window(allowed: Array[StringName]) -> void; func close_cancel_window() -> void
+class_name ComboManager extends Node          # child of Combat
+  signal attack_triggered(attack: AttackData); signal combo_reset
+  const LIGHT := &"attack_light"; const HEAVY := &"attack_heavy"; const DODGE := &"dodge"
+  @export buffer_window := 0.35; @export combo_reset_time := 1.1; @export graph: ComboGraph
+  func push_input(action) -> void; func consume(allowed: Array[StringName]) -> StringName   # FIFO: only the oldest live press
+  func peek() -> StringName; func has_buffered() -> bool; func clear_buffer() -> void
+  func has_branch(action, sheathed := false) -> bool; func next_attack(action, sheathed := false) -> AttackData
+  func attack_finished() -> void; func reset() -> void; func current_attack() -> AttackData
 
-class_name MotionWarping extends Node
+class_name MotionWarping extends Node         # child of Combat
   signal warp_started(target: Node3D); signal warp_completed
-  @export max_warp_distance := 3.5; @export max_warp_angle := 60.0
-  func start_warp(target: Node3D, duration: float, stop_distance := 1.2) -> void   # sets lunge velocity; never tweens position
-
-class_name WeaponManager extends Node         # replaces WeaponHolster (keeps its API and signals)
-  signal weapon_drawn; signal weapon_sheathed; signal stance_changed(stance: int)
-  func snap_weapon_to_hand() -> void; func snap_weapon_to_sheath() -> void   # AnimationPlayer method tracks
+  @export body: PlayerController; @export targeting: Node   # anything with `current_target: Node3D`
+  @export max_warp_distance := 3.5; max_warp_angle := 60.0; stop_distance := 1.2; max_warp_speed := 14.0
+  func plan(attack: AttackData) -> Dictionary   # {direction, speed, duration, delay, target}; velocity only, never tweens position
+  func warp_speed(distance: float, duration: float) -> float; func find_target(direction: Vector3) -> Node3D
 
 # M5: defense (all children of the character; all optional per character)
 class_name PostureComponent extends Node
@@ -186,7 +198,7 @@ Use these exact identifiers; retargeted source clips get renamed to them on impo
 | Character | Clips |
 |---|---|
 | Duelist, locomotion | `idle`, `walk`, `run`, `sprint`, `jump_start`, `jump_loop`, `jump_land`, `strafe_l`, `strafe_r`, `strafe_b`, `turn_l`, `turn_r` |
-| Duelist, offense | `attack_1`, `attack_2`, `attack_3`, `heavy_1`, `heavy_2`, `heavy_finisher`, `special_1`, `sprint_attack`, `iai_draw`, `draw`, `sheathe` |
+| Duelist, offense | `attack_1`, `attack_2`, `attack_3`, `heavy_1`, `heavy_2`, `heavy_finisher`, `special_1`, `sprint_attack`, `draw_attack` (quick-draw from sheathed), `draw`, `sheathe` |
 | Duelist, defense | `guard_idle`, `guard_hit`, `guard_break`, `parry_1`, `parry_2`, `dodge_f`, `dodge_b`, `dodge_l`, `dodge_r`, `hurt_f`, `hurt_b`, `hurt_l`, `hurt_r`, `hurt_heavy`, `knockdown`, `get_up`, `death`, `execution` |
 | Grunt | `idle`, `walk`, `run`, `strafe_l`, `strafe_r`, `attack_1`, `attack_2`, `hurt_f`, `hurt_b`, `parried`, `stagger`, `death` |
 | Brute and Gatekeeper | the Grunt set, plus `slam`, `sweep`, `thrust_unblockable`, `posture_break`, `executed`, `roar` |
@@ -196,8 +208,8 @@ Use these exact identifiers; retargeted source clips get renamed to them on impo
 machine keeps working until the new clips land. The Duelist's single `hurt` state maps to
 `hurt_f` until DamageReaction (M5) picks the directional clips.
 
-New input actions (M3, M5, M7, M9): `attack_heavy`, `attack_special`, `dodge`, `guard`,
-`lock_on`, `target_next`, `target_prev`, `interact`, `pause`. Register them in
+Still to add (M5, M7, M9): `attack_special`, `guard`, `lock_on`, `target_next`, `target_prev`,
+`interact`, `pause`. (`attack_heavy` and `dodge` landed in M3.) Register them in
 `_DEFAULT_BINDINGS`, with gamepad events if D10 is approved.
 
 ## Validation (every handoff)

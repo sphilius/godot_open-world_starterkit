@@ -119,6 +119,6 @@ func place_player_near(target: Node3D, distance: float) -> void:
 	player().spawn_at(spot, PI)
 
 
-## A buffered attack press, exactly as CombatStateMachine records one.
-func press_attack() -> void:
-	combat()._press_msec = Time.get_ticks_msec()
+## A buffered press, exactly as CombatStateMachine records one (default: a light attack).
+func press_attack(action := ComboManager.LIGHT) -> void:
+	combat().combo.push_input(action)

@@ -6,7 +6,14 @@ const COMBO := [
 	"res://resources/combat/attack_1.tres",
 	"res://resources/combat/attack_2.tres",
 	"res://resources/combat/attack_3.tres",
+	"res://resources/combat/heavy_1.tres",
+	"res://resources/combat/heavy_2.tres",
+	"res://resources/combat/heavy_finisher.tres",
+	"res://resources/combat/draw_attack.tres",
 ]
+const DODGES := ["dodge_f", "dodge_b", "dodge_l", "dodge_r"]
+const PLAYER_SCENE := "res://scenes/player/player.tscn"
+const SWORD_COMBO := "res://resources/combat/sword_combo.tres"
 const WOLF_BITE := "res://resources/combat/wolf_bite.tres"
 const SAMURAI_CLIPS := "res://assets/characters/samurai/samurai_animations.tres"
 const WOLF_CLIPS := "res://assets/characters/wolf/wolf_animations.tres"
@@ -33,6 +40,12 @@ func test_clips_match_their_attack_data() -> void:
 					"clip '%s' is %.2f s but %s says %.2f s (rebuild the rigs)" % [attack.animation, length, path.get_file(), attack.duration])
 	for clip: String in ["idle", "run", "hurt", "death"]:
 		check(samurai.has_animation(clip), "samurai clip '%s' is missing" % clip)
+	var fsm := CombatStateMachine.new()
+	for clip: String in DODGES:
+		if check(samurai.has_animation(clip), "samurai clip '%s' is missing" % clip):
+			check(is_equal_approx(samurai.get_animation(clip).length, fsm.dodge_duration),
+					"clip '%s' doesn't match CombatStateMachine.dodge_duration (rebuild the rigs)" % clip)
+	fsm.free()
 
 	var wolf_clips := load(WOLF_CLIPS) as AnimationLibrary
 	for clip: String in ["idle", "walk", "run", "bite", "hurt", "death"]:
@@ -45,5 +58,31 @@ func test_clips_match_their_attack_data() -> void:
 
 func test_state_machine_has_every_combat_state() -> void:
 	var machine := load(SAMURAI_STATE_MACHINE) as AnimationNodeStateMachine
-	for state: String in ["idle", "run", "attack_1", "attack_2", "attack_3", "hurt", "death"]:
+	var states: Array[String] = ["idle", "run", "hurt", "death"]
+	states.append_array(DODGES)
+	for path: String in COMBO:
+		states.append(String((load(path) as AttackData).animation))
+	for state in states:
 		check(machine.has_node(state), "AnimationTree state '%s' is missing" % state)
+
+
+func test_combo_graph_is_playable() -> void:
+	var graph := load(SWORD_COMBO) as ComboGraph
+	var samurai := load(SAMURAI_CLIPS) as AnimationLibrary
+	check(graph.root != null and graph.draw_root != null, "sword_combo needs both roots")
+	var seen := {}
+	var queue: Array[ComboNode] = [graph.root, graph.draw_root]
+	while not queue.is_empty():
+		var node: ComboNode = queue.pop_back()
+		if node == null or seen.has(node):
+			continue
+		seen[node] = true
+		if node.attack:
+			check(samurai.has_animation(node.attack.animation), "combo strike '%s' has no clip" % node.attack.animation)
+			for action in node.attack.cancel_into:
+				check(action in CombatStateMachine.ALL_ACTIONS, "%s cancels into unknown action '%s'" % [node.attack.animation, action])
+		for action: StringName in node.next:
+			check(action == ComboManager.LIGHT or action == ComboManager.HEAVY, "unknown combo action '%s'" % action)
+			check(node.follow(action) != null, "branch '%s' isn't a ComboNode" % action)
+			queue.append(node.follow(action))
+	check(seen.size() >= 9, "combo graph looks truncated (%d nodes)" % seen.size())

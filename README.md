@@ -19,7 +19,9 @@ browser, with on-screen touch controls for tablets and phones.
 |---|---|---|
 | Move (camera-relative) | WASD / arrows | Thumbstick: touch anywhere on the left side |
 | Look | Mouse | Drag anywhere else |
-| **Attack (3-hit combo)** | **LMB / J** (keep pressing) | **ATK** (keep tapping) |
+| **Light attack (combo)** | **LMB / J** (keep pressing) | **ATK** (keep tapping) |
+| **Heavy attack** (branches the combo) | **RMB / K** | **HVY** |
+| **Dodge** (i-frames; backstep with no input) | **L / C** | **DODGE** |
 | Jump | Space | JUMP |
 | Sprint | Shift (hold) | RUN (tap to toggle) |
 | Quality LOW/MEDIUM/HIGH | F2 | QUAL |
@@ -85,7 +87,7 @@ Headless mode doesn't dispatch input to the GUI, so feed UI events straight into
 (see `test_touch.gd`).
 
 URL options: `?touch` forces the touch UI, and `?quality=low|medium|high` picks a preset (web defaults to LOW).
-The overlay shows FPS, the quality preset and the samurai's combat state (IDLE, ATTACK_2, HURT…),
+The overlay shows FPS, the quality preset and the samurai's combat state (IDLE, ATTACK attack_2, DODGE, HURT…),
 which helps confirm that taps register while playtesting.
 
 What changes in the browser (handled automatically):
@@ -139,11 +141,13 @@ Main (main.gd: drops player at path start, facing the sunset)
 └─ DevHUD              FPS, quality presets, screenshots, CLI capture
 
 Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hooks)
-├─ Visual/SamuraiModel  generated rig: Skeleton3D + skinned mesh + HandSocket/BackSocket (BoneAttachment3D)
+├─ Visual/SamuraiModel  generated rig: Skeleton3D + skinned mesh + HandSocket/SheathSocket (BoneAttachment3D)
 ├─ Katana               katana.tscn: blade, Area3D Hitbox, Trail (GPUParticles3D), MeshTrail
-├─ AnimationTree        StateMachine root: idle, run, attack_1..3 (physics-process callback)
+├─ AnimationTree        StateMachine root: idle, run, every strike, dodge_f/b/l/r, hurt, death (physics-process callback)
 ├─ WeaponHolster        tweens the katana between the hand and back sockets
-├─ Combat               CombatStateMachine: IDLE/RUN/ATTACK_1..3, input buffer, active frames, sheathing
+├─ Combat               CombatStateMachine: IDLE/RUN/ATTACK/DODGE/HURT/DEAD, active frames, sheathing
+│  ├─ ComboManager      FIFO input buffer + combo graph (resources/combat/sword_combo.tres)
+│  └─ MotionWarping     steers each lunge at the lock-on target or a nearby enemy
 └─ CameraRig/SpringArm3D/Camera3D
 ```
 
@@ -160,13 +164,15 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 
 | System | File | Key ideas |
 |---|---|---|
-| Combat FSM | `scripts/combat/combat_state_machine.gd` | Owns the logic; drives the AnimationTree with `playback.travel()`. An attack press is buffered for **0.35 s**. It chains at `max(combo_window_open, active_end)`, so presses during the wind-up aren't lost and swings are never cut short |
-| Attack data | `resources/combat/attack_*.tres` (`AttackData`) | Per strike: damage, active window, combo window, lunge, hit-stop, stagger, knockback. Designer-tunable |
+| Combat FSM | `scripts/combat/combat_state_machine.gd` | Owns the logic; drives the AnimationTree with `playback.travel()`. A strike chains at `max(combo_window_open, active_end)`, so presses during the wind-up aren't lost and swings are never cut short. `cancel_open`/`cancel_into` allow earlier cancels (a dodge out of a heavy wind-up), and a dodge can always cancel a strike's recovery. **Dodge**: 3.2 m eased dash, invulnerable 0.08–0.3 s; with no input it backsteps |
+| Combos | `scripts/combat/combo_manager.gd`, `resources/combat/sword_combo.tres` | Light, heavy and dodge presses are buffered **0.35 s** (FIFO). The graph: L→L→L, L→H (thrust), L→L→H (finisher), H→L; from sheathed, the first press is a quick-draw strike. The chain survives **1.1 s** after a strike ends |
+| Motion warping | `scripts/combat/motion_warping.gd` | Each lunge points at the lock-on target, or the nearest enemy within 60° and reach, and stretches to stop 1.2 m short of it (at most 3.5 m). It's velocity through `move_and_slide()`, eased out, so it never passes through walls |
+| Attack data | `resources/combat/*.tres` (`AttackData`) | Per strike: damage, poise damage, damage type, active window, combo and cancel windows, lunge, hit-stop, stagger, knockback (and an optional direction), trauma, unblockable/parryable. Designer-tunable |
 | Katana | `scripts/combat/katana.gd`, `scenes/weapons/katana.tscn` | `Area3D` hitbox on the weapon-bone socket. `area_entered` (hurtboxes) and `body_entered` (bodies) resolve a `HealthComponent`. One hit per target per swing; a landed hit triggers `HitStop` |
 | Health | `scripts/combat/health_component.gd`, `hurtbox.gd`, `hit_info.gd` | Reusable node with `damaged` / `died` / `health_changed` signals and `grant_invulnerability()` for i-frames. `Hurtbox.receive_hit()` runs registered defenders (guard, parry) before health and posture, and returns a `HitInfo.Result` (HIT, BLOCKED, PARRIED…). `HealthComponent.resolve()` accepts a Hurtbox, a HealthComponent, or a body with one as a child |
 | Time scale | `scripts/core/time_scale.gd` | The only writer of `Engine.time_scale`: named requests, and the slowest one wins, so a hit-stop ending mid slow-motion can't snap time back to 1.0 |
 | Hit-stop | `scripts/combat/hit_stop.gd` | Static utility (not an autoload): a `TimeScale` request at 0.03 for the strike's duration. Overlapping requests extend; the timer ignores time scale |
-| Sheathing | `scripts/combat/weapon_holster.gd` | After **3.0 s** without attacking, the katana reparents (keeping its world pose) and tweens position plus quaternion (slerp) from the `weapon_r` hand bone to the `scabbard` back bone. Drawing takes 0.12 s, before the first active frame |
+| Sheathing | `scripts/combat/weapon_holster.gd` | After **3.0 s** without attacking, the katana reparents (keeping its world pose) and tweens position plus quaternion (slerp) from the `weapon_r` hand bone to the `scabbard` bone on the left hip. Drawing takes 0.12 s, before the first active frame. `snap_weapon_to_hand()` / `snap_weapon_to_sheath()` are there for animation method tracks |
 | Sword trail | `katana.gd` → `TrailRenderer` | **GPU_PARTICLES**: one particle glued to the blade by `shaders/sword_trail_particles.gdshader`, with a `RibbonTrailMesh` skinned along its path. **MESH**: `sword_trail_mesh.gd` stitches blade base and tip samples. AUTO picks MESH on Intel iGPUs (see below) |
 | Hitbox | `scripts/combat/hitbox.gd` | Shared by the katana and the wolf's jaws: arm it with an `AttackData`, open or close the active window, and it hits each target once per activation. Hits go through the target's `Hurtbox` even when the body is touched first, so defenders can't be bypassed |
 | Wolf AI | `scripts/mobs/wolf.gd`, `scenes/mobs/wolf.tscn` | **WANDER**: a random navmesh point within 15 m of home every 4 s. **CHASE**: the 10 m detection `Area3D`, repath every 0.25 s, arrival braking (v = √(2·a·d)). **BITE**: telegraphed 0.34 s wind-up that tracks you, then a lunge with an active jaw window (`wolf_bite.tres`, 12 dmg) and a 1.4–2.2 s cooldown; striking the wolf during the wind-up cancels it. **STAGGER**: knockback, flinch, white flash. **DEAD**: death animation, collision disabled (deferred), sink, `queue_free` |
@@ -183,10 +189,12 @@ The katana hitbox masks 3 and 5; the wolf's bite hitbox masks 7.
 godot --headless --path . --script res://tools/build_placeholder_rigs.gd
 ```
 
-Re-run after changing bones, poses or `attack_*.tres` timings. To swap in real characters
-(Mixamo, Blender), keep the animation names (`idle`, `run`, `attack_1..3`; wolf: `idle`,
-`walk`, `run`, `hurt`, `death`) and the socket bones (`weapon_r`, `scabbard`). Or point the
-sockets and state machine at the new names, then set the AttackData timings to match the clips.
+Re-run after changing bones, poses or any strike's AttackData timings (`tests/test_data.gd` fails
+on a stale build). To swap in real characters (Mixamo, Blender), keep the clip names listed in
+`docs/vertical-slice/HANDOFF_MANIFEST.md` (every strike's `AttackData.animation`, `dodge_f/b/l/r`,
+`idle`, `run`, `hurt`, `death`; wolf: `idle`, `walk`, `run`, `bite`, `hurt`, `death`) and the socket
+bones (`weapon_r`, `scabbard`). Or point the sockets and state machine at the new names, then set
+the AttackData timings to match the clips.
 
 ## Differences from the original spec
 
@@ -204,8 +212,11 @@ sockets and state machine at the new names, then set the AttackData timings to m
 
 | Want to change… | Where |
 |---|---|
-| Combo feel (damage, timing, lunge, hit-stop) | `resources/combat/attack_1..3.tres` |
-| Input buffer / sheathe delay | Player ▸ Combat → `input_buffer_seconds`, `sheathe_delay` |
+| Strike feel (damage, timing, lunge, hit-stop, cancels) | `resources/combat/attack_*.tres`, `heavy_*.tres`, `draw_attack.tres` |
+| Combo branches | `resources/combat/sword_combo.tres` (ComboGraph: edit the nodes' `next` in the inspector) |
+| Input buffer / chain reset | Player ▸ Combat ▸ ComboManager → `buffer_window`, `combo_reset_time` |
+| Dodge / sheathe delay | Player ▸ Combat → `dodge_distance`, `dodge_iframes`, `sheathe_delay` |
+| Lunge steering | Player ▸ Combat ▸ MotionWarping → `max_warp_distance`, `max_warp_angle`, `stop_distance` |
 | Wolf behaviour | `wolf.tscn` → `wander_radius`, `wander_interval`, `run_speed`, `chase_stop_distance`, `bite_cooldown`; `resources/combat/wolf_bite.tres`; HealthComponent `max_health`; DetectionArea sphere radius |
 | Player toughness | `player.tscn` ▸ HealthComponent `max_health`, `invulnerability_time`; Combat `respawn_delay` |
 | Touch layout / feel | `scripts/ui/touch/touch_controls.gd` (button rects, joystick size); TouchLookPad `sensitivity` |
