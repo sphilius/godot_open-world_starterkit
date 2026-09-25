@@ -34,6 +34,16 @@ func test_hit_stop_ending_during_slow_motion_keeps_the_slow_motion() -> void:
 	expect_eq(Engine.time_scale, 1.0)
 
 
+func test_hit_stop_rearms_after_a_reset() -> void:
+	HitStop.trigger(0.5)
+	TimeScale.reset()                         # a scene change drops the pending stop
+	expect_eq(Engine.time_scale, 1.0)
+	HitStop.trigger(0.05)                     # shorter than the stale deadline
+	expect_eq(Engine.time_scale, HitStop.FROZEN_TIME_SCALE, "a new hit still freezes")
+	await await_seconds(0.6)                  # outlive the first stop's timer
+	expect_eq(Engine.time_scale, 1.0, "released")
+
+
 func test_overlapping_hit_stops_extend() -> void:
 	HitStop.trigger(0.1)
 	HitStop.trigger(0.5)                      # the longer request takes over

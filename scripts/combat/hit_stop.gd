@@ -19,8 +19,9 @@ static func trigger(duration: float) -> void:
 	if duration <= 0.0:
 		return
 	var end_msec := Time.get_ticks_msec() + int(duration * 1000.0)
-	if end_msec <= _end_msec:
+	if end_msec <= _end_msec and TimeScale.has(REQUEST_ID):
 		return                        # an ongoing, longer stop already covers this
+	# (Without the request, a TimeScale.reset() cleared the stop: the old deadline is stale.)
 	_end_msec = end_msec
 	_token += 1
 	var token := _token

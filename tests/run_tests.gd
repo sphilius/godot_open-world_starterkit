@@ -70,13 +70,13 @@ func _test_files() -> PackedStringArray:
 
 
 func _run_test(script: GDScript, method: String) -> PackedStringArray:
+	_errors.take()                           # the capture window covers setup and teardown too
 	var stage := Node3D.new()
 	stage.name = "Stage"
 	root.add_child(stage)
 	var test: TestCase = script.new()
 	test.name = method
 	stage.add_child(test)
-	_errors.take()
 
 	var state := { done = false }
 	_invoke(test, method, state)
@@ -93,13 +93,13 @@ func _run_test(script: GDScript, method: String) -> PackedStringArray:
 		await process_frame
 
 	var problems := test.failures.duplicate()
-	problems.append_array(_errors.take())
 	if not state.done:
 		problems.append("did not finish (timed out, or aborted by a script error)")
 	# Global state must not leak into the next test.
 	TimeScale.reset()
 	stage.queue_free()
 	await process_frame
+	problems.append_array(_errors.take())    # errors from the test, its setup and its teardown
 	return problems
 
 
