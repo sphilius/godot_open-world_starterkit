@@ -40,7 +40,13 @@ This is set by `rendering/renderer/rendering_method.web` and needs no code chang
 4. On the tablet (same Wi-Fi), open `http://<this-PC's-IP>:8000`. Tap **FULL** for fullscreen.
    Or host the folder on any static host (itch.io, GitHub Pages).
 
+**Play it now:** https://sphilius.github.io/godot_open-world_starterkit/ (GitHub Pages).
+To update it after a new export, run `bash tools/publish_web.sh`. It force-pushes the build as a
+single commit on the `gh-pages` branch.
+
 URL options: `?touch` forces the touch UI, and `?quality=low|medium|high` picks a preset (web defaults to LOW).
+The overlay shows FPS, the quality preset and the samurai's combat state (IDLE, ATTACK_2, HURT…),
+which helps confirm that taps register while playtesting.
 
 What changes in the browser (handled automatically):
 

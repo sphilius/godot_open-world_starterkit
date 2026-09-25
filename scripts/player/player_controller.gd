@@ -96,7 +96,11 @@ func _ready() -> void:
 	var yaw := rotation.y
 	rotation = Vector3.ZERO          # the body stays upright/unrotated; only $Visual turns
 	spawn_at(global_position, yaw)
-	_capture_mouse()
+	if TouchControls.is_touch_mode():
+		mouse_capture_enabled = false
+	# Browsers only grant pointer lock from a user gesture: on the web, the first click captures.
+	if not OS.has_feature("web"):
+		_capture_mouse()
 
 
 ## Place the player and make this the respawn point. Yaw 0 faces -Z.

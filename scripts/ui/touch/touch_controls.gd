@@ -18,8 +18,7 @@ var buttons := {}   # name -> TouchActionButton
 
 func _ready() -> void:
 	layer = 5
-	var args := DevHUD.launch_args()
-	var enabled := DisplayServer.is_touchscreen_available() or args.has("touch")
+	var enabled := is_touch_mode()
 	visible = enabled
 	if not enabled:
 		return
@@ -30,6 +29,11 @@ func _ready() -> void:
 	if dev_hud:
 		dev_hud.touch_mode = true
 	_build()
+
+
+## True on touchscreens, or when forced with `--touch` / `?touch`.
+static func is_touch_mode() -> bool:
+	return DisplayServer.is_touchscreen_available() or DevHUD.launch_args().has("touch")
 
 
 func _build() -> void:

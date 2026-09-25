@@ -107,12 +107,13 @@ position = Vector3(-28, 8, -30)
 [node name="Player" parent="." instance=ExtResource("10_player")]
 position = Vector3(0, 10, 70)
 
-[node name="DevHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("world_environment", "grass", "sun")]
+[node name="DevHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("world_environment", "grass", "sun", "combat")]
 script = ExtResource("11_hud")
 world_environment = NodePath("../WorldEnvironment")
 grass = NodePath("../GrassField")
 sun = NodePath("../Sun")
 compatibility_sky = ExtResource("16_compat_sky")
+combat = NodePath("../Player/Combat")
 
 [node name="Label" type="Label" parent="DevHUD"]
 offset_left = 14.0
