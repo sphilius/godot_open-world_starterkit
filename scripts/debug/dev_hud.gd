@@ -1,13 +1,15 @@
+class_name DevHUD
 extends CanvasLayer
 ## Dev overlay and graphics quality presets.
 ##
-##   F2  : cycle quality LOW → MEDIUM → HIGH (integrated GPUs start on MEDIUM)
+##   F2  : cycle quality LOW → MEDIUM → HIGH (integrated GPUs start on MEDIUM, web on LOW)
 ##   F12 : save a screenshot to user://screenshots/
 ##   Esc : release the mouse (click to recapture)
 ##
-## Command line (after `--`):
+## Launch options, desktop (after `--`) or web (URL query, e.g. index.html?touch&quality=medium):
 ##   --quality=low|medium|high
-##   --capture=<png path> [--capture-delay=<seconds>]   renders, saves one frame, quits
+##   --touch                                            force the on-screen touch controls
+##   --capture=<png path> [--capture-delay=<seconds>]   renders, saves one frame, quits (desktop)
 ##   e.g.  godot --path . -- --capture=C:/tmp/shot.png
 
 enum Quality { LOW, MEDIUM, HIGH }
@@ -48,18 +50,27 @@ const PRESETS := {
 @export var world_environment: WorldEnvironment
 @export var grass: GrassField
 @export var sun: DirectionalLight3D
+## Used instead of the PhysicalSkyMaterial on the Compatibility (web) renderer, where the
+## physical sky renders almost black and takes the ambient light down with it.
+@export var compatibility_sky: Material
 
 @onready var _label: Label = $Label
 
+## Set by TouchControls: shortens the hint line (no keyboard shortcuts on a tablet).
+var touch_mode := false
 var _quality := Quality.HIGH
 var _sun_angular_distance := 0.0   # scene-authored PCSS softness, restored on HIGH
 
 
 func _ready() -> void:
 	_sun_angular_distance = sun.light_angular_distance
-	var args := _parse_user_args()
+	if RenderingServer.get_current_rendering_method() == "gl_compatibility" and compatibility_sky:
+		world_environment.environment.sky.sky_material = compatibility_sky
+	var args := launch_args()
 	if args.has("quality") and QUALITY_NAMES.has(String(args["quality"]).to_upper()):
 		_quality = QUALITY_NAMES.find(String(args["quality"]).to_upper()) as Quality
+	elif OS.has_feature("web"):
+		_quality = Quality.LOW                      # phones and tablets: frame rate first
 	elif GpuInfo.is_integrated():
 		_quality = Quality.MEDIUM
 	_apply_quality()
@@ -68,8 +79,17 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	_label.text = "%d FPS  ·  %s quality [F2]  ·  LMB/J attack (3-hit combo)  ·  F12 screenshot  ·  Esc frees mouse" % [
-		Engine.get_frames_per_second(), QUALITY_NAMES[_quality]]
+	if touch_mode:
+		_label.text = "%d FPS  ·  %s" % [Engine.get_frames_per_second(), QUALITY_NAMES[_quality]]
+	else:
+		_label.text = "%d FPS  ·  %s quality [F2]  ·  LMB/J attack (3-hit combo)  ·  F12 screenshot  ·  Esc frees mouse" % [
+			Engine.get_frames_per_second(), QUALITY_NAMES[_quality]]
+
+
+## LOW → MEDIUM → HIGH → LOW (F2, or the touch "Q" button).
+func cycle_quality() -> void:
+	_quality = ((_quality + 1) % Quality.size()) as Quality
+	_apply_quality()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -78,8 +98,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	match key.physical_keycode:
 		KEY_F2:
-			_quality = ((_quality + 1) % Quality.size()) as Quality
-			_apply_quality()
+			cycle_quality()
 		KEY_F12:
 			var stamp := Time.get_datetime_string_from_system().replace(":", "-")
 			_save_screenshot("user://screenshots/shot_%s.png" % stamp)
@@ -88,18 +107,20 @@ func _unhandled_input(event: InputEvent) -> void:
 func _apply_quality() -> void:
 	var p: Dictionary = PRESETS[_quality]
 	var env := world_environment.environment
+	# Compatibility (web) has no SDFGI, volumetric fog, SSAO or FSR: those knobs are Forward+ only.
+	var forward_plus := RenderingServer.get_current_rendering_method() != "gl_compatibility"
+	env.sdfgi_enabled = p.sdfgi and forward_plus
+	env.volumetric_fog_enabled = p.volumetric_fog and forward_plus
+	env.ssao_enabled = p.ssao and forward_plus
 
-	# Global illumination
-	env.sdfgi_enabled = p.sdfgi
-	env.sdfgi_cascades = p.sdfgi_cascades
-	RenderingServer.environment_set_sdfgi_ray_count(p.sdfgi_rays)
-	RenderingServer.environment_set_sdfgi_frames_to_converge(p.sdfgi_converge)
-	RenderingServer.gi_set_use_half_resolution(p.gi_half_res)
-	env.ssao_enabled = p.ssao
-
-	# Atmosphere
-	env.volumetric_fog_enabled = p.volumetric_fog
-	RenderingServer.environment_set_volumetric_fog_volume_size(p.froxels.x, p.froxels.y)
+	if forward_plus:
+		# Global illumination
+		env.sdfgi_cascades = p.sdfgi_cascades
+		RenderingServer.environment_set_sdfgi_ray_count(p.sdfgi_rays)
+		RenderingServer.environment_set_sdfgi_frames_to_converge(p.sdfgi_converge)
+		RenderingServer.gi_set_use_half_resolution(p.gi_half_res)
+		# Atmosphere
+		RenderingServer.environment_set_volumetric_fog_volume_size(p.froxels.x, p.froxels.y)
 
 	# Sun shadows: PCSS (angular distance) gives contact-hardening softness but is the priciest filter.
 	RenderingServer.directional_shadow_atlas_set_size(p.shadow_atlas, true)
@@ -113,7 +134,8 @@ func _apply_quality() -> void:
 		grass.set_density_scale(p.grass_density)
 		grass.set_draw_distance(p.grass_distance)
 	var viewport := get_viewport()
-	viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR if p.render_scale >= 1.0 else Viewport.SCALING_3D_MODE_FSR
+	var use_fsr: bool = forward_plus and p.render_scale < 1.0
+	viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if use_fsr else Viewport.SCALING_3D_MODE_BILINEAR
 	viewport.scaling_3d_scale = p.render_scale
 	viewport.fsr_sharpness = 1.0   # 0 = sharpest; softer avoids halos around thin grass blades
 
@@ -132,9 +154,15 @@ func _save_screenshot(path: String) -> void:
 	print("Screenshot %s: %s" % ["saved" if err == OK else "FAILED (%s)" % error_string(err), absolute])
 
 
-static func _parse_user_args() -> Dictionary:
+## Launch options as {name: value}: command-line user args on desktop, the URL query on the web.
+static func launch_args() -> Dictionary:
+	var raw := Array(OS.get_cmdline_user_args())
+	if OS.has_feature("web"):
+		var query := str(JavaScriptBridge.eval("window.location.search", true)).trim_prefix("?")
+		for pair in query.split("&", false):
+			raw.append("--" + pair.uri_decode())
 	var out := {}
-	for arg in OS.get_cmdline_user_args():
+	for arg: String in raw:
 		if arg.begins_with("--"):
 			var parts := arg.trim_prefix("--").split("=", true, 1)
 			out[parts[0]] = parts[1] if parts.size() > 1 else ""

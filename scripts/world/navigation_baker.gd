@@ -19,4 +19,5 @@ func _ready() -> void:
 		print("Navmesh baked in %d ms (%d polygons)" % [
 			Time.get_ticks_msec() - started, navigation_mesh.get_polygon_count()]),
 		CONNECT_ONE_SHOT)
-	bake_navigation_mesh(true)
+	# Single-threaded web builds have no worker threads, so bake inline there (~1 s).
+	bake_navigation_mesh(not OS.has_feature("web"))

@@ -2,7 +2,8 @@
 
 Golden-hour valley: a samurai walks a gravel path lined with torii gates and stone lanterns
 through wind-rippled grass, lit by a physical sky, SDFGI and volumetric fog. Wolves roam the
-meadow, and a 3-hit katana combo deals with them.
+meadow and bite back, and a 3-hit katana combo deals with them. It plays on desktop and in the
+browser, with on-screen touch controls for tablets and phones.
 
 ## Quick start
 
@@ -11,16 +12,50 @@ meadow, and a 3-hit katana combo deals with them.
 2. The world is procedural and builds in about 1.3 s on launch (it also previews in the editor).
    The wolves' navmesh bakes on a worker thread in ~0.3 s.
 
-| Input | Action |
+| Action | Keyboard + mouse | Touch (tablet / phone) |
+|---|---|---|
+| Move (camera-relative) | WASD / arrows | Thumbstick: touch anywhere on the left side |
+| Look | Mouse | Drag anywhere else |
+| **Attack (3-hit combo)** | **LMB / J** (keep pressing) | **ATK** (keep tapping) |
+| Jump | Space | JUMP |
+| Sprint | Shift (hold) | RUN (tap to toggle) |
+| Quality LOW/MEDIUM/HIGH | F2 | QUAL |
+| Back to the path start | — | RESET |
+| Fullscreen | — | FULL |
+| Screenshot | F12 | — |
+
+Touch controls appear automatically on touchscreens. Force them with `--touch` (desktop,
+where the mouse acts as one finger) or `?touch` in the web URL.
+
+## Web build (Pixel Tablet and other browsers)
+
+Browsers can't run Forward+, so web exports use the **Compatibility** renderer (WebGL 2).
+This is set by `rendering/renderer/rendering_method.web` and needs no code changes.
+
+1. Install the Godot 4.7.1 export templates (Editor ▸ Manage Export Templates).
+2. Export: **Project ▸ Export ▸ Web**, or from the command line:
+   `godot --headless --path . --export-release "Web" build/web/index.html`
+3. Serve `build/web` over HTTP. It's a single-threaded build, so no special headers are needed:
+   `python -m http.server 8000 --directory build/web`
+4. On the tablet (same Wi-Fi), open `http://<this-PC's-IP>:8000`. Tap **FULL** for fullscreen.
+   Or host the folder on any static host (itch.io, GitHub Pages).
+
+URL options: `?touch` forces the touch UI, and `?quality=low|medium|high` picks a preset (web defaults to LOW).
+
+What changes in the browser (handled automatically):
+
+| Forward+ feature | Web (Compatibility) |
 |---|---|
-| WASD / arrows | Move (camera-relative) |
-| Mouse | Orbit camera (smoothed) |
-| Shift | Sprint |
-| Space | Jump |
-| **LMB / J** | **Attack. Keep pressing to chain the 3-hit combo** |
-| F2 | Cycle quality LOW → MEDIUM → HIGH |
-| F12 | Screenshot → `user://screenshots/` |
-| Esc / click | Release / recapture mouse |
+| SDFGI, volumetric fog + valley mist, SSAO | Off; the depth fog, glow and shadows remain |
+| PhysicalSkyMaterial | Swapped for `golden_hour_procedural_sky.tres` (the physical sky renders nearly black there) |
+| FXAA / FSR upscaling | 2× MSAA, bilinear render scale |
+| GPUParticles3D sword trail | CPU mesh ribbon (`TrailRenderer.AUTO`) |
+| Threaded navmesh bake | Inline bake (single-threaded build) |
+
+The browser console shows a few one-time warnings at load: SDFGI, volumetric fog, FogVolume and
+particle trails are unsupported there. They're expected. On desktop, the same Compatibility
+path previews at ~60 FPS on the dev laptop's Intel UHD:
+`godot --path . --rendering-method gl_compatibility --rendering-driver opengl3 -- --touch`
 
 ## Renderer note (Windows)
 
@@ -86,10 +121,14 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 | Hit-stop | `scripts/combat/hit_stop.gd` | Static utility (not an autoload): `Engine.time_scale` 0.03 for the strike's duration. Overlapping requests extend; the timer ignores time scale |
 | Sheathing | `scripts/combat/weapon_holster.gd` | After **3.0 s** without attacking, the katana reparents (keeping its world pose) and tweens position plus quaternion (slerp) from the `weapon_r` hand bone to the `scabbard` back bone. Drawing takes 0.12 s, before the first active frame |
 | Sword trail | `katana.gd` → `TrailRenderer` | **GPU_PARTICLES**: one particle glued to the blade by `shaders/sword_trail_particles.gdshader`, with a `RibbonTrailMesh` skinned along its path. **MESH**: `sword_trail_mesh.gd` stitches blade base and tip samples. AUTO picks MESH on Intel iGPUs (see below) |
-| Wolf AI | `scripts/mobs/wolf.gd`, `scenes/mobs/wolf.tscn` | **WANDER**: a random navmesh point within 15 m of home every 4 s. **CHASE**: the 10 m detection `Area3D`, repath every 0.25 s, arrival braking (v = √(2·a·d)). **STAGGER**: knockback, flinch, white flash. **DEAD**: death animation, collision disabled (deferred), sink, `queue_free` |
+| Hitbox | `scripts/combat/hitbox.gd` | Shared by the katana and the wolf's jaws: arm it with an `AttackData`, open or close the active window, and it hits each target once per activation |
+| Wolf AI | `scripts/mobs/wolf.gd`, `scenes/mobs/wolf.tscn` | **WANDER**: a random navmesh point within 15 m of home every 4 s. **CHASE**: the 10 m detection `Area3D`, repath every 0.25 s, arrival braking (v = √(2·a·d)). **BITE**: telegraphed 0.34 s wind-up that tracks you, then a lunge with an active jaw window (`wolf_bite.tres`, 12 dmg) and a 1.4–2.2 s cooldown; striking the wolf during the wind-up cancels it. **STAGGER**: knockback, flinch, white flash. **DEAD**: death animation, collision disabled (deferred), sink, `queue_free` |
+| Player health | `player.tscn` HealthComponent + Hurtbox, `scripts/ui/player_hud.gd` | 100 HP, 0.8 s i-frames. The FSM adds **HURT** (flinch plus knockback) and **DEAD** (kneel, respawn after 2.5 s). The HUD has a draining health bar, a hurt flash and a defeat banner |
+| Touch controls | `scripts/ui/touch/` | Godot 4.7's built-in `VirtualJoystick` (dynamic), `TouchActionButton` (fires `InputEventAction`s, so the combo buffer works unchanged), `TouchLookPad` (multi-touch camera drag) |
 | Placeholder rigs | `tools/build_placeholder_rigs.gd` | Generates the samurai skeleton (19 bones, rigid-skinned single mesh), wolf model, animation libraries and state machine. Attack swings are keyed from the AttackData timings |
 
-Physics layers: 1 world · 2 player · 3 mobs · 4 player_hitbox · 5 hurtbox. The katana hitbox masks 3 and 5.
+Physics layers: 1 world · 2 player · 3 mobs · 4 player_hitbox · 5 mob_hurtbox · 6 mob_hitbox · 7 player_hurtbox.
+The katana hitbox masks 3 and 5; the wolf's bite hitbox masks 7.
 
 ## Placeholder art pipeline
 
@@ -120,7 +159,9 @@ sockets and state machine at the new names, then set the AttackData timings to m
 |---|---|
 | Combo feel (damage, timing, lunge, hit-stop) | `resources/combat/attack_1..3.tres` |
 | Input buffer / sheathe delay | Player ▸ Combat → `input_buffer_seconds`, `sheathe_delay` |
-| Wolf behaviour | `wolf.tscn` → `wander_radius`, `wander_interval`, `run_speed`, `chase_stop_distance`; HealthComponent `max_health`; DetectionArea sphere radius |
+| Wolf behaviour | `wolf.tscn` → `wander_radius`, `wander_interval`, `run_speed`, `chase_stop_distance`, `bite_cooldown`; `resources/combat/wolf_bite.tres`; HealthComponent `max_health`; DetectionArea sphere radius |
+| Player toughness | `player.tscn` ▸ HealthComponent `max_health`, `invulnerability_time`; Combat `respawn_delay` |
+| Touch layout / feel | `scripts/ui/touch/touch_controls.gd` (button rects, joystick size); TouchLookPad `sensitivity` |
 | Wind / grass | `grass_material.tres` → `wind_*`, `push_*`; GrassField density |
 | Sun / haze | Sun rotation X; Environment volumetric fog; ValleyMist density |
 | Path route | Edit the ScenicPath curve, then **Terrain ▸ Regenerate** (landmarks and grass follow) |

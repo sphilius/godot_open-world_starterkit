@@ -14,6 +14,8 @@
 [ext_resource type="Script" path="res://scripts/world/navigation_baker.gd" id="12_nav"]
 [ext_resource type="PackedScene" path="res://scenes/mobs/wolf.tscn" id="13_wolf"]
 [ext_resource type="Script" path="res://scripts/ui/player_hud.gd" id="14_player_hud"]
+[ext_resource type="Script" path="res://scripts/ui/touch/touch_controls.gd" id="15_touch"]
+[ext_resource type="Material" path="res://resources/environment/golden_hour_procedural_sky.tres" id="16_compat_sky"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_valley"]
 geometry_parsed_geometry_type = 1
@@ -110,6 +112,7 @@ script = ExtResource("11_hud")
 world_environment = NodePath("../WorldEnvironment")
 grass = NodePath("../GrassField")
 sun = NodePath("../Sun")
+compatibility_sky = ExtResource("16_compat_sky")
 
 [node name="Label" type="Label" parent="DevHUD"]
 offset_left = 14.0
@@ -124,3 +127,8 @@ text = "Scenic Open World"
 [node name="PlayerHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("health")]
 script = ExtResource("14_player_hud")
 health = NodePath("../Player/HealthComponent")
+
+[node name="TouchControls" type="CanvasLayer" parent="." node_paths=PackedStringArray("player", "dev_hud")]
+script = ExtResource("15_touch")
+player = NodePath("../Player")
+dev_hud = NodePath("../DevHUD")
