@@ -79,6 +79,11 @@ class_name TimeScale extends RefCounted       # scripts/core/time_scale.gd
   static func push(id: StringName, scale: float) -> void   # effective scale = min of all pushed
   static func pop(id: StringName) -> void
   # HitStop.trigger() becomes push(&"hitstop", 0.03) + a real-time timer + pop
+  # Every push must have a pop on every exit path. The death slow-motion pops before respawn.
+
+class_name HealthComponent                    # v2, methods added
+  func grant_invulnerability(seconds: float) -> void   # extends, never shortens, the current window
+  func is_invulnerable() -> bool              # dodge i-frames and the boss roar use it
 
 class_name HitInfo                            # v2, fields added (all optional, with defaults)
   poise_damage: float; damage_type: int (AttackData.DamageType); hit_position: Vector3
@@ -91,6 +96,7 @@ class_name Hurtbox                            # v2
   @export var health: HealthComponent; @export var posture: PostureComponent   # posture optional
   func receive_hit(hit: HitInfo) -> HitResult # runs defenders in order, then health and posture
   func add_defender(d: Object) -> void        # anything with intercept(hit: HitInfo) -> HitResult (IGNORED = pass through)
+  # Returns IGNORED while health.is_invulnerable(), before any defender runs.
   # Hitbox calls receive_hit() when it touched a Hurtbox; body-only targets keep the resolve() path.
 
 # M3: offense
@@ -163,6 +169,25 @@ GameManager (autoload)
   func set_checkpoint(shrine: Node3D) -> void; func on_player_died() -> void; func register_encounter(e: Node) -> void
 class_name CheckpointShrine extends Area3D    # "interact" action; heals, saves the respawn transform, lights the lantern
 ```
+
+## Animation clip names (the contract for AnimationLibraries, state machines and AttackData.animation)
+
+Use these exact identifiers; retargeted source clips get renamed to them on import. The
+`_loop` suffix only exists in the source files; drop it here. Directional sets use the suffixes
+`_f`, `_b`, `_l` and `_r`.
+
+| Character | Clips |
+|---|---|
+| Duelist, locomotion | `idle`, `walk`, `run`, `sprint`, `jump_start`, `jump_loop`, `jump_land`, `strafe_l`, `strafe_r`, `strafe_b`, `turn_l`, `turn_r` |
+| Duelist, offense | `attack_1`, `attack_2`, `attack_3`, `heavy_1`, `heavy_2`, `heavy_finisher`, `special_1`, `sprint_attack`, `iai_draw`, `draw`, `sheathe` |
+| Duelist, defense | `guard_idle`, `guard_hit`, `guard_break`, `parry_1`, `parry_2`, `dodge_f`, `dodge_b`, `dodge_l`, `dodge_r`, `hurt_f`, `hurt_b`, `hurt_l`, `hurt_r`, `hurt_heavy`, `knockdown`, `get_up`, `death`, `execution` |
+| Grunt | `idle`, `walk`, `run`, `strafe_l`, `strafe_r`, `attack_1`, `attack_2`, `hurt_f`, `hurt_b`, `parried`, `stagger`, `death` |
+| Brute and Gatekeeper | the Grunt set, plus `slam`, `sweep`, `thrust_unblockable`, `posture_break`, `executed`, `roar` |
+| Wolf (existing) | `idle`, `walk`, `run`, `bite`, `hurt`, `death` |
+
+`attack_1` to `attack_3`, `hurt` and `death` keep the kit's existing names, so the current state
+machine keeps working until the new clips land. The Duelist's single `hurt` state maps to
+`hurt_f` until DamageReaction (M5) picks the directional clips.
 
 New input actions (M3, M5, M7, M9): `attack_heavy`, `attack_special`, `dodge`, `guard`,
 `lock_on`, `target_next`, `target_prev`, `interact`, `pause`. Register them in

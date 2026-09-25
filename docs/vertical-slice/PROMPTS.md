@@ -32,13 +32,18 @@ Rules:
 ```text
 TASK: Make the project headlessly verifiable in CI and in cloud Claude sessions.
 1. tests/run_tests.gd (extends SceneTree): discovers tests/test_*.gd. Each test file extends
-   RefCounted and has `func test_*() -> void` methods. The runner runs each method, collects
-   failures from a tiny assert helper (tests/assert.gd: eq, near, is_true, fails_with), prints
-   a summary and calls quit(1) on any failure.
-2. tests/test_smoke.gd: instantiate scenes/player/player.tscn and scenes/mobs/wolf.tscn
-   off-tree. Assert that Hitbox hits a target once per activation, that HealthComponent i-frames
-   block a second hit, and that HealthComponent.resolve() works on a Hurtbox, a
-   HealthComponent and a body.
+   Node and has `func test_*() -> void` methods, which may `await`. For each file the runner
+   adds a fresh test root Node3D to `root` (so `_ready()` runs and Area3D overlaps happen in a
+   real physics world), adds the test node under it, `await`s each method, then frees the test
+   root. It collects failures from a tiny assert helper (tests/assert.gd: eq, near, is_true,
+   fails_with), prints a summary and calls quit(1) on any failure.
+   Give tests a helper `await_physics(frames := 2)` that awaits `physics_frame` that many times.
+2. tests/test_smoke.gd: add scenes/player/player.tscn and scenes/mobs/wolf.tscn **into the test
+   root** (never test them off-tree: HealthComponent._ready() sets current_health, and
+   Hitbox._ready() connects its overlap signals). Place the wolf inside the katana hitbox, call
+   begin() and set_active(true), then await_physics() before asserting. Assert that Hitbox hits
+   a target once per activation, that HealthComponent i-frames block a second hit, and that
+   HealthComponent.resolve() works on a Hurtbox, a HealthComponent and a body.
 3. .github/workflows/validate.yml: on push and PR, download the Godot 4.7.x Linux headless
    binary (cache it), run `--import`, then the runner.
 4. .claude/hooks/session-start.sh (plus settings): same download, so web sessions can
@@ -63,7 +68,11 @@ TASK:
 4. Hitbox: when the touched node is a Hurtbox, fill hit_position (the closest point on the
    hurtbox shape, or the hurtbox origin) and call receive_hit(). Only trigger hit-stop and
    hit_landed on HIT or KILLED. The body_entered and resolve() path stays for hurtbox-less targets.
-TESTS: the time-scale minimum wins; hit-stop ending during a 0.25x push leaves 0.25; a defender
+5. HealthComponent: add grant_invulnerability(seconds: float), which extends (never shortens)
+   _invulnerable_until_msec, and is_invulnerable() -> bool. Hurtbox.receive_hit returns IGNORED
+   while invulnerable, before any defender runs. Dodge (M3) and the boss roar (M6) use it.
+TESTS: grant_invulnerability blocks a hit and then expires; a shorter grant never cuts a longer
+one; the time-scale minimum wins; hit-stop ending during a 0.25x push leaves 0.25; a defender
 returning BLOCKED stops the health damage; all smoke tests still pass.
 ```
 
@@ -100,8 +109,9 @@ TASK:
 1. Import presets for assets/characters/*.glb and assets/animations/**/*.fbx: Skeleton3D →
    BoneMap with SkeletonProfileHumanoid, "Remove Tracks: unmapped bones" and loop flags per
    clip name suffix (_loop).
-2. Build AnimationLibrary resources per character from the clip list in PLAN.md §4.3, using the
-   clip names in the manifest; don't rename state-machine states.
+2. Build AnimationLibrary resources per character. Name every clip exactly as in the
+   manifest's "Animation clip names" table (those names are the contract that AttackData.animation
+   and the state machines use); don't rename state-machine states.
 3. tools/check_attack_timings.gd (SceneTree): for every AttackData, compare duration to the clip
    length. Warn if active_end > duration or if the clip is missing.
 4. Sockets: BoneAttachment3D on RightHand, Hips and Head, with Marker3D children
@@ -161,8 +171,11 @@ TASK: scripts/combat/combo_manager.gd and combo_node.gd per the manifest.
 - Zero references to visuals, AnimationTree or the body: signals only.
 Then refactor CombatStateMachine into CombatController: it listens to ComboManager signals and
 keeps the IDLE/RUN/HURT/DEAD handling, plus ATTACK (generic, data-driven) and DODGE states.
-Dodge: 0.45 s, i-frames 0.08–0.3 s via HealthComponent, cancels recovery.
-Tests: buffer expiry, branch selection, cancel windows, reset timer (simulate by stepping time).
+Dodge: 0.45 s, cancels recovery. I-frames 0.08–0.3 s: at 0.08 s call
+health.grant_invulnerability(0.22) (added in M1; see the manifest). The existing
+invulnerability_time only starts after an accepted hit, so it can't provide this.
+Tests: buffer expiry, branch selection, cancel windows, reset timer (simulate by stepping time),
+and a hit landing 0.1 s into a dodge returns IGNORED while one at 0.35 s lands.
 ```
 
 ### 3C. MotionWarping (HIGH)
@@ -301,20 +314,92 @@ TASK:
 
 ## M9: Audio, trauma, HUD and game loop (MEDIUM–HIGH)
 
-The runbook's 6.1A, 6.1B and 6.1C are kept, with these changes:
-- **Foley**: the surface comes from the terrain path mask (gravel) versus grass from
-  `HeightmapTerrain`, and `PhysicsMaterial` metadata `surface` on props. Steps fire from
-  animation method tracks, with a speed-based timer as the fallback for placeholder rigs.
-- **Audio buses**: Master → SFX (Reverb send: Courtyard, Sanctum), Music, UI. A
-  `CombatAudioPlayer3D` pool of 8 voices, so impacts don't cut each other off.
-- **CameraTrauma** writes `Camera3D.h_offset`, `v_offset` and rotation. It never moves the
-  SpringArm, so wall collision stays correct. Trauma decays at 1.5/s.
-- **CombatHUD** extends `PlayerHUD` (keep the drain and hurt flash); adds a posture bar that
-  sits centred and hides at 0, the enemy gauge through `unproject_position`, the reticle pulse,
-  and the boss bar.
-- **GameManager**: death slow-motion through `TimeScale.push(&"death", 0.25)`, never
-  `Engine.time_scale` directly. Encounter reset calls `Encounter.reset()`. Add a pause menu
-  (`pause` action) and a start menu scene set as `run/main_scene`, which then loads main.tscn.
+The runbook's 6.1A, 6.1B and 6.1C are merged here in full, with the changes for this codebase
+folded in. Run them as three sessions.
+
+### 9A. Surface foley and combat audio (MEDIUM)
+```text
+READ: scripts/world/heightmap_terrain.gd (the path mask in vertex colour), scripts/combat/hitbox.gd,
+the manifest's AttackData, HitInfo and ParrySystem.
+TASK:
+1. default_bus_layout.tres: Master → SFX, Music, UI. SFX has two reverb send buses (Courtyard,
+   Sanctum) that the GameManager enables per beat.
+2. scripts/audio/surface_foley_audio_3d.gd (AudioStreamPlayer3D on the character's feet):
+   - step() is called by animation method tracks. For placeholder rigs, a fallback timer fires
+     steps from planar speed (stride 0.75 m walk, 1.1 m run).
+   - On each step, raycast 0.3 m down from the feet on layer 1. Surface: the collider's
+     PhysicsMaterial metadata "surface" (GRASS, GRAVEL, STONE, WOOD). On the terrain, use
+     HeightmapTerrain's path mask at the hit point: gravel above 0.5, grass otherwise.
+   - Pick a random stream from a per-surface AudioStreamRandomizer, no immediate repeats,
+     pitch_scale = randf_range(0.95, 1.05). Landing after a jump plays a heavier variant.
+3. scripts/audio/combat_audio_player_3d.gd: a pool of 8 AudioStreamPlayer3D voices, so impacts
+   don't cut each other off (steal the oldest voice when full).
+   - play_impact_sound(attack: AttackData, hit_pos: Vector3, armoured: bool): layer a transient
+     snap, then a flesh or armour thud chosen by damage_type and `armoured`, with volume scaled
+     by damage.
+   - play_parry_clang(contact_pos): a high metallic ring (3 variants) on the SFX bus with the
+     current reverb send.
+   - play_block(contact_pos), play_posture_break(pos), play_whoosh(attack) from swing start.
+   - Wire them to Hurtbox.hit_received (HIT, BLOCKED, PARRIED, GUARD_BROKEN results) and to the
+     katana's begin_swing.
+4. Music: an AudioStreamPlayer on the Music bus with exploration, combat, boss and victory
+   cues; cross-fade 1.5 s on GameManager.state_changed.
+Tests: surface classification from metadata and from a mocked path-mask value; voice stealing
+when all 8 are busy.
+```
+
+### 9B. CameraTrauma and CombatHUD (MEDIUM)
+```text
+READ: scripts/ui/player_hud.gd, scripts/camera/combat_camera_3d.gd (M7), the manifest.
+TASK:
+1. scripts/camera/camera_trauma.gd (child of the Camera3D):
+   - add_trauma(amount) clamps trauma to [0, 1]. shake = trauma². Trauma decays at 1.5/s in
+     real time, so hit-stop doesn't freeze the shake.
+   - Six degrees of freedom from FastNoiseLite (one noise, a separate offset per axis):
+     h_offset and v_offset up to 0.35 m, and rotation (pitch, yaw, roll) up to 4°. Write only
+     Camera3D offsets and rotation; never move the SpringArm, so wall collision stays correct.
+   - Presets as constants: LIGHT 0.2, HEAVY 0.45, PARRY 0.35, EXECUTION 0.75. Hook them to
+     Hitbox.hit_landed (light or heavy from AttackData.trauma), parry_successful and executions.
+2. scripts/ui/combat_hud.gd extends PlayerHUD (keep its drain bar, hurt flash and defeat banner):
+   - Player posture bar centred under the health bar; hidden at 0, turns orange above 70%.
+   - A floating gauge (health and posture) above the locked target, positioned each frame with
+     Camera3D.unproject_position() at the target's head; hidden when behind the camera.
+   - A lock-on reticle that pulses (scale 1.0 → 1.35 → 1.0 over 0.18 s) on parry and on hit
+     confirmation.
+   - A boss bar at the top of the screen while in SANCTUM_GATEKEEPER.
+   - Every control ignores the mouse, like PlayerHUD, so touch input still passes through.
+Tests: trauma decay and clamping; shake is quadratic; the gauge hides for targets behind the camera.
+```
+
+### 9C. GameManager and CheckpointShrine (HIGH)
+```text
+READ: scripts/main.gd, scripts/combat/combat_state_machine.gd (the current death and respawn flow),
+the manifest's GameManager, TimeScale and Encounter.
+TASK:
+1. scripts/game/game_manager.gd as an autoload (GameManager) per the manifest.
+   - Flow: START_MENU → EXPLORATION → COURTYARD_AMBUSH → SANCTUM_GATEKEEPER → VICTORY_SCREEN.
+     Encounter triggers and the boss's defeat drive the transitions. Each transition blends
+     the per-beat environment (D9), sets the reverb send and changes the music cue.
+   - Death: on the player's HealthComponent.died, TimeScale.push(&"death", 0.25). After 1.2 s of
+     real time (a timer that ignores time scale), fade to black over 0.4 s, then
+     TimeScale.pop(&"death") **before** resetting anything. Then reset the active encounter
+     (Encounter.reset()), restore the player's health and posture, respawn at the last active
+     checkpoint and fade back in. The push and pop must pair on every path, including when the
+     player quits to the menu mid-fade. Never write Engine.time_scale directly.
+   - This replaces the respawn inside CombatStateMachine._on_died (keep the DEAD state and the
+     kneel animation).
+   - The pause action opens a pause menu with get_tree().paused (the menu uses
+     PROCESS_MODE_WHEN_PAUSED); pause doesn't go through TimeScale. The start menu scene
+     becomes run/main_scene and loads main.tscn.
+2. scripts/game/checkpoint_shrine.gd (Area3D, on checkpoint_shrine.glb, or on the stone lantern
+   until that art lands): while the player is inside, show an "interact" prompt. Interact heals
+   the player fully, restores posture, saves the respawn transform with
+   GameManager.set_checkpoint(), lights an OmniLight3D at Marker3D_FlamePoint with a 0.5 s
+   flicker-up, and plays the ignite sound. It stays lit afterwards.
+Tests: death → respawn leaves the effective time scale at 1.0; a hit-stop during the death
+slow-motion doesn't restore 1.0 early; quitting mid-fade also pops &"death"; the respawn uses the
+latest checkpoint.
+```
 
 ## M10: Playtest and tuning (MEDIUM)
 
