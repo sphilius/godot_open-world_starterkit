@@ -7,6 +7,8 @@ extends StaticBody3D
 
 signal opened
 signal closed
+## A tweened move began (not an instant set): the portcullis sound (M9b).
+signal moving(opening: bool)
 
 @export var width := 4.0
 @export var height := 3.2
@@ -48,6 +50,7 @@ func set_open(on: bool, instant := false) -> void:
 	if instant or not is_inside_tree():
 		_bars.position = target
 	else:
+		moving.emit(on)
 		_tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 		_tween.tween_property(_bars, ^"position", target, travel_time).set_trans(Tween.TRANS_QUAD) \
 				.set_ease(Tween.EASE_IN if not on else Tween.EASE_OUT)

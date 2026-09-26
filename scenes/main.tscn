@@ -25,6 +25,14 @@
 [ext_resource type="Resource" path="res://resources/lighting/beat_dusk.tres" id="37_dusk"]
 [ext_resource type="Resource" path="res://resources/lighting/beat_night.tres" id="38_night"]
 [ext_resource type="Script" path="res://scripts/game/beat_lighting.gd" id="39_beat"]
+[ext_resource type="Script" path="res://scripts/audio/sfx_pool.gd" id="40_sfx"]
+[ext_resource type="Resource" path="res://resources/audio/sound_bank.tres" id="41_bank"]
+[ext_resource type="Script" path="res://scripts/audio/music_director.gd" id="42_music"]
+[ext_resource type="Script" path="res://scripts/game/feedback_director.gd" id="43_feedback"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/ambience_wind.ogg" id="44_wind"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/music_combat.ogg" id="45_combat"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/music_boss.ogg" id="46_boss"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/music_victory.wav" id="47_victory"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_valley"]
 geometry_parsed_geometry_type = 1
@@ -150,11 +158,12 @@ theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 15
 text = "Scenic Open World"
 
-[node name="PlayerHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("health", "posture", "combat")]
+[node name="PlayerHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("health", "posture", "combat", "targeting")]
 script = ExtResource("14_player_hud")
 health = NodePath("../Player/HealthComponent")
 posture = NodePath("../Player/PostureComponent")
 combat = NodePath("../Player/Combat")
+targeting = NodePath("../Player/TargetingSystem")
 
 [node name="TouchControls" type="CanvasLayer" parent="." node_paths=PackedStringArray("player", "dev_hud")]
 script = ExtResource("15_touch")
@@ -175,3 +184,21 @@ beat_lighting = Array[ExtResource("39_beat")]([ExtResource("36_golden"), ExtReso
 [node name="GameMenus" type="CanvasLayer" parent="." node_paths=PackedStringArray("game")]
 script = ExtResource("35_menus")
 game = NodePath("../GameManager")
+
+[node name="SfxPool" type="Node3D" parent="."]
+script = ExtResource("40_sfx")
+bank = ExtResource("41_bank")
+
+[node name="MusicDirector" type="Node" parent="." node_paths=PackedStringArray("game")]
+process_mode = 3
+script = ExtResource("42_music")
+game = NodePath("../GameManager")
+ambience = ExtResource("44_wind")
+combat = ExtResource("45_combat")
+boss = ExtResource("46_boss")
+victory = ExtResource("47_victory")
+
+[node name="FeedbackDirector" type="Node" parent="." node_paths=PackedStringArray("sfx", "player")]
+script = ExtResource("43_feedback")
+sfx = NodePath("../SfxPool")
+player = NodePath("../Player")

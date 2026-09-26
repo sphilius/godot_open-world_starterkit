@@ -58,7 +58,7 @@ func warp_speed(distance: float, duration: float) -> float:
 
 ## The locked target if there is one, else the nearest enemy in front within reach.
 func find_target(direction: Vector3) -> Node3D:
-	var locked: Node3D = targeting.get(&"current_target") if targeting else null
+	var locked: Variant = targeting.get(&"current_target") if targeting else null   # may be freed
 	if is_instance_valid(locked):
 		return locked
 	var min_dot := cos(deg_to_rad(max_warp_angle))

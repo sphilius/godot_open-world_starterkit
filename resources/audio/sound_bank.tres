@@ -1,0 +1,210 @@
+[gd_resource type="Resource" script_class="SoundBank" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/sound_bank.gd" id="0_bank"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/block_1.wav" id="1_block_1"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/block_2.wav" id="2_block_2"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/block_3.wav" id="3_block_3"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/gate.wav" id="4_gate"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/glint_gold.wav" id="5_glint_gold"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/glint_red.wav" id="6_glint_red"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/hit_1.wav" id="7_hit_1"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/hit_2.wav" id="8_hit_2"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/hit_3.wav" id="9_hit_3"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/hit_heavy.wav" id="10_hit_heavy"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/parry_1.wav" id="11_parry_1"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/parry_2.wav" id="12_parry_2"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/parry_3.wav" id="13_parry_3"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/posture_break.wav" id="14_posture_break"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/roar.wav" id="15_roar"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/shrine_ignite.wav" id="16_shrine_ignite"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_grass_1.wav" id="17_step_grass_1"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_grass_2.wav" id="18_step_grass_2"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_grass_3.wav" id="19_step_grass_3"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_grass_4.wav" id="20_step_grass_4"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_gravel_1.wav" id="21_step_gravel_1"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_gravel_2.wav" id="22_step_gravel_2"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_gravel_3.wav" id="23_step_gravel_3"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_gravel_4.wav" id="24_step_gravel_4"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_stone_1.wav" id="25_step_stone_1"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_stone_2.wav" id="26_step_stone_2"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_stone_3.wav" id="27_step_stone_3"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_stone_4.wav" id="28_step_stone_4"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/ui_back.wav" id="29_ui_back"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/ui_confirm.wav" id="30_ui_confirm"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/whoosh_heavy_1.wav" id="31_whoosh_heavy_1"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/whoosh_heavy_2.wav" id="32_whoosh_heavy_2"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/whoosh_heavy_3.wav" id="33_whoosh_heavy_3"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/whoosh_light_1.wav" id="34_whoosh_light_1"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/whoosh_light_2.wav" id="35_whoosh_light_2"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/whoosh_light_3.wav" id="36_whoosh_light_3"]
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_block"]
+random_pitch = 1.06
+streams_count = 3
+stream_0/stream = ExtResource("1_block_1")
+stream_0/weight = 1.0
+stream_1/stream = ExtResource("2_block_2")
+stream_1/weight = 1.0
+stream_2/stream = ExtResource("3_block_3")
+stream_2/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_gate"]
+random_pitch = 1.0
+playback_mode = 1
+streams_count = 1
+stream_0/stream = ExtResource("4_gate")
+stream_0/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_glint_gold"]
+random_pitch = 1.0
+playback_mode = 1
+streams_count = 1
+stream_0/stream = ExtResource("5_glint_gold")
+stream_0/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_glint_red"]
+random_pitch = 1.0
+playback_mode = 1
+streams_count = 1
+stream_0/stream = ExtResource("6_glint_red")
+stream_0/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_hit"]
+random_pitch = 1.06
+streams_count = 3
+stream_0/stream = ExtResource("7_hit_1")
+stream_0/weight = 1.0
+stream_1/stream = ExtResource("8_hit_2")
+stream_1/weight = 1.0
+stream_2/stream = ExtResource("9_hit_3")
+stream_2/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_hit_heavy"]
+random_pitch = 1.06
+playback_mode = 1
+streams_count = 1
+stream_0/stream = ExtResource("10_hit_heavy")
+stream_0/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_parry"]
+random_pitch = 1.06
+streams_count = 3
+stream_0/stream = ExtResource("11_parry_1")
+stream_0/weight = 1.0
+stream_1/stream = ExtResource("12_parry_2")
+stream_1/weight = 1.0
+stream_2/stream = ExtResource("13_parry_3")
+stream_2/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_posture_break"]
+random_pitch = 1.06
+playback_mode = 1
+streams_count = 1
+stream_0/stream = ExtResource("14_posture_break")
+stream_0/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_roar"]
+random_pitch = 1.0
+playback_mode = 1
+streams_count = 1
+stream_0/stream = ExtResource("15_roar")
+stream_0/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_shrine_ignite"]
+random_pitch = 1.0
+playback_mode = 1
+streams_count = 1
+stream_0/stream = ExtResource("16_shrine_ignite")
+stream_0/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_step_grass"]
+random_pitch = 1.06
+streams_count = 4
+stream_0/stream = ExtResource("17_step_grass_1")
+stream_0/weight = 1.0
+stream_1/stream = ExtResource("18_step_grass_2")
+stream_1/weight = 1.0
+stream_2/stream = ExtResource("19_step_grass_3")
+stream_2/weight = 1.0
+stream_3/stream = ExtResource("20_step_grass_4")
+stream_3/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_step_gravel"]
+random_pitch = 1.06
+streams_count = 4
+stream_0/stream = ExtResource("21_step_gravel_1")
+stream_0/weight = 1.0
+stream_1/stream = ExtResource("22_step_gravel_2")
+stream_1/weight = 1.0
+stream_2/stream = ExtResource("23_step_gravel_3")
+stream_2/weight = 1.0
+stream_3/stream = ExtResource("24_step_gravel_4")
+stream_3/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_step_stone"]
+random_pitch = 1.06
+streams_count = 4
+stream_0/stream = ExtResource("25_step_stone_1")
+stream_0/weight = 1.0
+stream_1/stream = ExtResource("26_step_stone_2")
+stream_1/weight = 1.0
+stream_2/stream = ExtResource("27_step_stone_3")
+stream_2/weight = 1.0
+stream_3/stream = ExtResource("28_step_stone_4")
+stream_3/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_ui_back"]
+random_pitch = 1.0
+playback_mode = 1
+streams_count = 1
+stream_0/stream = ExtResource("29_ui_back")
+stream_0/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_ui_confirm"]
+random_pitch = 1.0
+playback_mode = 1
+streams_count = 1
+stream_0/stream = ExtResource("30_ui_confirm")
+stream_0/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_whoosh_heavy"]
+random_pitch = 1.06
+streams_count = 3
+stream_0/stream = ExtResource("31_whoosh_heavy_1")
+stream_0/weight = 1.0
+stream_1/stream = ExtResource("32_whoosh_heavy_2")
+stream_1/weight = 1.0
+stream_2/stream = ExtResource("33_whoosh_heavy_3")
+stream_2/weight = 1.0
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_whoosh_light"]
+random_pitch = 1.06
+streams_count = 3
+stream_0/stream = ExtResource("34_whoosh_light_1")
+stream_0/weight = 1.0
+stream_1/stream = ExtResource("35_whoosh_light_2")
+stream_1/weight = 1.0
+stream_2/stream = ExtResource("36_whoosh_light_3")
+stream_2/weight = 1.0
+
+[resource]
+script = ExtResource("0_bank")
+sounds = Dictionary[StringName, AudioStream]({
+&"block": SubResource("AudioStreamRandomizer_block"),
+&"gate": SubResource("AudioStreamRandomizer_gate"),
+&"glint_gold": SubResource("AudioStreamRandomizer_glint_gold"),
+&"glint_red": SubResource("AudioStreamRandomizer_glint_red"),
+&"hit": SubResource("AudioStreamRandomizer_hit"),
+&"hit_heavy": SubResource("AudioStreamRandomizer_hit_heavy"),
+&"parry": SubResource("AudioStreamRandomizer_parry"),
+&"posture_break": SubResource("AudioStreamRandomizer_posture_break"),
+&"roar": SubResource("AudioStreamRandomizer_roar"),
+&"shrine_ignite": SubResource("AudioStreamRandomizer_shrine_ignite"),
+&"step_grass": SubResource("AudioStreamRandomizer_step_grass"),
+&"step_gravel": SubResource("AudioStreamRandomizer_step_gravel"),
+&"step_stone": SubResource("AudioStreamRandomizer_step_stone"),
+&"ui_back": SubResource("AudioStreamRandomizer_ui_back"),
+&"ui_confirm": SubResource("AudioStreamRandomizer_ui_confirm"),
+&"whoosh_heavy": SubResource("AudioStreamRandomizer_whoosh_heavy"),
+&"whoosh_light": SubResource("AudioStreamRandomizer_whoosh_light")
+})

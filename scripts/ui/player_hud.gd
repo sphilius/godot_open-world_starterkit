@@ -6,6 +6,8 @@ extends CanvasLayer
 ## Boss bar: an enemy calls set_boss() (group "boss_hud") when engaged; its name, health and
 ## posture show at the top centre until it's defeated. Execution prompt: shown while a light
 ## attack would execute a posture-broken enemy (CombatStateMachine.execution_target()).
+## Lock-on gauge (M9b): a small health bar and posture line float over the locked target
+## (TargetingSystem), unless it's the boss on the boss bar or it's behind the camera.
 ## Built in code, and every control ignores input, so touches pass through to TouchControls.
 
 @export var health: HealthComponent
@@ -13,6 +15,11 @@ extends CanvasLayer
 @export var posture: PostureComponent
 ## Optional: shows the execution prompt.
 @export var combat: CombatStateMachine
+## Optional: shows the lock-on gauge.
+@export var targeting: TargetingSystem
+## Height above the target's origin where the gauge floats (m).
+@export var gauge_height := 2.4
+@export var gauge_size := Vector2(84, 6)
 @export var boss_bar_size := Vector2(520, 12)
 @export var bar_position := Vector2(16, 44)
 @export var bar_size := Vector2(300, 14)
@@ -25,6 +32,9 @@ var _boss: Node3D
 var _boss_panel: Control
 var _boss_label: Label
 var _prompt: Label
+var _gauge: Control
+var _gauge_target: Node3D
+var _gauge_point := Vector2.ZERO
 var _flash: ColorRect
 var _banner: Label
 var _ratio := 1.0          # current health
@@ -68,6 +78,11 @@ func _ready() -> void:
 	_boss_label.position = Vector2(0, -2)
 	_boss_label.size = Vector2(boss_bar_size.x, 24)
 	_boss_panel.add_child(_boss_label)
+	_gauge = Control.new()
+	_gauge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_gauge.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_gauge.draw.connect(_draw_gauge)
+	add_child(_gauge)
 	_prompt = _hud_label(24)
 	_prompt.text = "ATTACK — Execute"
 	_prompt.set_anchors_preset(Control.PRESET_CENTER)
@@ -122,9 +137,49 @@ func _process(delta: float) -> void:
 		else:
 			_boss_panel.queue_redraw()
 	_prompt.visible = combat != null and combat.execution_target() != null
+	_update_gauge()
 	if not is_equal_approx(_trail_ratio, _ratio):
 		_trail_ratio = move_toward(_trail_ratio, _ratio, delta * drain_speed)
 		_bar.queue_redraw()
+
+
+## The target the lock-on gauge is showing, or null.
+func gauge_target() -> Node3D:
+	return _gauge_target if is_instance_valid(_gauge_target) else null
+
+
+func _update_gauge() -> void:
+	var target: Node3D = targeting.current_target if targeting and targeting.is_locked() else null
+	var camera := get_viewport().get_camera_3d() if target else null
+	if target and (target == showing_boss() or camera == null):
+		target = null
+	if target:
+		var head := target.global_position + Vector3.UP * gauge_height
+		if camera.is_position_behind(head):
+			target = null
+		else:
+			_gauge_point = camera.unproject_position(head)
+	if target != _gauge_target or target:
+		_gauge_target = target
+		_gauge.queue_redraw()
+
+
+func _draw_gauge() -> void:
+	var target := gauge_target()
+	if target == null:
+		return
+	var target_health := HealthComponent.resolve(target)
+	var target_posture := PostureComponent.find_on(target)
+	var bar := Rect2(_gauge_point - Vector2(gauge_size.x * 0.5, 0.0), gauge_size)
+	_gauge.draw_rect(bar.grow(1.5), Color(0, 0, 0, 0.6))
+	if target_health and target_health.max_health > 0.0:
+		var ratio := clampf(target_health.current_health / target_health.max_health, 0.0, 1.0)
+		_gauge.draw_rect(Rect2(bar.position, Vector2(bar.size.x * ratio, bar.size.y)), Color(0.78, 0.14, 0.08))
+	if target_posture and target_posture.max_posture > 0.0:
+		var ratio := clampf(target_posture.current / target_posture.max_posture, 0.0, 1.0)
+		var width := gauge_size.x * ratio
+		var line := Rect2(Vector2(_gauge_point.x - width * 0.5, bar.end.y + 3.0), Vector2(width, 3.0))
+		_gauge.draw_rect(line, Color(0.9, 0.2, 0.1) if target_posture.is_broken else Color(0.95, 0.7, 0.3))
 
 
 func _on_health_changed(current: float, maximum: float) -> void:

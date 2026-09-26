@@ -272,6 +272,30 @@ class_name GameMenus extends CanvasLayer      # title / pause / victory, toast, 
   func set_paused(on: bool) -> void; func current_screen() -> String; func show_toast(text) -> void; func fade_alpha() -> float
 PlayerController: func set_respawn_point(pos, yaw) -> void; func capture_mouse() -> void
 main.gd: every node in group "ground_snap" under Main is stood on the terrain (shrines and their RespawnPoints)
+
+# M9b: feedback
+Buses (default_bus_layout.tres): Master → SFX (effect 0: sanctum Reverb, off by default), Music, Ambience, UI
+class_name SoundBank extends Resource         # sounds: Dictionary[StringName, AudioStream] (AudioStreamRandomizers)
+  # events: whoosh_light, whoosh_heavy, hit, hit_heavy, block, parry, posture_break, step_grass, step_gravel,
+  # step_stone, glint_gold, glint_red, shrine_ignite, gate, roar, ui_confirm, ui_back
+class_name SfxPool extends Node3D             # group "sfx_pool", SfxPool.find(tree); @export bank, voices := 8
+  func play(event, at: Vector3, volume_db := 0.0, pitch := 1.0) -> AudioStreamPlayer3D   # steals the oldest voice
+  func play_2d(event, volume_db := 0.0) -> void   # UI bus, works while paused; func busy_voices() -> int
+class_name SurfaceFoley extends Node3D        # on the player; func step(extra_db := 0.0); static func classify(collider, point) -> StringName
+  # terrain: gravel where path_mask_at > 0.5, else grass; other colliders: meta "surface", else stone
+class_name MusicDirector extends Node         # PROCESS_MODE_ALWAYS (set in the scene); cues per GameManager state, set_reverb(on)
+  @export game, ambience, exploration, combat, boss, victory: AudioStream; crossfade_time := 1.5
+class_name CameraTrauma extends Node          # child of the Camera3D; group "camera_trauma"; static var enabled
+  const LIGHT 0.2, HEAVY 0.45, PARRY 0.35, HURT 0.35, POSTURE_BREAK 0.45, EXECUTION 0.75, DEATH 0.6
+  func add_trauma(amount: float) -> void; func shake() -> float  # trauma²; decays 1.5/s of real time
+class_name HitVfx extends Node3D              # static func spawn(parent, at, result: HitInfo.Result, broke_posture := false) -> HitVfx
+class_name FeedbackDirector extends Node      # watches the tree: Hurtbox.hit_received, Hitbox.swing_started, EnemyCombatController
+  # telegraph_glint / executed / roared, CheckpointShrine.activated, LevelGate.moving → SfxPool, HitVfx, CameraTrauma
+Hitbox: signal swing_started(attack: AttackData)      # the active window opened
+LevelGate: signal moving(opening: bool)               # a tweened move began (not instant)
+TargetingSystem: func pulse() -> void                 # reticle pop on a hit or parry
+PlayerHUD: @export targeting; func gauge_target() -> Node3D   # the lock-on gauge
+GameMenus: func quit_game() -> void                   # frees the world, then quits (also the window's close button)
 ```
 
 ## Animation clip names (the contract for AnimationLibraries, state machines and AttackData.animation)

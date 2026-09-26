@@ -12,6 +12,8 @@ extends Area3D
 ## triggers hit-stop.
 
 signal hit_landed(target: HealthComponent, hit: HitInfo)
+## The active window opened (swing sounds, M9b).
+signal swing_started(attack: AttackData)
 
 ## The attacker: knockback pushes away from it, and it never hits itself.
 var source: Node3D
@@ -37,6 +39,8 @@ func set_active(on: bool) -> void:
 		return
 	_active = on
 	set_deferred(&"monitoring", on)   # overlaps already present report on the next physics step
+	if on and _attack:
+		swing_started.emit(_attack)
 
 
 func is_active() -> bool:

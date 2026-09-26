@@ -158,6 +158,20 @@ func test_locked_dodge_goes_sideways_and_keeps_facing() -> void:
 	check_eq(CombatStateMachine.dodge_clip(player.get_facing(), directions[0] if directions else Vector3.ZERO), &"dodge_l", "clip")
 
 
+func test_a_freed_lock_target_is_harmless_before_the_lock_moves_on() -> void:
+	var player := await _setup()
+	var fsm := player.get_node("Combat") as CombatStateMachine
+	var target := _wolf(Vector3(0, 0, -3))
+	player.targeting.set_target(target)
+	await physics_frames(2)
+	target.free()                                              # gone before TargetingSystem notices
+	check(fsm.execution_target() == null, "no execution target (and no error) for a freed lock")
+	check(fsm.warping.find_target(Vector3.FORWARD) == null, "no lunge target (and no error) either")
+	fsm.combo.push_input(ComboManager.DODGE)
+	await physics_frames(3)
+	check_eq(fsm.state, CombatStateMachine.State.DODGE, "a dodge still works")
+
+
 # --- Helpers ---------------------------------------------------------------------------------
 
 ## Floor plus a player at the origin facing -Z, with the camera settled behind it.

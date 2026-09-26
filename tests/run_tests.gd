@@ -89,6 +89,9 @@ func _run() -> void:
 				print("Aborting: a timed-out test may still be running.")
 				_finish(passed, failed, started)
 				return
+	# Streams stopped when the last world was freed are released on the audio thread; give it a
+	# moment so they aren't reported as leaks at exit.
+	await create_timer(0.3).timeout
 	_finish(passed, failed, started)
 
 
