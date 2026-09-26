@@ -15,11 +15,11 @@ size = Vector3(20, 4, 16)
 
 [node name="Greybox" type="Node3D" parent="." groups=["navigation_source"]]
 script = ExtResource("1_arena")
-openings = Array[Vector3]([Vector3(0, 0, 4.4), Vector3(1, 0, 4.4)])
+openings = Array[Vector3]([Vector3(2, 0, 4.4), Vector3(1, 0, 4.4)])
 cover = Array[Vector4]([Vector4(-5, -2, 4, 15), Vector4(5, 3, 3.5, -30), Vector4(-2, 6, 3, 80)])
 
-[node name="NorthGate" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -12)
+[node name="EntryGate" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 12)
 script = ExtResource("2_gate")
 
 [node name="EastGate" type="StaticBody3D" parent="."]
@@ -31,11 +31,11 @@ start_open = false
 script = ExtResource("3_encounter")
 waves = Array[ExtResource("7_wave")]([ExtResource("4_w1"), ExtResource("5_w2"), ExtResource("6_w3")])
 trigger = NodePath("Trigger")
-entry_gates = [NodePath("../NorthGate")]
+entry_gates = [NodePath("../EntryGate")]
 exit_gates = [NodePath("../EastGate")]
 
 [node name="Trigger" type="Area3D" parent="Encounter"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, -1)
 collision_layer = 0
 collision_mask = 2
 monitorable = false
@@ -46,13 +46,13 @@ shape = SubResource("BoxShape3D_trigger")
 [node name="SpawnPoints" type="Node3D" parent="Encounter"]
 
 [node name="A" type="Marker3D" parent="Encounter/SpawnPoints"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.3, 8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.3, -8)
 
 [node name="B" type="Marker3D" parent="Encounter/SpawnPoints"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 9)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, -9)
 
 [node name="C" type="Marker3D" parent="Encounter/SpawnPoints"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0.3, 8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0.3, -8)
 
 [node name="D" type="Marker3D" parent="Encounter/SpawnPoints"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0.3, -2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.3, 1)

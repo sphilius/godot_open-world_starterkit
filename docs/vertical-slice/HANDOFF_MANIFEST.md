@@ -248,7 +248,7 @@ class_name Encounter extends Node3D           # child "SpawnPoints" (Marker3Ds);
   @export wave_delay := 1.5; max_attack_tokens := 2; enemy_aggro_radius := 40.0
   func start(player: Node3D = null) -> void; func reset() -> void   # reset: despawn the living, gates back, IDLE; also on player death
   func alive_enemies() -> Array[Node]
-scenes/levels/courtyard.tscn (NorthGate entry, EastGate exit; waves 3 grunts / 3 grunts + brute / 2 brutes + 2 grunts)
+scenes/levels/courtyard.tscn (EntryGate facing the path, EastGate exit; waves 3 grunts / 3 grunts + brute / 2 brutes + 2 grunts)
 scenes/levels/sanctum.tscn (causeway, SanctumGate, the Gatekeeper on its dais; 1 token)
 
 # M9: loop

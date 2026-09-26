@@ -105,7 +105,7 @@ func test_the_arenas_sit_on_level_ground_and_the_navmesh() -> void:
 			var p: Vector3 = centre + offset
 			check_near(terrain.height_at(p.x, p.z), 1.0, 0.05, "ground under the arena at %s" % p)
 			check(terrain.path_mask_at(p.x, p.z) > 0.99, "no grass inside the arena at %s" % p)
-	check(world.get_node("Courtyard/NorthGate").is_open, "the courtyard's north gate starts open")
+	check(world.get_node("Courtyard/EntryGate").is_open, "the courtyard's entry gate (facing the path) starts open")
 	check(not world.get_node("Courtyard/EastGate").is_open, "its east gate starts closed")
 	check(world.get_node("Sanctum/SanctumGate").is_open, "the sanctum gate starts open")
 	var map := (world.get_node("NavigationRegion3D") as NavigationRegion3D).get_navigation_map()
@@ -113,9 +113,27 @@ func test_the_arenas_sit_on_level_ground_and_the_navmesh() -> void:
 		var point := NavigationServer3D.map_get_closest_point(map, COURTYARD_CENTRE + Vector3(4, 0.5, 4))
 		return point.distance_to(COURTYARD_CENTRE + Vector3(4, 0, 4)) < 0.6
 	check(await wait_until(on_floor, 3.0), "the courtyard floor is on the navmesh")
-	var path := NavigationServer3D.map_get_path(map, Vector3(-6, 0, -64), COURTYARD_CENTRE + Vector3(0, 0, 6), true)
-	check(not path.is_empty() and path[path.size() - 1].distance_to(COURTYARD_CENTRE + Vector3(0, 0, 6)) < 1.0,
-			"the path's end leads into the courtyard through the north gate")
+	var goal := COURTYARD_CENTRE + Vector3(0, 0, -4)
+	var path := NavigationServer3D.map_get_path(map, Vector3(-6, 0, -63), goal, true)
+	check(not path.is_empty() and path[path.size() - 1].distance_to(goal) < 1.0, "the path's end leads into the courtyard")
+	var gate := COURTYARD_CENTRE + Vector3(0, 0, 12)
+	var through_gate := Array(path).any(func(point: Vector3) -> bool:
+		return Vector2(point.x - gate.x, point.z - gate.z).length() < 3.0)
+	check(through_gate or path.size() == 2, "and that route runs through the entry gate, not around")
+
+
+func test_walking_off_the_end_of_the_path_enters_the_courtyard() -> void:
+	await load_world()
+	var encounter := world.get_node("Courtyard/Encounter") as Encounter
+	var terrain := world.get_node("Terrain") as HeightmapTerrain
+	var start := Vector3(-6, 0, -61)
+	start.y = terrain.height_at(start.x, start.z) + 0.1
+	player().spawn_at(start, 0.0)                        # facing -Z, down the path toward the courtyard
+	Input.action_press(&"move_forward")
+	var entered := await wait_until(func() -> bool: return encounter.state == Encounter.State.ACTIVE, 6.0)
+	Input.action_release(&"move_forward")
+	check(entered, "walking straight off the path's end never reached the courtyard trigger (stuck at %s)" % player().global_position)
+	check(not world.get_node("Courtyard/EntryGate").is_open, "the entry gate closed behind the player")
 
 
 func test_the_courtyard_ambush_runs_its_three_waves() -> void:
@@ -127,7 +145,7 @@ func test_the_courtyard_ambush_runs_its_three_waves() -> void:
 	encounter.wave_started.connect(func(_index: int) -> void: sizes.append(encounter.alive_enemies().size()))
 	player().spawn_at(COURTYARD_CENTRE + Vector3(0, 0.3, 6), PI)
 	check(await wait_until(func() -> bool: return encounter.state == Encounter.State.ACTIVE, 2.0), "walking in never started the ambush")
-	check(not world.get_node("Courtyard/NorthGate").is_open, "the north gate slammed shut")
+	check(not world.get_node("Courtyard/EntryGate").is_open, "the entry gate slammed shut")
 	for wave in 3:
 		check(await wait_until(func() -> bool: return encounter.wave_index == wave and not encounter.alive_enemies().is_empty(), 4.0),
 				"wave %d never arrived" % (wave + 1))

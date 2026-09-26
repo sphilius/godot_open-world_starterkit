@@ -141,7 +141,7 @@ Main (main.gd: drops player at path start, facing the sunset)
 ├─ GrassField          GrassField        ─┘  grass scatter · landmark placement
 ├─ NavigationRegion3D  navigation_baker.gd: bakes terrain + landmarks (group "navigation_source")
 ├─ Wolves              4 × wolf.tscn
-├─ Courtyard           courtyard.tscn at the path's end: greybox arena, North/East gates, Encounter (3 waves)
+├─ Courtyard           courtyard.tscn at the path's end: greybox arena, Entry/East gates, Encounter (3 waves)
 ├─ Sanctum             sanctum.tscn east of it: causeway, sanctum gate, Encounter (the Gatekeeper)
 ├─ Player              player.tscn (see below)
 └─ DevHUD              FPS, quality presets, screenshots, CLI capture

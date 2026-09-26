@@ -113,6 +113,8 @@ func _spawn_wave(index: int) -> void:
 func _on_enemy_gone(enemy: Node) -> void:
 	if not _alive.has(enemy):
 		return
+	if not is_inside_tree():
+		return                                           # the whole level is unloading, not a kill
 	_alive.erase(enemy)
 	if state != State.ACTIVE or not _alive.is_empty():
 		return
