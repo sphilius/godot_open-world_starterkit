@@ -2,7 +2,9 @@
 
 How to get a working environment for this repo (and any Godot + Blender game repo) in every
 place an agent might run. It's one script, `tools/setup/gamedev_env.sh`, used everywhere, plus
-`AGENTS.md` for the rules every agent follows.
+`AGENTS.md` for the rules every agent follows. The script exits non-zero with an `ERROR:` line
+when anything it promises is missing (a failed apt install, a non-x86_64 machine, a Godot or
+Blender binary that won't run), rather than reporting a half-built environment as ready.
 
 ## 1. The stack
 

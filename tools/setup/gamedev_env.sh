@@ -22,33 +22,40 @@ cd "$(dirname "$0")/../.."
 root="$(pwd)"
 
 log() { echo "[gamedev_env] $*" >&2; }
+fail() { log "ERROR: $*"; exit 1; }
+
+# The Godot and Blender builds fetched below are x86_64. (A dev container on Apple Silicon can run
+# them under emulation with --platform=linux/amd64; .devcontainer/devcontainer.json does that.)
+arch="$(uname -m)"
+[ "$arch" = "x86_64" ] || fail "this machine is $arch; the Godot and Blender Linux builds used here are x86_64"
 
 # --- System packages ------------------------------------------------------------------------
 if [ "${SKIP_APT:-}" != "1" ] && command -v apt-get >/dev/null 2>&1; then
 	sudo=""
 	if [ "$(id -u)" -ne 0 ]; then
-		if command -v sudo >/dev/null 2>&1; then sudo="sudo"; else log "not root and no sudo: skipping apt"; fi
+		command -v sudo >/dev/null 2>&1 || fail "not root and no sudo, so system packages can't be installed (set SKIP_APT=1 to skip them)"
+		sudo="sudo"
 	fi
-	if [ "$(id -u)" -eq 0 ] || [ -n "$sudo" ]; then
-		packages=(unzip xz-utils curl ca-certificates python3-pip ffmpeg xvfb xauth
-			libgl1 libegl1 libgl1-mesa-dri libglu1-mesa libxi6 libxrender1 libxkbcommon0
-			libxxf86vm1 libxfixes3 libsm6 libice6 libfontconfig1)
-		missing=()
-		for package in "${packages[@]}"; do
-			dpkg -s "$package" >/dev/null 2>&1 || missing+=("$package")
-		done
-		if [ "${#missing[@]}" -gt 0 ]; then
-			log "installing: ${missing[*]}"
-			$sudo apt-get update -qq || true
-			DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y -qq --no-install-recommends "${missing[@]}" >/dev/null \
-				|| log "some packages failed to install (continuing)"
-		fi
+	packages=(unzip xz-utils curl ca-certificates python3-pip ffmpeg xvfb xauth
+		libgl1 libegl1 libgl1-mesa-dri libglu1-mesa libxi6 libxrender1 libxkbcommon0
+		libxxf86vm1 libxfixes3 libsm6 libice6 libfontconfig1)
+	missing=()
+	for package in "${packages[@]}"; do
+		dpkg -s "$package" >/dev/null 2>&1 || missing+=("$package")
+	done
+	if [ "${#missing[@]}" -gt 0 ]; then
+		log "installing: ${missing[*]}"
+		$sudo apt-get update -qq || true
+		DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y -qq --no-install-recommends "${missing[@]}" >/dev/null \
+			|| fail "apt-get couldn't install: ${missing[*]} (fix the mirror or network, or set SKIP_APT=1)"
 	fi
 fi
 
 # --- Godot ----------------------------------------------------------------------------------
 godot="$(bash tools/ci/install_godot.sh)"
-log "Godot: $("$godot" --headless --version 2>/dev/null | head -1)"
+godot_version="$("$godot" --headless --version 2>/dev/null | head -1)" || true
+[ -n "$godot_version" ] || fail "Godot at $godot doesn't run (missing libraries?)"
+log "Godot: $godot_version"
 
 if [ "${WITH_EXPORT_TEMPLATES:-}" = "1" ]; then
 	version="${GODOT_VERSION:-4.7.1}"
@@ -70,7 +77,9 @@ fi
 blender=""
 if [ "${SKIP_BLENDER:-}" != "1" ]; then
 	blender="$(bash tools/setup/install_blender.sh)"
-	log "Blender: $("$blender" --background --factory-startup --version 2>/dev/null | head -1)"
+	blender_version="$("$blender" --background --factory-startup --version 2>/dev/null | grep -m1 '^Blender')" || true
+	[ -n "$blender_version" ] || fail "Blender at $blender doesn't run (missing libraries?); set SKIP_BLENDER=1 to go without it"
+	log "Blender: $blender_version"
 fi
 
 # --- Import cache and environment -------------------------------------------------------------
