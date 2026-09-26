@@ -18,6 +18,8 @@
 [ext_resource type="Script" path="res://scripts/combat/defense/parry_system.gd" id="17_parry"]
 [ext_resource type="Script" path="res://scripts/combat/defense/damage_reaction_component.gd" id="18_reaction"]
 [ext_resource type="Resource" path="res://resources/combat/execution.tres" id="19_execution"]
+[ext_resource type="Script" path="res://scripts/camera/camera_trauma.gd" id="20_trauma"]
+[ext_resource type="Script" path="res://scripts/audio/surface_foley.gd" id="21_foley"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.35
@@ -139,3 +141,10 @@ margin = 0.15
 current = true
 fov = 68.0
 far = 1500.0
+
+[node name="CameraTrauma" type="Node" parent="CameraRig/SpringArm3D/Camera3D"]
+script = ExtResource("20_trauma")
+
+[node name="SurfaceFoley" type="Node3D" parent="." node_paths=PackedStringArray("body")]
+script = ExtResource("21_foley")
+body = NodePath("..")

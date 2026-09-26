@@ -31,7 +31,7 @@ browser, with on-screen touch controls for tablets and phones.
 | Jump | Space | JUMP |
 | Sprint | Shift (hold) | RUN (tap to toggle) |
 | Quality LOW/MEDIUM/HIGH | F2 | QUAL |
-| **Pause** (Resume · Return to shrine · Quit to title) | **Esc / P** · Start | **PAUSE** |
+| **Pause** (Resume · Return to shrine · Screen shake on/off · Quit to title) | **Esc / P** · Start | **PAUSE** |
 | Back to the last checkpoint | — | RESET |
 | Fullscreen | — | FULL |
 | Screenshot | F12 | — |
@@ -72,6 +72,7 @@ bash tools/ci/validate.sh [--filter=hit]   # same, but downloads Godot 4.7.1 fir
 | `tests/test_combat.gd` | Buffered 3-hit combo kills a wolf (hits, hit-stop, death, collision off, freed); draw then sheathe after 3 s; uncaptured clicks don't attack but key and touch actions do |
 | `tests/test_wolves.gd` | Wander and chase on the navmesh; a bite damages and flinches the player; striking during the wind-up cancels the bite; player death, wolves disengaging, respawn |
 | `tests/test_game_loop.gd` | The title holds the paused world until Begin; the pause action toggles the pause menu and Return to shrine respawns there; a shrine stands on the ground, heals and becomes the checkpoint; death slows time, fades to black, respawns at the shrine and fades back; lighting blends to dusk, then night, and never back, without touching the shared Environment; clearing the courtyard unlocks the sanctum; the boss's death shows the victory stats |
+| `tests/test_feedback.gd` | The voice pool steals the oldest voice, every bank event loads and every surface has footsteps; a surface without its own steps falls back to stone; footsteps classify gravel, grass, metadata and stone, and walking plays them; trauma clamps, squares and decays in real time through a hit-stop, and the option turns it off; hits make sound, sparks and shake, being hit shakes harder, swings whoosh and sparks clean up; music and reverb follow the beats, and a cue change fades the new cue in while the old one fades out; the lock-on gauge shows the target in view and hides behind the camera |
 | `tests/test_touch.gd` | Touch buttons press and release actions (multi-touch safe), RUN latches, the look pad turns the camera (one finger), RESET respawns |
 | `tests/test_project.gd` | Every script compiles and every scene loads. It's the parse gate, because `godot --import` exits 0 even with broken scripts |
 | `tests/test_smoke.gd` | Player and wolf scenes spawn at full health; a Hitbox hits each target once per activation; i-frames; `HealthComponent.resolve()` |
@@ -153,7 +154,10 @@ Main (main.gd: stands the shrines on the ground, drops the player at the path st
 ├─ PlayerHUD           health and posture bars, boss bar, execution prompt
 ├─ TouchControls       on-screen controls (touchscreens, --touch)
 ├─ GameManager         game loop: states, checkpoints, death slow motion, per-beat lighting, sanctum lock, stats
-└─ GameMenus           title, pause and victory screens; checkpoint toast; fade in
+├─ GameMenus           title, pause and victory screens; checkpoint toast; fades; clean quit
+├─ SfxPool             8 positional voices (SFX bus) + a UI voice; plays resources/audio/sound_bank.tres events
+├─ MusicDirector       music cue per game state (cross-fades), wind ambience, sanctum reverb
+└─ FeedbackDirector    watches hurtboxes, swings, glints, shrines, gates → sounds, sparks, screen shake
 
 Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hooks)
 ├─ Visual/SamuraiModel  generated rig: Skeleton3D + skinned mesh + HandSocket/SheathSocket (BoneAttachment3D)
@@ -167,8 +171,9 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 ├─ Combat               CombatStateMachine: IDLE/RUN/ATTACK/DODGE/GUARD/HURT/DEAD, active frames, sheathing
 │  ├─ ComboManager      FIFO input buffer + combo graph (resources/combat/sword_combo.tres)
 │  └─ MotionWarping     steers each lunge at the lock-on target or a nearby enemy
-├─ TargetingSystem      lock-on: acquire, cycle, retarget, release; reticle over the target
-└─ CameraRig            CombatCamera: free look, lock-on framing → SpringArm3D/Camera3D
+├─ TargetingSystem      lock-on: acquire, cycle, retarget, release; reticle over the target (pulses on hits)
+├─ SurfaceFoley         footsteps by distance travelled: gravel on the path, grass off it, "surface" metadata (wood…), else stone
+└─ CameraRig            CombatCamera: free look, lock-on framing → SpringArm3D/Camera3D (+ CameraTrauma)
 ```
 
 ### World
@@ -199,6 +204,10 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 | Game loop | `scripts/game/game_manager.gd`, `scripts/ui/game_menus.gd` | States: START_MENU (title over the paused world) → EXPLORATION → COURTYARD_AMBUSH → EXPLORATION → SANCTUM_GATEKEEPER → VICTORY_SCREEN (time, parries, deaths). The light only moves forward (D9): golden hour on the path, **dusk** once the courtyard fight starts, **night** once the sanctum fight starts, each blended over 4 s (`resources/lighting/*.tres`, `BeatLighting`). The sanctum gate stays locked until the courtyard is clear. Dying slows the world to 30 % for 1.2 s, the fight resets, and you respawn at the last shrine |
 | Checkpoints | `scripts/game/checkpoint_shrine.gd`, `scenes/landmarks/checkpoint_shrine.tscn` | Walking up to a shrine lights it (first visit), heals you to full and resets posture, and every visit makes its RespawnPoint where you come back after dying (going back to an earlier shrine moves the checkpoint back). One stands before the courtyard, one on the sanctum causeway. The stone lantern stands in for the M2 shrine model |
 | Gatekeeper | `scripts/ai/gatekeeper.gd`, `scenes/mobs/enemy_gatekeeper.tscn` | Two-phase Brute with a health and posture bar at the top of the HUD. At 50 % health it roars (invulnerable), recovers 20 % faster, regenerates posture twice as fast and adds a red unblockable combo. Its execution deals 40 % of its health |
+| Combat feedback | `scripts/game/feedback_director.gd`, `scripts/vfx/hit_vfx.gd` | Every hit, block, parry, guard break and posture break plays its sound and throws sparks (warm for hits, pale for blocks, blue-white with a flash for parries, an orange burst for breaks); every swing whooshes (heavy from 30 poise damage); glints chime gold or red; shrines ignite; gates grind. Screen shake follows hits the player deals (AttackData `trauma`) or takes, parries, breaks, executions, the Gatekeeper's roar and death. Hits on the locked target pulse the reticle |
+| Camera shake | `scripts/camera/camera_trauma.gd` | Trauma (0–1) decays at 1.5/s of real time; the shake is trauma², up to 0.35 m of offset and 4° of pitch, yaw and roll from noise. Written to the Camera3D only, so the spring arm's collision is untouched. The pause menu turns it off |
+| Audio | `scripts/audio/`, `resources/audio/sound_bank.tres`, `default_bus_layout.tres` | Buses Master → SFX (with the sanctum reverb), Music, Ambience, UI. Events map to AudioStreamRandomizers (variants, pitch spread). Music: wind ambience throughout, drums in the courtyard, a faster boss loop, a victory sting; the valley itself has no music yet. **All audio is placeholder** synthesised by `tools/audio/make_placeholder_audio.py`; swap in sourced files by re-pointing the bank and MusicDirector |
+| Lock-on gauge | `scripts/ui/player_hud.gd` | A small health bar and posture line float over the locked target, except the boss (it has the boss bar) or a target behind the camera |
 | Hit reactions | `scripts/combat/defense/damage_reaction_component.gd` | Shared by the player and the wolves. Poise below 30 → a light flinch by direction (front/back/left/right); from 30 → heavy; from 60, or a posture break → animated knockdown (D8). Sets knockback; the owner plays the clip and locks controls or AI until `stagger_ended` |
 | Health | `scripts/combat/health_component.gd`, `hurtbox.gd`, `hit_info.gd` | Reusable node with `damaged` / `died` / `health_changed` signals and `grant_invulnerability()` for i-frames. `Hurtbox.receive_hit()` runs registered defenders (guard, parry) before health and posture, and returns a `HitInfo.Result` (HIT, BLOCKED, PARRIED…). `HealthComponent.resolve()` accepts a Hurtbox, a HealthComponent, or a body with one as a child |
 | Time scale | `scripts/core/time_scale.gd` | The only writer of `Engine.time_scale`: named requests, and the slowest one wins, so a hit-stop ending mid slow-motion can't snap time back to 1.0 |
@@ -255,6 +264,7 @@ the AttackData timings to match the clips.
 | Enemy pressure | Encounter ▸ Director → `max_attack_tokens`, `token_cooldown`, `ring_radius`; enemy scene → `attack_cooldown`, `telegraph_lead`, `approach_distance`, `aggro_radius`; strikes in `resources/combat/enemies/` |
 | Stagger tiers | DamageReaction (player and `wolf.tscn`) → `poise_threshold`, `knockdown_threshold`, `flinch_time`, `heavy_time`, `knockdown_time`, `parried_time`, `blocked_push` |
 | Game loop | GameManager → `beat_blend_time`, `death_slow_motion_scale`, `death_slow_motion_time`, `victory_delay`; beat looks in `resources/lighting/beat_*.tres`; shrines → `lit_energy`, RestZone radius, RespawnPoint |
+| Sound and shake | `resources/audio/sound_bank.tres` (event → sounds); MusicDirector → cues, `crossfade_time`, `music_db`, `ambience_db`; SfxPool → `voices`, `unit_size`, `max_distance`; FeedbackDirector → `heavy_poise`; CameraTrauma → `decay`, `max_offset`, `max_angle_degrees` and the preset constants; strikes → AttackData `trauma`; SurfaceFoley → strides; the SFX bus's Reverb effect in `default_bus_layout.tres` |
 | Touch layout / feel | `scripts/ui/touch/touch_controls.gd` (button rects, joystick size); TouchLookPad `sensitivity` |
 | Lock-on range, cone, camera framing | Player ▸ TargetingSystem → `radius`, `cone_degrees`, `break_distance`; Player ▸ CameraRig → `lock_*` |
 | Wind / grass | `grass_material.tres` → `wind_*`, `push_*`; GrassField density |

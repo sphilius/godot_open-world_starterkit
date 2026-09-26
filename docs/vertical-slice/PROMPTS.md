@@ -319,7 +319,19 @@ TASK:
 The runbook's 6.1A, 6.1B and 6.1C are merged here in full, with the changes for this codebase
 folded in. Run them as three sessions.
 
-### 9A. Surface foley and combat audio (MEDIUM)
+### 9A. Surface foley and combat audio (MEDIUM) ✅ implemented (M9b)
+
+Differences from the prompt below, kept on purpose:
+- One `SfxPool` (8 voices plus a UI voice) and one `FeedbackDirector` that watches the tree replace
+  per-character `CombatAudioPlayer3D`s; hits come from `Hurtbox.hit_received`, swings from
+  `Hitbox.swing_started`.
+- `SurfaceFoley` classifies the terrain by its path mask (gravel or grass) and other colliders by
+  `surface` metadata (default stone). Steps come from distance travelled until the M2 animations
+  call `step()`.
+- Buses are Master → SFX, Music, Ambience, UI, with one Reverb on SFX for the sanctum (not two
+  sends). Music has no exploration cue yet: the valley plays its wind only.
+- All audio is placeholder, synthesised by `tools/audio/make_placeholder_audio.py` (CC0). Sourced
+  audio replaces it by re-pointing `resources/audio/sound_bank.tres` and the MusicDirector.
 ```text
 READ: scripts/world/heightmap_terrain.gd (the path mask in vertex colour), scripts/combat/hitbox.gd,
 the manifest's AttackData, HitInfo and ParrySystem.
@@ -350,7 +362,12 @@ Tests: surface classification from metadata and from a mocked path-mask value; v
 when all 8 are busy.
 ```
 
-### 9B. CameraTrauma and CombatHUD (MEDIUM)
+### 9B. CameraTrauma and CombatHUD (MEDIUM) ✅ implemented (M9b)
+
+Differences: `PlayerHUD` gained the lock-on gauge (health and posture over the locked target,
+hidden for the boss and behind the camera) instead of a new `CombatHUD` subclass; its posture
+and boss bars already existed from M5 and M6. The reticle pulse lives on `TargetingSystem.pulse()`.
+The pause menu has a Screen shake on/off option (`CameraTrauma.enabled`).
 ```text
 READ: scripts/ui/player_hud.gd, scripts/camera/combat_camera_3d.gd (M7), the manifest.
 TASK:

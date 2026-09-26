@@ -5,7 +5,7 @@ extends CanvasLayer
 ##
 ## Title   : shown while GameManager is in START_MENU (the world waits, paused, behind it).
 ## Pause   : the `pause` action (Esc, P, gamepad Start, the touch PAUSE button) toggles it
-##           during play. Resume · Return to shrine · Quit to title.
+##           during play. Resume · Return to shrine · Screen shake on/off · Quit to title.
 ## Victory : GameManager's `victory`: time, parries and deaths, then Return to title.
 ## Death   : `death_fade_delay` real seconds after the player dies the screen fades to black,
 ##           and it fades back in once they're back on their feet at the checkpoint.
@@ -29,11 +29,13 @@ var _stats: Label
 var _toast: Label
 var _toast_tween: Tween
 var _fade_tween: Tween
+var _shake_button: Button
 
 
 func _ready() -> void:
 	layer = 20
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	get_tree().set_auto_accept_quit(false)                  # the close button goes through quit_game()
 	_dim = ColorRect.new()
 	_dim.color = Color(0.02, 0.01, 0.02, 0.55)
 	_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -44,12 +46,13 @@ func _ready() -> void:
 			"Walk the valley at golden hour. Survive the courtyard at dusk. Face the Gatekeeper at night.")
 	_add_button(_title, "Begin", _on_begin)
 	if not OS.has_feature("web"):
-		_add_button(_title, "Quit", get_tree().quit)
+		_add_button(_title, "Quit", quit_game)
 	_add_label(_title, CONTROLS_HINT, 15, Color(TEXT, 0.75))
 
 	_pause = _screen("Paused", "")
 	_add_button(_pause, "Resume", set_paused.bind(false))
 	_add_button(_pause, "Return to shrine", _on_return_to_checkpoint)
+	_shake_button = _add_button(_pause, _shake_label(), _toggle_shake)
 	_add_button(_pause, "Quit to title", game.return_to_title)
 
 	_victory = _screen("Victory", "The Gatekeeper has fallen.")
@@ -86,6 +89,24 @@ func _ready() -> void:
 	_show(_title if game.state == GameManager.GameState.START_MENU else null)
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		quit_game()
+
+
+## Frees the world before quitting, so streams still playing (the ambience) are released
+## cleanly instead of being reported as leaks. The window's close button comes here too.
+func quit_game() -> void:
+	var tree := get_tree()
+	if tree.current_scene:
+		tree.current_scene.queue_free()                     # takes this node with it
+	tree.create_timer(0.1).timeout.connect(tree.quit)      # owned by the tree, not by this node
+
+
+func _exit_tree() -> void:
+	get_tree().set_auto_accept_quit(true)
+
+
 func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed(&"pause") and game.is_playing():
 		set_paused(not is_paused())
@@ -96,6 +117,7 @@ func set_paused(on: bool) -> void:
 	if on == is_paused() or not game.is_playing():
 		return
 	get_tree().paused = on
+	_ui_sound(&"ui_confirm" if on else &"ui_back")
 	_show(_pause if on else null)
 	if not on and game.player:
 		game.player.capture_mouse()
@@ -223,9 +245,25 @@ func _add_button(screen: Control, text: String, action: Callable) -> Button:
 	button.custom_minimum_size = Vector2(280, 52)
 	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	button.add_theme_font_size_override(&"font_size", 24)
+	button.pressed.connect(_ui_sound.bind(&"ui_confirm"))
 	button.pressed.connect(action)
 	screen.add_child(button)
 	return button
+
+
+func _ui_sound(event: StringName) -> void:
+	var pool := SfxPool.find(get_tree())
+	if pool:
+		pool.play_2d(event)
+
+
+func _toggle_shake() -> void:
+	CameraTrauma.enabled = not CameraTrauma.enabled
+	_shake_button.text = _shake_label()
+
+
+static func _shake_label() -> String:
+	return "Screen shake: %s" % ("On" if CameraTrauma.enabled else "Off")
 
 
 func _first_button(screen: Control) -> Button:

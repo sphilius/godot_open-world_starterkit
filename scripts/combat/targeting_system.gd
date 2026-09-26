@@ -10,8 +10,8 @@ extends Node
 ## • if the target dies (leaves the group), is freed or gets farther than `break_distance`, the
 ##   lock moves to the next best enemy, or releases when there is none;
 ## • losing sight of the target for `lost_sight_time` seconds releases the lock.
-## A small reticle floats over the locked target. The camera, dodges and lunges read
-## `current_target`.
+## A small reticle floats over the locked target; pulse() pops it on a hit or parry. The camera,
+## dodges and lunges read `current_target`.
 
 signal target_changed(target: Node3D)
 
@@ -64,6 +64,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		cycle(1)
 	elif event.is_action_pressed(&"target_prev"):
 		cycle(-1)
+
+
+## Pops the reticle (1.0 → 1.35 → 1.0 over 0.18 s) to confirm a hit or parry on the target.
+func pulse() -> void:
+	if not is_locked():
+		return
+	var tween := _reticle.create_tween()
+	tween.tween_property(_reticle, ^"scale", Vector3.ONE * 1.35, 0.06)
+	tween.tween_property(_reticle, ^"scale", Vector3.ONE, 0.12)
 
 
 func is_locked() -> bool:

@@ -259,7 +259,7 @@ func _tick_execution() -> void:
 func execution_target() -> Node3D:
 	if execution == null:
 		return null
-	var locked: Node3D = targeting.get(&"current_target") if targeting else null
+	var locked := _lock_target()
 	if _can_execute(locked):
 		return locked
 	var best: Node3D
@@ -271,6 +271,13 @@ func execution_target() -> Node3D:
 				best = enemy
 				best_distance = distance
 	return best
+
+
+## The lock-on target, or null. It can be freed a frame before TargetingSystem moves on, and
+## a freed object can't go into a typed variable, so check it as a Variant first.
+func _lock_target() -> Node3D:
+	var target: Variant = targeting.get(&"current_target") if targeting else null
+	return target if is_instance_valid(target) else null
 
 
 func _can_execute(enemy: Node3D) -> bool:
@@ -375,7 +382,7 @@ func _start_dodge() -> void:
 	_end_guard()
 	katana.set_active(false)
 	combo.reset()
-	var target: Node3D = targeting.get(&"current_target") if targeting else null
+	var target := _lock_target()
 	var input := body.get_move_direction()
 	var direction := input
 	var clip := &"dodge_f"
