@@ -371,7 +371,18 @@ TASK:
 Tests: trauma decay and clamping; shake is quadratic; the gauge hides for targets behind the camera.
 ```
 
-### 9C. GameManager and CheckpointShrine (HIGH)
+### 9C. GameManager and CheckpointShrine (HIGH) ✅ implemented (M9a)
+
+Differences from the prompt below, kept on purpose:
+- `GameManager` is a node in `main.tscn` (group `game_manager`, `GameManager.find(tree)`), not an
+  autoload, so a scene reload or each test's fresh world starts clean.
+- The title is an overlay (`GameMenus`) over the paused `main.tscn`, not a separate main scene.
+- `CombatStateMachine` keeps its respawn timer; `PlayerController.respawn()` now goes to the
+  checkpoint (`set_respawn_point()`). GameManager adds the slow motion (0.3 for 1.2 real s) and
+  GameMenus the fade to black and back.
+- Shrines light when the player walks up (no `interact` prompt), heal and reset posture.
+- Clearing the courtyard unlocks the sanctum gate, so the ambush can't be walked around.
+- Reverb sends and music cues move to 9A (M9b), which hooks `state_changed`.
 ```text
 READ: scripts/main.gd, scripts/combat/combat_state_machine.gd (the current death and respawn flow),
 the manifest's GameManager, TimeScale and Encounter.

@@ -107,7 +107,7 @@ func test_the_arenas_sit_on_level_ground_and_the_navmesh() -> void:
 			check(terrain.path_mask_at(p.x, p.z) > 0.99, "no grass inside the arena at %s" % p)
 	check(world.get_node("Courtyard/EntryGate").is_open, "the courtyard's entry gate (facing the path) starts open")
 	check(not world.get_node("Courtyard/EastGate").is_open, "its east gate starts closed")
-	check(world.get_node("Sanctum/SanctumGate").is_open, "the sanctum gate starts open")
+	check(not world.get_node("Sanctum/SanctumGate").is_open, "the sanctum gate starts locked (GameManager opens it once the courtyard is clear)")
 	var map := (world.get_node("NavigationRegion3D") as NavigationRegion3D).get_navigation_map()
 	var on_floor := func() -> bool:                      # the bake lands on the map a frame or two later
 		var point := NavigationServer3D.map_get_closest_point(map, COURTYARD_CENTRE + Vector3(4, 0.5, 4))
@@ -157,6 +157,7 @@ func test_the_courtyard_ambush_runs_its_three_waves() -> void:
 	check_eq(sizes, [3, 4, 4], "wave sizes (3 grunts; 3 grunts + a brute; 2 brutes + 2 grunts)")
 	check(await wait_until(func() -> bool: return encounter.state == Encounter.State.CLEARED, 2.0), "the courtyard never cleared")
 	check(world.get_node("Courtyard/EastGate").is_open, "the way to the sanctum opened")
+	check(world.get_node("Sanctum/SanctumGate").is_open, "GameManager unlocked the sanctum gate")
 
 
 func test_the_sanctum_seals_the_player_in_with_the_gatekeeper() -> void:

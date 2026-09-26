@@ -60,8 +60,9 @@ func wait_until(condition: Callable, timeout: float) -> bool:
 
 ## Instances the main scene with seeded randomness and sparse grass (grass isn't under test,
 ## and full density costs ~1 s per load), then waits for the navmesh bake.
-func load_world() -> void:
+func load_world(skip_start_menu := true) -> void:
 	seed(20260925)
+	GameManager.skip_start_menu = skip_start_menu   # by default start playable, not paused on the title
 	world = (load(MAIN_SCENE) as PackedScene).instantiate()
 	(world.get_node("GrassField") as GrassField).blades_per_square_metre = 1.0
 	tree.root.add_child(world)
@@ -93,6 +94,7 @@ func free_world() -> void:
 		stage = null
 	HitStop._token += 1                      # cancel any pending hit-stop restore
 	TimeScale.reset()                        # never write Engine.time_scale directly: TimeScale owns it
+	tree.paused = false                      # menus and the victory screen pause the tree
 	for action in InputMap.get_actions():
 		Input.action_release(action)
 	await tree.process_frame

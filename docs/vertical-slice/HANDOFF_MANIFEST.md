@@ -5,7 +5,7 @@ Give this page to any model (Claude, Codex, Gemini) before it works on one compo
 updating this file in the same PR.**
 
 Conventions: Godot 4.7, statically typed GDScript, tabs, `##` doc comments. Designer-facing
-numbers are `@export`s or `Resource`s. No autoloads except `GameManager` (planned). Static
+numbers are `@export`s or `Resource`s. No autoloads (GameManager is a node in main.tscn). Static
 utilities (`HitStop`, `TimeScale`) are `RefCounted` with static members.
 
 ## Physics layers (keep them; don't adopt the runbook's 4/5 scheme)
@@ -251,14 +251,27 @@ class_name Encounter extends Node3D           # child "SpawnPoints" (Marker3Ds);
 scenes/levels/courtyard.tscn (EntryGate facing the path, EastGate exit; waves 3 grunts / 3 grunts + brute / 2 brutes + 2 grunts)
 scenes/levels/sanctum.tscn (causeway, SanctumGate, the Gatekeeper on its dais; 1 token)
 
-# M9: loop
-GameManager (autoload)
+# M9: loop (M9a)
+class_name GameManager extends Node           # one in main.tscn, group "game_manager"; GameManager.find(tree)
   enum GameState { START_MENU, EXPLORATION, COURTYARD_AMBUSH, SANCTUM_GATEKEEPER, VICTORY_SCREEN }
-  signal state_changed(previous: GameState, current: GameState)
-  func set_checkpoint(shrine: Node3D) -> void; func on_player_died() -> void; func register_encounter(e: Encounter) -> void
-  # Encounters already reset themselves when the player dies mid-fight (M8); GameManager adds checkpoints,
-  # per-beat environment tweens (D9: golden hour → dusk courtyard → night sanctum) and the state flow.
-class_name CheckpointShrine extends Area3D    # "interact" action; heals, saves the respawn transform, lights the lantern
+  signal state_changed(previous: GameState, current: GameState); signal checkpoint_reached(shrine); signal victory
+  static var skip_start_menu := false          # tests and --skip-menu
+  @export player, combat, courtyard: Encounter, sanctum: Encounter, sanctum_locks: Array[LevelGate], world_environment, sun
+  @export beat_lighting: Array[BeatLighting]   # [golden hour, dusk, night]; beat_blend_time := 4.0
+  @export death_slow_motion_scale := 0.3; death_slow_motion_time := 1.2 (real s, TimeScale &"death"); victory_delay := 3.0
+  var state; var beat; var checkpoint: CheckpointShrine; var deaths; var parries; var play_time
+  func begin_play() -> void; func set_checkpoint(shrine: CheckpointShrine) -> void; func return_to_checkpoint() -> void
+  func return_to_title() -> void; func stats() -> Dictionary  # {time, parries, deaths}; func is_playing() -> bool
+  # Encounters reset themselves on the player's death (M8); CombatStateMachine keeps the respawn timer and
+  # PlayerController.respawn() goes to the checkpoint. The light only moves forward (beat = max reached).
+class_name BeatLighting extends Resource      # sun colour/energy/rotation, ambient, fog, volumetric fog, exposure, sky
+  static func capture(env, sun) -> BeatLighting; static func apply_blend(from, to, weight, env, sun) -> void
+class_name CheckpointShrine extends Area3D    # lights on approach (no interact); heals, resets posture; children Flame, RespawnPoint
+  signal activated (first visit); signal rested (every visit: GameManager re-saves it); var is_lit; func rest(body) -> void; func respawn_position() -> Vector3; func respawn_yaw() -> float
+class_name GameMenus extends CanvasLayer      # title / pause / victory, toast, fades; PROCESS_MODE_ALWAYS
+  func set_paused(on: bool) -> void; func current_screen() -> String; func show_toast(text) -> void; func fade_alpha() -> float
+PlayerController: func set_respawn_point(pos, yaw) -> void; func capture_mouse() -> void
+main.gd: every node in group "ground_snap" under Main is stood on the terrain (shrines and their RespawnPoints)
 ```
 
 ## Animation clip names (the contract for AnimationLibraries, state machines and AttackData.animation)
@@ -281,7 +294,8 @@ single `hurt` clip: CombatStateMachine.STAGGER_CLIPS maps each DamageReaction st
 `hurt_f/b/l/r`, `hurt_heavy` (also used when parried), `knockdown` or `guard_break`. The wolf keeps
 one `hurt` clip for every type (slowed for heavy ones).
 
-Still to add (M9): `attack_special`, `interact`, `pause`. (`attack_heavy` and `dodge` landed in M3;
+`pause` (Esc, P, gamepad Start, touch PAUSE) landed in M9a. Still to add: `attack_special`; `interact` if a
+later beat needs it (shrines light on approach). (`attack_heavy` and `dodge` landed in M3;
 `lock_on`, `target_next`, `target_prev` and the right-stick `look_*` axes in M7; `guard` in M5.) Register them in
 `_DEFAULT_BINDINGS`, with gamepad events if D10 is approved.
 

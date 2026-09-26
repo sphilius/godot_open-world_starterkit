@@ -14,6 +14,8 @@ browser, with on-screen touch controls for tablets and phones.
    `godot --path .`
 2. The world is procedural and builds in about 1.3 s on launch (it also previews in the editor).
    The wolves' navmesh bakes on a worker thread in ~0.3 s.
+3. The title screen waits over the paused world: **Begin** (Enter or gamepad A) starts the run.
+   `--skip-menu` skips it.
 
 | Action | Keyboard + mouse | Touch (tablet / phone) |
 |---|---|---|
@@ -29,7 +31,8 @@ browser, with on-screen touch controls for tablets and phones.
 | Jump | Space | JUMP |
 | Sprint | Shift (hold) | RUN (tap to toggle) |
 | Quality LOW/MEDIUM/HIGH | F2 | QUAL |
-| Back to the path start | — | RESET |
+| **Pause** (Resume · Return to shrine · Quit to title) | **Esc / P** · Start | **PAUSE** |
+| Back to the last checkpoint | — | RESET |
 | Fullscreen | — | FULL |
 | Screenshot | F12 | — |
 
@@ -58,7 +61,7 @@ Docs-only pushes are skipped. To redeploy by hand, use **Actions ▸ Test & depl
 ## Tests (the deploy gate)
 
 ```
-godot --headless --path . --script res://tests/run_tests.gd                    # all tests, ~45 s
+godot --headless --path . --script res://tests/run_tests.gd                    # all tests, ~95 s
 godot --headless --path . --script res://tests/run_tests.gd -- --filter=wolves # file or test name substring
 bash tools/ci/validate.sh [--filter=hit]   # same, but downloads Godot 4.7.1 first if needed and re-imports
 ```
@@ -68,6 +71,7 @@ bash tools/ci/validate.sh [--filter=hit]   # same, but downloads Godot 4.7.1 fir
 | `tests/test_data.gd` | Attack timing windows are sane; generated clips match `AttackData` durations (a stale rig build fails); every AnimationTree state exists |
 | `tests/test_combat.gd` | Buffered 3-hit combo kills a wolf (hits, hit-stop, death, collision off, freed); draw then sheathe after 3 s; uncaptured clicks don't attack but key and touch actions do |
 | `tests/test_wolves.gd` | Wander and chase on the navmesh; a bite damages and flinches the player; striking during the wind-up cancels the bite; player death, wolves disengaging, respawn |
+| `tests/test_game_loop.gd` | The title holds the paused world until Begin; the pause action toggles the pause menu and Return to shrine respawns there; a shrine stands on the ground, heals and becomes the checkpoint; death slows time, fades to black, respawns at the shrine and fades back; lighting blends to dusk, then night, and never back, without touching the shared Environment; clearing the courtyard unlocks the sanctum; the boss's death shows the victory stats |
 | `tests/test_touch.gd` | Touch buttons press and release actions (multi-touch safe), RUN latches, the look pad turns the camera (one finger), RESET respawns |
 | `tests/test_project.gd` | Every script compiles and every scene loads. It's the parse gate, because `godot --import` exits 0 even with broken scripts |
 | `tests/test_smoke.gd` | Player and wolf scenes spawn at full health; a Hitbox hits each target once per activation; i-frames; `HealthComponent.resolve()` |
@@ -132,7 +136,7 @@ On this chip SDFGI has a fixed cost of about 18 ms. The presets are a data table
 ## Architecture
 
 ```
-Main (main.gd: drops player at path start, facing the sunset)
+Main (main.gd: stands the shrines on the ground, drops the player at the path start, facing the sunset)
 ├─ WorldEnvironment    resources/environment/golden_hour_environment.tres
 ├─ Sun                 DirectionalLight3D, low and warm; PCSS soft shadows; drives the PhysicalSky
 ├─ ValleyMist          FogVolume, height-falloff mist hugging the valley floor
@@ -142,9 +146,14 @@ Main (main.gd: drops player at path start, facing the sunset)
 ├─ NavigationRegion3D  navigation_baker.gd: bakes terrain + landmarks (group "navigation_source")
 ├─ Wolves              4 × wolf.tscn
 ├─ Courtyard           courtyard.tscn at the path's end: greybox arena, Entry/East gates, Encounter (3 waves)
-├─ Sanctum             sanctum.tscn east of it: causeway, sanctum gate, Encounter (the Gatekeeper)
+├─ Sanctum             sanctum.tscn east of it: causeway, sanctum gate, Encounter (the Gatekeeper), torches, moon shaft
+├─ Shrines             2 × checkpoint_shrine.tscn: PathShrine before the courtyard, SanctumShrine on the causeway
 ├─ Player              player.tscn (see below)
-└─ DevHUD              FPS, quality presets, screenshots, CLI capture
+├─ DevHUD              FPS, quality presets, screenshots, CLI capture
+├─ PlayerHUD           health and posture bars, boss bar, execution prompt
+├─ TouchControls       on-screen controls (touchscreens, --touch)
+├─ GameManager         game loop: states, checkpoints, death slow motion, per-beat lighting, sanctum lock, stats
+└─ GameMenus           title, pause and victory screens; checkpoint toast; fade in
 
 Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hooks)
 ├─ Visual/SamuraiModel  generated rig: Skeleton3D + skinned mesh + HandSocket/SheathSocket (BoneAttachment3D)
@@ -187,6 +196,8 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 | Combat director | `scripts/ai/combat_director.gd` | One per encounter. At most 2 attack tokens (leases: released on attack end, stagger and death, expiring after 4 s), 0.8 s between releases and the next issue. Everyone else circles on a 5 m ring of evenly spaced slots whose gap sits behind the player, so enemies stay on screen; slots are sticky (1.5 m hysteresis) |
 | Humanoid enemies | `scripts/ai/enemy_combat_controller.gd`, `scenes/mobs/enemy_grunt.tscn`, `enemy_brute.tscn` | With a token: approach to 2 m and strike; without: flank. Every strike glints 0.4 s before its active frames: **gold** (blockable and parryable) or **red** (unblockable: dodge it). Grunts are quick with low posture; Brutes are slow and heavy (slam, sweep, red thrust). A broken posture can be **executed** with a light attack |
 | Encounters | `scripts/game/encounter.gd`, `scenes/levels/courtyard.tscn`, `sanctum.tscn` | Walking into an arena closes the gate behind you and spawns its waves, each once the last one is dead. The **courtyard ambush**: 3 Grunts; 3 Grunts and a Brute; 2 Brutes and 2 Grunts. Clearing it opens the east gate to the **sanctum**, where the gate seals you in with the Gatekeeper. Dying mid-fight resets the encounter. Arenas are greybox (`GreyboxArena`, `LevelGate`) on terrain flattened by `HeightmapTerrain.flatten_zones` until the M2 art kit lands |
+| Game loop | `scripts/game/game_manager.gd`, `scripts/ui/game_menus.gd` | States: START_MENU (title over the paused world) → EXPLORATION → COURTYARD_AMBUSH → EXPLORATION → SANCTUM_GATEKEEPER → VICTORY_SCREEN (time, parries, deaths). The light only moves forward (D9): golden hour on the path, **dusk** once the courtyard fight starts, **night** once the sanctum fight starts, each blended over 4 s (`resources/lighting/*.tres`, `BeatLighting`). The sanctum gate stays locked until the courtyard is clear. Dying slows the world to 30 % for 1.2 s, the fight resets, and you respawn at the last shrine |
+| Checkpoints | `scripts/game/checkpoint_shrine.gd`, `scenes/landmarks/checkpoint_shrine.tscn` | Walking up to a shrine lights it (first visit), heals you to full and resets posture, and every visit makes its RespawnPoint where you come back after dying (going back to an earlier shrine moves the checkpoint back). One stands before the courtyard, one on the sanctum causeway. The stone lantern stands in for the M2 shrine model |
 | Gatekeeper | `scripts/ai/gatekeeper.gd`, `scenes/mobs/enemy_gatekeeper.tscn` | Two-phase Brute with a health and posture bar at the top of the HUD. At 50 % health it roars (invulnerable), recovers 20 % faster, regenerates posture twice as fast and adds a red unblockable combo. Its execution deals 40 % of its health |
 | Hit reactions | `scripts/combat/defense/damage_reaction_component.gd` | Shared by the player and the wolves. Poise below 30 → a light flinch by direction (front/back/left/right); from 30 → heavy; from 60, or a posture break → animated knockdown (D8). Sets knockback; the owner plays the clip and locks controls or AI until `stagger_ended` |
 | Health | `scripts/combat/health_component.gd`, `hurtbox.gd`, `hit_info.gd` | Reusable node with `damaged` / `died` / `health_changed` signals and `grant_invulnerability()` for i-frames. `Hurtbox.receive_hit()` runs registered defenders (guard, parry) before health and posture, and returns a `HitInfo.Result` (HIT, BLOCKED, PARRIED…). `HealthComponent.resolve()` accepts a Hurtbox, a HealthComponent, or a body with one as a child |
@@ -243,6 +254,7 @@ the AttackData timings to match the clips.
 | Waves and arenas | `resources/encounters/*.tres` (which enemies per wave); Courtyard/Sanctum ▸ Encounter → `wave_delay`, `max_attack_tokens`; ▸ Greybox → `size`, `openings`, `cover`; Terrain → `flatten_zones` |
 | Enemy pressure | Encounter ▸ Director → `max_attack_tokens`, `token_cooldown`, `ring_radius`; enemy scene → `attack_cooldown`, `telegraph_lead`, `approach_distance`, `aggro_radius`; strikes in `resources/combat/enemies/` |
 | Stagger tiers | DamageReaction (player and `wolf.tscn`) → `poise_threshold`, `knockdown_threshold`, `flinch_time`, `heavy_time`, `knockdown_time`, `parried_time`, `blocked_push` |
+| Game loop | GameManager → `beat_blend_time`, `death_slow_motion_scale`, `death_slow_motion_time`, `victory_delay`; beat looks in `resources/lighting/beat_*.tres`; shrines → `lit_energy`, RestZone radius, RespawnPoint |
 | Touch layout / feel | `scripts/ui/touch/touch_controls.gd` (button rects, joystick size); TouchLookPad `sensitivity` |
 | Lock-on range, cone, camera framing | Player ▸ TargetingSystem → `radius`, `cone_degrees`, `break_distance`; Player ▸ CameraRig → `lock_*` |
 | Wind / grass | `grass_material.tres` → `wind_*`, `push_*`; GrassField density |
@@ -254,5 +266,6 @@ the AttackData timings to match the clips.
 ```
 godot --path . -- --quality=low                 # force a preset
 godot --path . -- --spawn-offset=62             # start 62 m along the path
+godot --path . -- --skip-menu                   # straight into play, no title screen
 godot --path . -- --capture=C:/tmp/shot.png     # render ~6 s, save one frame, quit
 ```
