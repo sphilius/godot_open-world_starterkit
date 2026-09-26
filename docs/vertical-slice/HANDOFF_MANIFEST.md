@@ -233,11 +233,31 @@ PlayerController: `camera: CombatCamera`, `@export targeting`; faces the target 
 class_name CameraTrauma extends Node          # child of the Camera3D
   func add_trauma(amount: float) -> void      # presets: LIGHT 0.2, HEAVY 0.45, PARRY 0.35, EXECUTION 0.75
 
+# M8: level (implemented as greybox; scripts/game/, scripts/world/, scenes/levels/)
+HeightmapTerrain: @export flatten_zones: Array[Vector4] (terrain-local x, z, radius, height); flatten_shoulder := 8.0
+  # inside a zone the ground is level at `height` and painted like the path (no grass)
+class_name GreyboxArena extends Node3D        # @tool; floor (top y = 0), walls with openings, pillars, cover, dais
+  @export size: Vector2; walls; wall_height; openings: Array[Vector3] (side 0 N/1 E/2 S/3 W, offset, width); cover: Array[Vector4]; dais
+  # in group navigation_source; the M2 modular kit replaces it scene by scene
+class_name LevelGate extends StaticBody3D     # portcullis: open()/close(instant := false); is_open; signals opened / closed; start_open
+class_name EncounterWave extends Resource     # enemies: Array[PackedScene] (resources/encounters/)
+class_name Encounter extends Node3D           # child "SpawnPoints" (Marker3Ds); owns a CombatDirector ("Director")
+  signal started; signal wave_started(index: int); signal cleared; signal was_reset
+  enum State { IDLE, ACTIVE, CLEARED }
+  @export waves: Array[EncounterWave]; trigger: Area3D (mask: player); entry_gates / exit_gates: Array[LevelGate]
+  @export wave_delay := 1.5; max_attack_tokens := 2; enemy_aggro_radius := 40.0
+  func start(player: Node3D = null) -> void; func reset() -> void   # reset: despawn the living, gates back, IDLE; also on player death
+  func alive_enemies() -> Array[Node]
+scenes/levels/courtyard.tscn (EntryGate facing the path, EastGate exit; waves 3 grunts / 3 grunts + brute / 2 brutes + 2 grunts)
+scenes/levels/sanctum.tscn (causeway, SanctumGate, the Gatekeeper on its dais; 1 token)
+
 # M9: loop
 GameManager (autoload)
   enum GameState { START_MENU, EXPLORATION, COURTYARD_AMBUSH, SANCTUM_GATEKEEPER, VICTORY_SCREEN }
   signal state_changed(previous: GameState, current: GameState)
-  func set_checkpoint(shrine: Node3D) -> void; func on_player_died() -> void; func register_encounter(e: Node) -> void
+  func set_checkpoint(shrine: Node3D) -> void; func on_player_died() -> void; func register_encounter(e: Encounter) -> void
+  # Encounters already reset themselves when the player dies mid-fight (M8); GameManager adds checkpoints,
+  # per-beat environment tweens (D9: golden hour → dusk courtyard → night sanctum) and the state flow.
 class_name CheckpointShrine extends Area3D    # "interact" action; heals, saves the respawn transform, lights the lantern
 ```
 

@@ -296,7 +296,7 @@ Tests: cone and radius filtering, left/right cycling order with mocked screen po
 
 ---
 
-## M8: Level assembly (MEDIUM; the editor dressing is yours)
+## M8: Level assembly (MEDIUM; the editor dressing is yours) ✅ implemented as greybox (GreyboxArena walls and LevelGate portcullises until the M2 kit lands; per-beat environments moved to M9)
 
 ```text
 READ: scenes/main.tscn, scripts/world/scenic_path.gd, scripts/main.gd.

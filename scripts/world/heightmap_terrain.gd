@@ -8,7 +8,8 @@ extends StaticBody3D
 ## things spawn therefore always agree.
 ##
 ## Shape = rolling FBM meadow + ridged-noise mountains ringing the valley, then levelled
-## (and painted as gravel via vertex colour) along the ScenicPath curve.
+## (and painted as gravel via vertex colour) along the ScenicPath curve and inside the
+## flatten zones (level sites for the courtyard and sanctum; no grass grows there).
 ## The node may be translated, but keep it unrotated and unscaled.
 
 ## Emitted after every (re)generation. GrassField and ScenicPath rebuild on it.
@@ -34,6 +35,13 @@ signal generated
 @export var scenic_path: ScenicPath
 ## Blend distance (m) from the path edge back to natural terrain.
 @export var path_shoulder := 3.0
+
+@export_group("Flatten Zones")
+## Circular level sites, terrain-local: (x, z, radius, height). Inside `radius` the ground is
+## exactly `height` and painted like the path (so no grass); it blends back to natural terrain
+## over `flatten_shoulder` metres.
+@export var flatten_zones: Array[Vector4] = []
+@export var flatten_shoulder := 8.0
 
 @export_group("Rendering")
 @export var terrain_material: Material
@@ -88,6 +96,11 @@ func generate() -> void:
 					var centre_h := _natural_height(Vector2(c.x, c.z), meadow, ridges)
 					h = lerpf(h, centre_h, 1.0 - smoothstep(half_width, influence, d))
 					mask = 1.0 - smoothstep(half_width - 0.5, half_width + 0.5, d)
+			for zone in flatten_zones:
+				var dz := p.distance_to(Vector2(zone.x, zone.y))
+				if dz < zone.z + flatten_shoulder:
+					h = lerpf(h, zone.w, 1.0 - smoothstep(zone.z, zone.z + flatten_shoulder, dz))
+					mask = maxf(mask, 1.0 - smoothstep(zone.z - 1.0, zone.z, dz))
 			var i := z * _samples + x
 			_heights[i] = h
 			_path_mask[i] = mask
