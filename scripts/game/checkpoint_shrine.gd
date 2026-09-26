@@ -2,11 +2,14 @@ class_name CheckpointShrine
 extends Area3D
 ## A checkpoint (M9). Walking up to it lights it: the player is healed to full, their posture
 ## resets, and GameManager makes its RespawnPoint the place they come back to after dying.
-## Every visit heals; only the first one lights the flame and emits `activated`.
+## Every visit heals and emits `rested` (GameManager saves it as the checkpoint again, so going
+## back to an earlier shrine moves the respawn back there); only the first visit lights the
+## flame and emits `activated`.
 ## The lantern is the stone_lantern placeholder until the M2 shrine model
 ## (`checkpoint_shrine.glb` with `Marker3D_FlamePoint`) lands.
 
 signal activated
+signal rested
 
 ## Light energy of the flame once lit (unlit: 0).
 @export var lit_energy := 3.0
@@ -46,11 +49,11 @@ func rest(body: Node3D) -> void:
 	var posture := PostureComponent.find_on(body)
 	if posture:
 		posture.reset()
-	if is_lit:
-		return
-	is_lit = true
-	create_tween().tween_property(_flame, ^"light_energy", lit_energy, ignite_time)
-	activated.emit()
+	if not is_lit:
+		is_lit = true
+		create_tween().tween_property(_flame, ^"light_energy", lit_energy, ignite_time)
+		activated.emit()
+	rested.emit()
 
 
 func _on_body_entered(body: Node3D) -> void:

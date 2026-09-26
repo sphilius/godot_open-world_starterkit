@@ -75,7 +75,7 @@ func _ready() -> void:
 	add_child(_fade)
 
 	game.state_changed.connect(_on_state_changed)
-	game.checkpoint_reached.connect(func(_shrine: CheckpointShrine) -> void: show_toast("Shrine lit · checkpoint saved"))
+	game.checkpoint_reached.connect(func(_shrine: CheckpointShrine) -> void: show_toast("Checkpoint saved"))
 	game.victory.connect(_show_victory)
 	var health := HealthComponent.resolve(game.player) if game.player else null
 	if health:

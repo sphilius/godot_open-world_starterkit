@@ -21,6 +21,13 @@ func test_the_title_holds_the_world_until_begin() -> void:
 	check(not tree.paused, "Begin unpauses")
 	check_eq(game.state, GameManager.GameState.EXPLORATION, "state after Begin")
 	check_eq(menus.current_screen(), "", "no menu in play")
+	await physics_frames(2)
+	var before := game.play_time
+	tree.paused = true
+	await seconds(0.6)
+	tree.paused = false
+	await tree.process_frame
+	check(game.play_time - before < 0.15, "a pause doesn't count toward the play time (counted %.2f s)" % (game.play_time - before))
 
 
 func test_pause_toggles_and_return_to_shrine_respawns() -> void:
@@ -51,6 +58,11 @@ func test_a_shrine_heals_saves_the_checkpoint_and_death_respawns_there() -> void
 	check(await wait_until(func() -> bool: return shrine.is_lit, 2.0), "walking up to the shrine never lit it")
 	check_eq(health.current_health, health.max_health, "resting healed the player")
 	check(game.checkpoint == shrine, "the lit shrine is the checkpoint")
+	var later := world.get_node("Shrines/SanctumShrine") as CheckpointShrine
+	later.rest(player())
+	check(game.checkpoint == later, "a newer shrine takes over")
+	shrine.rest(player())
+	check(game.checkpoint == shrine, "resting at an earlier, already lit shrine makes it the checkpoint again")
 	player().global_position = COURTYARD_APPROACH                  # walk away (spawn_at would move the checkpoint), then die
 	await physics_frames(3)
 	health.take_damage(CombatFixtures.make_hit(null, 9999.0, 0.0))

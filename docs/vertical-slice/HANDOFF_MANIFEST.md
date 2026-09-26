@@ -267,7 +267,7 @@ class_name GameManager extends Node           # one in main.tscn, group "game_ma
 class_name BeatLighting extends Resource      # sun colour/energy/rotation, ambient, fog, volumetric fog, exposure, sky
   static func capture(env, sun) -> BeatLighting; static func apply_blend(from, to, weight, env, sun) -> void
 class_name CheckpointShrine extends Area3D    # lights on approach (no interact); heals, resets posture; children Flame, RespawnPoint
-  signal activated; var is_lit; func rest(body) -> void; func respawn_position() -> Vector3; func respawn_yaw() -> float
+  signal activated (first visit); signal rested (every visit: GameManager re-saves it); var is_lit; func rest(body) -> void; func respawn_position() -> Vector3; func respawn_yaw() -> float
 class_name GameMenus extends CanvasLayer      # title / pause / victory, toast, fades; PROCESS_MODE_ALWAYS
   func set_paused(on: bool) -> void; func current_screen() -> String; func show_toast(text) -> void; func fade_alpha() -> float
 PlayerController: func set_respawn_point(pos, yaw) -> void; func capture_mouse() -> void

@@ -81,7 +81,7 @@ func _ready() -> void:
 	for gate in sanctum_locks:
 		gate.close(true)
 	for shrine in get_tree().get_nodes_in_group(&"checkpoint_shrine"):
-		(shrine as CheckpointShrine).activated.connect(set_checkpoint.bind(shrine))
+		(shrine as CheckpointShrine).rested.connect(set_checkpoint.bind(shrine))
 	if skip_start_menu or "--skip-menu" in OS.get_cmdline_user_args():
 		begin_play()
 	else:
@@ -105,11 +105,13 @@ func begin_play() -> void:
 		player.capture_mouse()
 
 
-## Makes `shrine` the respawn point.
+## Makes `shrine` the respawn point (`checkpoint_reached` only when it changes).
 func set_checkpoint(shrine: CheckpointShrine) -> void:
-	checkpoint = shrine
 	if player:
 		player.set_respawn_point(shrine.respawn_position(), shrine.respawn_yaw())
+	if shrine == checkpoint:
+		return
+	checkpoint = shrine
 	checkpoint_reached.emit(shrine)
 
 
@@ -147,9 +149,14 @@ func _process(_delta: float) -> void:
 	var now := Time.get_ticks_msec()
 	if _counting:
 		# Real time, so hit-stop and slow motion don't stretch the clock. A pause stops
-		# _process; the clamp drops the gap when it resumes.
+		# _process and unpausing resets the baseline; the clamp only guards long frames.
 		play_time += minf((now - _last_tick_msec) / 1000.0, 0.25)
 	_last_tick_msec = now
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_UNPAUSED:
+		_last_tick_msec = Time.get_ticks_msec()    # the pause itself never counts
 
 
 func _exit_tree() -> void:
