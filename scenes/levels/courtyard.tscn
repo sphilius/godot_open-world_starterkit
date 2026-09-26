@@ -1,0 +1,58 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/greybox_arena.gd" id="1_arena"]
+[ext_resource type="Script" path="res://scripts/game/level_gate.gd" id="2_gate"]
+[ext_resource type="Script" path="res://scripts/game/encounter.gd" id="3_encounter"]
+[ext_resource type="Resource" path="res://resources/encounters/courtyard_wave_1.tres" id="4_w1"]
+[ext_resource type="Resource" path="res://resources/encounters/courtyard_wave_2.tres" id="5_w2"]
+[ext_resource type="Resource" path="res://resources/encounters/courtyard_wave_3.tres" id="6_w3"]
+[ext_resource type="Script" path="res://scripts/game/encounter_wave.gd" id="7_wave"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_trigger"]
+size = Vector3(20, 4, 16)
+
+[node name="Courtyard" type="Node3D"]
+
+[node name="Greybox" type="Node3D" parent="." groups=["navigation_source"]]
+script = ExtResource("1_arena")
+openings = Array[Vector3]([Vector3(0, 0, 4.4), Vector3(1, 0, 4.4)])
+cover = Array[Vector4]([Vector4(-5, -2, 4, 15), Vector4(5, 3, 3.5, -30), Vector4(-2, 6, 3, 80)])
+
+[node name="NorthGate" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -12)
+script = ExtResource("2_gate")
+
+[node name="EastGate" type="StaticBody3D" parent="."]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 12, 0, 0)
+script = ExtResource("2_gate")
+start_open = false
+
+[node name="Encounter" type="Node3D" parent="." node_paths=PackedStringArray("trigger", "entry_gates", "exit_gates")]
+script = ExtResource("3_encounter")
+waves = Array[ExtResource("7_wave")]([ExtResource("4_w1"), ExtResource("5_w2"), ExtResource("6_w3")])
+trigger = NodePath("Trigger")
+entry_gates = [NodePath("../NorthGate")]
+exit_gates = [NodePath("../EastGate")]
+
+[node name="Trigger" type="Area3D" parent="Encounter"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 2)
+collision_layer = 0
+collision_mask = 2
+monitorable = false
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Encounter/Trigger"]
+shape = SubResource("BoxShape3D_trigger")
+
+[node name="SpawnPoints" type="Node3D" parent="Encounter"]
+
+[node name="A" type="Marker3D" parent="Encounter/SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.3, 8)
+
+[node name="B" type="Marker3D" parent="Encounter/SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 9)
+
+[node name="C" type="Marker3D" parent="Encounter/SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0.3, 8)
+
+[node name="D" type="Marker3D" parent="Encounter/SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0.3, -2)

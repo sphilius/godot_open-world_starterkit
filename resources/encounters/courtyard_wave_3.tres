@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="EncounterWave" format=3]
+
+[ext_resource type="Script" path="res://scripts/game/encounter_wave.gd" id="1_wave"]
+[ext_resource type="PackedScene" path="res://scenes/mobs/enemy_grunt.tscn" id="2_grunt"]
+[ext_resource type="PackedScene" path="res://scenes/mobs/enemy_brute.tscn" id="3_brute"]
+
+[resource]
+script = ExtResource("1_wave")
+enemies = Array[PackedScene]([ExtResource("3_brute"), ExtResource("2_grunt"), ExtResource("3_brute"), ExtResource("2_grunt")])

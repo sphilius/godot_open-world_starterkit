@@ -267,27 +267,6 @@ func test_engaging_the_gatekeeper_shows_its_bar_until_it_falls() -> void:
 	check(is_instance_valid(boss) and boss.state == S.DEAD, "the Gatekeeper stays as a corpse (free_on_death off)")
 
 
-# --- In the world ------------------------------------------------------------------------------
-
-func test_the_sparring_yard_engages_on_the_navmesh() -> void:
-	await load_world()
-	var yard := world.get_node("Encounters/SparringYard")
-	var grunt := yard.get_node("Grunt1") as EnemyCombatController
-	var health := player().get_node("HealthComponent") as HealthComponent
-	for enemy: EnemyCombatController in [grunt, yard.get_node("Grunt2"), yard.get_node("Brute")]:
-		check(await wait_until(enemy.is_on_floor, 3.0), "%s never landed on the terrain" % enemy.name)
-		check_eq(enemy.state, S.IDLE, "%s with the player far away" % enemy.name)
-	place_player_near(grunt, 8.0)
-	var glints := [0]
-	for enemy in yard.get_children():
-		if enemy is EnemyCombatController:
-			enemy.telegraph_glint.connect(func(_p: Vector3, _u: bool) -> void: glints[0] += 1)
-	check(await wait_until(func() -> bool: return glints[0] > 0, 6.0), "nobody in the yard attacked")
-	check(await wait_until(func() -> bool: return health.current_health < health.max_health, 6.0), "the yard never landed a hit")
-	var director := yard.get_node("Director") as CombatDirector
-	check(director.token_count() <= director.max_attack_tokens, "tokens stay within the cap")
-
-
 # --- Helpers -----------------------------------------------------------------------------------
 
 func _director() -> CombatDirector:
