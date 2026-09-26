@@ -44,7 +44,7 @@ signal stagger_ended
 @export_range(0.0, 1.0) var blocked_push := 0.35
 
 ## Staggers a later, shorter reaction must not cut short.
-const HELD_TYPES: Array[StringName] = [&"knockdown", &"guard_break", &"parried"]
+const HELD_TYPES: Array[StringName] = [&"knockdown", &"guard_break", &"parried", &"roar"]
 
 var is_staggered := false
 var stagger_type := &""

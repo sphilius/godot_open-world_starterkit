@@ -25,6 +25,7 @@ browser, with on-screen touch controls for tablets and phones.
 | **Heavy attack** (branches the combo) | **RMB / K** | **HVY** |
 | **Dodge** (i-frames; backstep with no input) | **L / C** | **DODGE** |
 | **Guard** (hold) · **parry** (press just before a hit lands) | **F / I** · LB | **GUARD** |
+| **Execute** (an enemy with a broken posture, in front) | Light attack | **ATK** |
 | Jump | Space | JUMP |
 | Sprint | Shift (hold) | RUN (tap to toggle) |
 | Quality LOW/MEDIUM/HIGH | F2 | QUAL |
@@ -140,6 +141,7 @@ Main (main.gd: drops player at path start, facing the sunset)
 ├─ GrassField          GrassField        ─┘  grass scatter · landmark placement
 ├─ NavigationRegion3D  navigation_baker.gd: bakes terrain + landmarks (group "navigation_source")
 ├─ Wolves              4 × wolf.tscn
+├─ Encounters          SparringYard (CombatDirector, 2 Grunts, a Brute) and GatekeeperArena (the boss), at the path's end
 ├─ Player              player.tscn (see below)
 └─ DevHUD              FPS, quality presets, screenshots, CLI capture
 
@@ -181,6 +183,9 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 | Katana | `scripts/combat/katana.gd`, `scenes/weapons/katana.tscn` | `Area3D` hitbox on the weapon-bone socket. `area_entered` (hurtboxes) and `body_entered` (bodies) resolve a `HealthComponent`. One hit per target per swing; a landed hit triggers `HitStop` |
 | Posture | `scripts/combat/defense/posture_component.gd` | Filled by the poise damage of hits that land and of blocks. Recovery starts 1.2 s after the last posture damage, slows as health drops, and doubles while guarding and standing still. Full posture **breaks**: ignored damage for `break_duration`, then back to 0. The HUD shows it under the health bar |
 | Guard and parry | `scripts/combat/defense/guard_component.gd`, `parry_system.gd` | Hurtbox defenders. **Guard** (hold) blocks hits from the front 150°: no health damage (optional non-lethal chip), poise damage to posture; a block that fills posture is a **guard break** (2.5 s stagger). Unblockable hits pass. **Parry** runs first: each press opens a 0.15 s real-time window; a parryable hit inside it deals the attacker 3x its poise damage to posture and staggers them. Presses within 0.4 s after a window closes open nothing (spam lockout); a successful parry lifts it |
+| Combat director | `scripts/ai/combat_director.gd` | One per encounter. At most 2 attack tokens (leases: released on attack end, stagger and death, expiring after 4 s), 0.8 s between releases and the next issue. Everyone else circles on a 5 m ring of evenly spaced slots whose gap sits behind the player, so enemies stay on screen; slots are sticky (1.5 m hysteresis) |
+| Humanoid enemies | `scripts/ai/enemy_combat_controller.gd`, `scenes/mobs/enemy_grunt.tscn`, `enemy_brute.tscn` | With a token: approach to 2 m and strike; without: flank. Every strike glints 0.4 s before its active frames: **gold** (blockable and parryable) or **red** (unblockable: dodge it). Grunts are quick with low posture; Brutes are slow and heavy (slam, sweep, red thrust). A broken posture can be **executed** with a light attack |
+| Gatekeeper | `scripts/ai/gatekeeper.gd`, `scenes/mobs/enemy_gatekeeper.tscn` | Two-phase Brute with a health and posture bar at the top of the HUD. At 50 % health it roars (invulnerable), recovers 20 % faster, regenerates posture twice as fast and adds a red unblockable combo. Its execution deals 40 % of its health |
 | Hit reactions | `scripts/combat/defense/damage_reaction_component.gd` | Shared by the player and the wolves. Poise below 30 → a light flinch by direction (front/back/left/right); from 30 → heavy; from 60, or a posture break → animated knockdown (D8). Sets knockback; the owner plays the clip and locks controls or AI until `stagger_ended` |
 | Health | `scripts/combat/health_component.gd`, `hurtbox.gd`, `hit_info.gd` | Reusable node with `damaged` / `died` / `health_changed` signals and `grant_invulnerability()` for i-frames. `Hurtbox.receive_hit()` runs registered defenders (guard, parry) before health and posture, and returns a `HitInfo.Result` (HIT, BLOCKED, PARRIED…). `HealthComponent.resolve()` accepts a Hurtbox, a HealthComponent, or a body with one as a child |
 | Time scale | `scripts/core/time_scale.gd` | The only writer of `Engine.time_scale`: named requests, and the slowest one wins, so a hit-stop ending mid slow-motion can't snap time back to 1.0 |
@@ -233,6 +238,7 @@ the AttackData timings to match the clips.
 | Wolf behaviour | `wolf.tscn` → `wander_radius`, `wander_interval`, `run_speed`, `chase_stop_distance`, `bite_cooldown`; `resources/combat/wolf_bite.tres`; HealthComponent `max_health`; DetectionArea sphere radius |
 | Player toughness | `player.tscn` ▸ HealthComponent `max_health`, `invulnerability_time`; Combat `respawn_delay` |
 | Guard, parry and posture | Player ▸ ParrySystem → `parry_window`, `spam_lockout`, `posture_reflect_multiplier`; GuardComponent → `guard_arc_degrees`, `chip_damage`, `guard_break_stagger`; PostureComponent → `max_posture`, `recovery_rate`, `recovery_delay`, `break_duration`; Combat → `guard_move_scale` |
+| Enemy pressure | Encounter ▸ Director → `max_attack_tokens`, `token_cooldown`, `ring_radius`; enemy scene → `attack_cooldown`, `telegraph_lead`, `approach_distance`, `aggro_radius`; strikes in `resources/combat/enemies/` |
 | Stagger tiers | DamageReaction (player and `wolf.tscn`) → `poise_threshold`, `knockdown_threshold`, `flinch_time`, `heavy_time`, `knockdown_time`, `parried_time`, `blocked_push` |
 | Touch layout / feel | `scripts/ui/touch/touch_controls.gd` (button rects, joystick size); TouchLookPad `sensitivity` |
 | Lock-on range, cone, camera framing | Player ▸ TargetingSystem → `radius`, `cone_degrees`, `break_distance`; Player ▸ CameraRig → `lock_*` |

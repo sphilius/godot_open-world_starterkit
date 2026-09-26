@@ -16,6 +16,10 @@
 [ext_resource type="Script" path="res://scripts/ui/player_hud.gd" id="14_player_hud"]
 [ext_resource type="Script" path="res://scripts/ui/touch/touch_controls.gd" id="15_touch"]
 [ext_resource type="Material" path="res://resources/environment/golden_hour_procedural_sky.tres" id="16_compat_sky"]
+[ext_resource type="Script" path="res://scripts/ai/combat_director.gd" id="30_director"]
+[ext_resource type="PackedScene" path="res://scenes/mobs/enemy_grunt.tscn" id="31_grunt"]
+[ext_resource type="PackedScene" path="res://scenes/mobs/enemy_brute.tscn" id="32_brute"]
+[ext_resource type="PackedScene" path="res://scenes/mobs/enemy_gatekeeper.tscn" id="33_gatekeeper"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_valley"]
 geometry_parsed_geometry_type = 1
@@ -104,6 +108,35 @@ position = Vector3(30, 8, -20)
 [node name="Wolf4" parent="Wolves" instance=ExtResource("13_wolf")]
 position = Vector3(-28, 8, -30)
 
+[node name="Encounters" type="Node3D" parent="."]
+
+[node name="SparringYard" type="Node3D" parent="Encounters"]
+
+[node name="Director" type="Node" parent="Encounters/SparringYard"]
+script = ExtResource("30_director")
+
+[node name="Grunt1" parent="Encounters/SparringYard" node_paths=PackedStringArray("director") instance=ExtResource("31_grunt")]
+position = Vector3(-22, 5, -71)
+director = NodePath("../Director")
+
+[node name="Grunt2" parent="Encounters/SparringYard" node_paths=PackedStringArray("director") instance=ExtResource("31_grunt")]
+position = Vector3(-18, 5, -76)
+director = NodePath("../Director")
+
+[node name="Brute" parent="Encounters/SparringYard" node_paths=PackedStringArray("director") instance=ExtResource("32_brute")]
+position = Vector3(-26, 5, -77)
+director = NodePath("../Director")
+
+[node name="GatekeeperArena" type="Node3D" parent="Encounters"]
+
+[node name="Director" type="Node" parent="Encounters/GatekeeperArena"]
+script = ExtResource("30_director")
+max_attack_tokens = 1
+
+[node name="Gatekeeper" parent="Encounters/GatekeeperArena" node_paths=PackedStringArray("director") instance=ExtResource("33_gatekeeper")]
+position = Vector3(28, 5, -74)
+director = NodePath("../Director")
+
 [node name="Player" parent="." instance=ExtResource("10_player")]
 position = Vector3(0, 10, 70)
 
@@ -125,10 +158,11 @@ theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 15
 text = "Scenic Open World"
 
-[node name="PlayerHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("health", "posture")]
+[node name="PlayerHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("health", "posture", "combat")]
 script = ExtResource("14_player_hud")
 health = NodePath("../Player/HealthComponent")
 posture = NodePath("../Player/PostureComponent")
+combat = NodePath("../Player/Combat")
 
 [node name="TouchControls" type="CanvasLayer" parent="." node_paths=PackedStringArray("player", "dev_hud")]
 script = ExtResource("15_touch")

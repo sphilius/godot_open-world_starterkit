@@ -83,9 +83,9 @@ bind/18/name = &""
 bind/18/bone = 18
 bind/18/pose = Transform3D(-0.99503714, -1.8626449e-09, -0.09950371, -0.032725647, 0.9443686, 0.32725644, 0.09396819, 0.32888865, -0.9396819, -0.21492802, -0.91271824, -0.35895848)
 
-[node name="SamuraiModel" type="Node3D" unique_id=1862701160]
+[node name="SamuraiModel" type="Node3D" unique_id=385612296]
 
-[node name="Skeleton3D" type="Skeleton3D" parent="." unique_id=1516257958]
+[node name="Skeleton3D" type="Skeleton3D" parent="." unique_id=471156895]
 bones/0/name = "root"
 bones/0/parent = -1
 bones/0/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
@@ -220,21 +220,21 @@ bones/18/position = Vector3(-0.21, 0.06, -0.06)
 bones/18/rotation = Quaternion(-0.008307942, 0.98477, 0.16657321, 0.04911602)
 bones/18/scale = Vector3(1, 1, 1)
 
-[node name="Body" type="MeshInstance3D" parent="Skeleton3D" unique_id=630475174]
+[node name="Body" type="MeshInstance3D" parent="Skeleton3D" unique_id=1857994967]
 gi_mode = 2
 mesh = SubResource("ArrayMesh_fl5b4")
 skin = SubResource("Skin_cjihj")
 skeleton = NodePath("..")
 
-[node name="HandSocket" type="BoneAttachment3D" parent="Skeleton3D" unique_id=140852559]
+[node name="HandSocket" type="BoneAttachment3D" parent="Skeleton3D" unique_id=378837278]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.22, 0.8200001, 0)
 bone_name = "weapon_r"
 bone_idx = 8
 
-[node name="SheathSocket" type="BoneAttachment3D" parent="Skeleton3D" unique_id=1787462203]
+[node name="SheathSocket" type="BoneAttachment3D" parent="Skeleton3D" unique_id=224629745]
 transform = Transform3D(-0.9950372, -0.032725647, 0.0939682, 1.8626451e-09, 0.94436866, 0.3288887, -0.099503726, 0.3272565, -0.939682, -0.21, 0.98, -0.06)
 bone_name = "scabbard"
 bone_idx = 18
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=546656546]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=396237762]
 libraries/ = ExtResource("1_a0yue")

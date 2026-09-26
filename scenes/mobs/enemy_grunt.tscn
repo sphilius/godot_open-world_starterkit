@@ -1,0 +1,89 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ai/enemy_combat_controller.gd" id="1_ctrl"]
+[ext_resource type="PackedScene" path="res://assets/characters/enemy/grunt_model.tscn" id="2_model"]
+[ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="3_health"]
+[ext_resource type="Script" path="res://scripts/combat/defense/posture_component.gd" id="4_posture"]
+[ext_resource type="Script" path="res://scripts/combat/hurtbox.gd" id="5_hurtbox"]
+[ext_resource type="Script" path="res://scripts/combat/defense/damage_reaction_component.gd" id="6_reaction"]
+[ext_resource type="Script" path="res://scripts/combat/hitbox.gd" id="7_hitbox"]
+[ext_resource type="Script" path="res://scripts/combat/attack_data.gd" id="8_attack"]
+[ext_resource type="Resource" path="res://resources/combat/enemies/grunt_slash.tres" id="9_slash"]
+[ext_resource type="Resource" path="res://resources/combat/enemies/grunt_cut.tres" id="10_cut"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.35
+height = 1.8
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_hurtbox"]
+size = Vector3(0.80, 1.70, 0.70)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_weapon"]
+size = Vector3(0.16, 0.16, 0.95)
+
+[node name="EnemyGrunt" type="CharacterBody3D" groups=["enemies"]]
+collision_layer = 4
+collision_mask = 7
+script = ExtResource("1_ctrl")
+attacks = Array[ExtResource("8_attack")]([ExtResource("9_slash"), ExtResource("10_cut")])
+walk_speed = 2.2
+run_speed = 5.0
+approach_distance = 1.9
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.90, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(1.0, 0, 0, 0, 1.0, 0, 0, 0, 1.0, 0, 0, 0)
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3_health")
+max_health = 60.0
+
+[node name="PostureComponent" type="Node" parent="." node_paths=PackedStringArray("health")]
+script = ExtResource("4_posture")
+max_posture = 50.0
+recovery_rate = 10.0
+break_duration = 2.5
+health = NodePath("../HealthComponent")
+
+[node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health", "posture")]
+collision_layer = 16
+collision_mask = 0
+monitoring = false
+script = ExtResource("5_hurtbox")
+health = NodePath("../HealthComponent")
+posture = NodePath("../PostureComponent")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hurtbox"]
+position = Vector3(0, 0.90, 0)
+shape = SubResource("BoxShape3D_hurtbox")
+
+[node name="DamageReaction" type="Node" parent="." node_paths=PackedStringArray("body", "hurtbox", "posture")]
+script = ExtResource("6_reaction")
+body = NodePath("..")
+hurtbox = NodePath("../Hurtbox")
+posture = NodePath("../PostureComponent")
+poise_threshold = 20.0
+knockdown_threshold = 60.0
+knockdown_time = 1.6
+parried_time = 1.2
+
+[node name="WeaponHitbox" type="Area3D" parent="."]
+collision_layer = 32
+collision_mask = 64
+monitoring = false
+monitorable = false
+script = ExtResource("7_hitbox")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WeaponHitbox"]
+position = Vector3(0, 0, -0.52)
+shape = SubResource("BoxShape3D_weapon")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+path_desired_distance = 0.6
+target_desired_distance = 0.8
+path_max_distance = 3.0
+height = 1.8
+radius = 0.35

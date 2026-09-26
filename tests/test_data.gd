@@ -10,7 +10,20 @@ const COMBO := [
 	"res://resources/combat/heavy_2.tres",
 	"res://resources/combat/heavy_finisher.tres",
 	"res://resources/combat/draw_attack.tres",
+	"res://resources/combat/execution.tres",
 ]
+## Humanoid enemy strikes (M6) and their shared clip library.
+const ENEMY_ATTACKS := [
+	"res://resources/combat/enemies/grunt_slash.tres",
+	"res://resources/combat/enemies/grunt_cut.tres",
+	"res://resources/combat/enemies/brute_slam.tres",
+	"res://resources/combat/enemies/brute_sweep.tres",
+	"res://resources/combat/enemies/brute_thrust.tres",
+	"res://resources/combat/enemies/gatekeeper_red_sweep.tres",
+]
+const ENEMY_CLIPS := "res://assets/characters/enemy/enemy_animations.tres"
+const ENEMY_SCENES := ["res://scenes/mobs/enemy_grunt.tscn", "res://scenes/mobs/enemy_brute.tscn",
+		"res://scenes/mobs/enemy_gatekeeper.tscn"]
 const DODGES := ["dodge_f", "dodge_b", "dodge_l", "dodge_r"]
 ## Guard and hit-reaction clips (M5); every stagger type's clip must be among them.
 const DEFENSE_CLIPS := ["guard_idle", "guard_hit", "parry_1", "parry_2",
@@ -24,10 +37,11 @@ const SAMURAI_STATE_MACHINE := "res://assets/characters/samurai/samurai_state_ma
 
 
 func test_attack_timings_are_consistent() -> void:
-	for path: String in COMBO + [WOLF_BITE]:
+	for path: String in COMBO + ENEMY_ATTACKS + [WOLF_BITE]:
 		var attack := load(path) as AttackData
 		var file := path.get_file()
-		check(attack.damage > 0.0, "%s: damage must be positive" % file)
+		# The execution deals its damage through execute(), not a hitbox.
+		check(attack.damage > 0.0 or file == "execution.tres", "%s: damage must be positive" % file)
 		check(attack.active_start < attack.active_end, "%s: active window is empty" % file)
 		check(attack.active_end <= attack.duration, "%s: active window runs past the end" % file)
 		check(attack.lunge_delay + attack.lunge_duration <= attack.duration, "%s: lunge runs past the end" % file)
@@ -92,3 +106,23 @@ func test_combo_graph_is_playable() -> void:
 			check(node.follow(action) != null, "branch '%s' isn't a ComboNode" % action)
 			queue.append(node.follow(action))
 	check(seen.size() >= 9, "combo graph looks truncated (%d nodes)" % seen.size())
+
+
+func test_enemy_clips_match_their_attacks_and_reactions() -> void:
+	var clips := load(ENEMY_CLIPS) as AnimationLibrary
+	for path: String in ENEMY_ATTACKS:
+		var attack := load(path) as AttackData
+		if check(clips.has_animation(attack.animation), "enemy clip '%s' is missing" % attack.animation):
+			check(is_equal_approx(clips.get_animation(attack.animation).length, attack.duration),
+					"enemy clip '%s' doesn't match %s (rebuild the rigs)" % [attack.animation, path.get_file()])
+		check(attack.active_start >= 0.4, "%s: the wind-up is shorter than the 0.4 s glint lead" % path.get_file())
+	for clip: StringName in EnemyCombatController.STAGGER_CLIPS.values():
+		check(clips.has_animation(clip), "enemy reaction clip '%s' is missing" % clip)
+	for clip: String in ["idle", "walk", "run", "strafe_l", "strafe_r", "death"]:
+		check(clips.has_animation(clip), "enemy clip '%s' is missing" % clip)
+	for path: String in ENEMY_SCENES:
+		var enemy := (load(path) as PackedScene).instantiate() as EnemyCombatController
+		check(not enemy.attacks.is_empty(), "%s has no attacks" % path.get_file())
+		for attack in enemy.attacks:
+			check(clips.has_animation(attack.animation), "%s: no clip for '%s'" % [path.get_file(), attack.animation])
+		enemy.free()
