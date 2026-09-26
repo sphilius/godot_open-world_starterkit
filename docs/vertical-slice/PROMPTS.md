@@ -88,7 +88,9 @@ source meshes are in `assets/incoming/`:
 You are a technical artist driving Blender via bpy (Blender MCP).
 INPUT: assets/incoming/<character>.(fbx|glb) from the chosen pack, AI generator or commission.
 TASK for each of player_duelist, enemy_grunt, enemy_brute and enemy_gatekeeper:
-1. Scale to metres; feet at z=0; faces -Y in Blender (so -Z in Godot); apply transforms.
+1. Scale to metres; feet at z=0; faces -Y in Blender (Blender's front view); apply transforms.
+   The glTF export turns -Y into +Z, which is Godot's `Vector3.MODEL_FRONT`; the kit's
+   characters face -Z, so the import wrapper (the `Visual` child) turns the model 180°.
 2. Budget check: under 25k tris for the player and grunt, under 35k for the brute and boss. Decimate
    (collapse) only the non-deforming parts if over.
 3. Rig: if unrigged, stop and report (it needs Mixamo auto-rig: upload, download FBX with skin).
