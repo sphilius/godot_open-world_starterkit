@@ -15,6 +15,7 @@ extends CharacterBody3D
 ##            / respawn() when the samurai is hurt, and sets move_speed_scale / hold_facing while
 ##            guarding (slow walk that keeps the facing).
 ## Look     : mouse and touch both feed add_look_input(). Touch mode turns off mouse capture.
+## Respawn  : respawn() returns to the last spawn_at() or set_respawn_point() (checkpoints).
 
 @export_group("Movement")
 @export var walk_speed := 4.5
@@ -66,6 +67,7 @@ const _DEFAULT_BINDINGS := {
 	&"look_right": [["axis", JOY_AXIS_RIGHT_X, 1.0]],
 	&"look_up": [["axis", JOY_AXIS_RIGHT_Y, -1.0]],
 	&"look_down": [["axis", JOY_AXIS_RIGHT_Y, 1.0]],
+	&"pause": [["key", KEY_ESCAPE], ["key", KEY_P], ["joy", JOY_BUTTON_START]],
 }
 ## Stick deadzone for the move actions.
 const _AXIS_DEADZONE := 0.2
@@ -110,7 +112,13 @@ func _ready() -> void:
 		mouse_capture_enabled = false
 	# Browsers only grant pointer lock from a user gesture: on the web, the first click captures.
 	if not OS.has_feature("web"):
-		_capture_mouse()
+		capture_mouse()
+
+
+## Makes (`pos`, `yaw`) where respawn() returns to, without moving the player (checkpoints).
+func set_respawn_point(pos: Vector3, yaw: float) -> void:
+	_spawn_position = pos
+	_spawn_yaw = yaw
 
 
 ## Place the player and make this the respawn point. Yaw 0 faces -Z.
@@ -214,10 +222,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed(&"ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and event.is_pressed() and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		_capture_mouse()
+		capture_mouse()
 
 
-func _capture_mouse() -> void:
+## Captures the pointer for mouse look (unless touch mode turned capture off).
+func capture_mouse() -> void:
 	if not mouse_capture_enabled:
 		return
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

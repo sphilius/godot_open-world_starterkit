@@ -8,7 +8,8 @@ extends CanvasLayer
 ##   Bottom right: ATK (light: tap, keep tapping for the combo) · HVY (heavy) · DODGE · JUMP ·
 ##                 GUARD (hold; tap just before a hit to parry) · RUN (sprint toggle) ·
 ##                 LOCK (lock-on toggle) · NEXT (next target)
-##   Top right  : FULL (fullscreen) · QUAL (cycle quality) · RESET (back to the path start)
+##   Top right  : FULL (fullscreen) · QUAL (cycle quality) · RESET (back to the last checkpoint) ·
+##                PAUSE (the pause menu)
 
 @export var player: PlayerController
 @export var dev_hud: DevHUD
@@ -81,6 +82,7 @@ func _build() -> void:
 			.activated.connect(_cycle_quality)
 	_add_button("Reset", &"", "RESET", Rect2(-310, 20, 88, 88), false, Color(1, 1, 1), 16, true) \
 			.activated.connect(player.respawn)
+	_add_button("Pause", &"pause", "PAUSE", Rect2(-410, 20, 88, 88), false, Color(1, 1, 1), 15, true)
 
 
 func _add_button(node_name: String, action: StringName, text: String, rect: Rect2, toggle: bool,
