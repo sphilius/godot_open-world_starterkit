@@ -20,6 +20,29 @@ func test_the_voice_pool_steals_the_oldest_voice() -> void:
 	check(pool.play(&"no_such_event", Vector3.ZERO) == null, "unknown events play nothing")
 	for event in BANK.sounds:
 		check(BANK.get_sound(event) != null, "the bank's %s sound loads" % event)
+	for surface in SurfaceFoley.SURFACES:
+		check(BANK.has_sound(StringName("step_" + String(surface))), "the bank has footsteps for %s" % surface)
+
+
+func test_a_surface_without_its_own_steps_falls_back_to_stone() -> void:
+	var pool := SfxPool.new()
+	pool.bank = BANK
+	add_to_stage(pool)
+	var foley := SurfaceFoley.new()
+	add_to_stage(foley)
+	for case in [[&"wood", &"step_wood"], [&"metal", &"step_stone"]]:
+		var floor_body := StaticBody3D.new()
+		floor_body.set_meta(&"surface", case[0])
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(4, 1, 4)
+		shape.shape = box
+		shape.position.y = -0.5
+		floor_body.add_child(shape)
+		add_to_stage(floor_body)
+		await physics_frames(2)
+		check_eq(foley.step(), case[1], "a %s floor plays %s" % [case[0], case[1]])
+		floor_body.free()
 
 
 func test_footsteps_know_the_surface_underfoot() -> void:
@@ -102,13 +125,17 @@ func test_hits_make_sound_sparks_and_shake() -> void:
 func test_music_and_reverb_follow_the_beats() -> void:
 	await load_world()
 	var music := world.get_node("MusicDirector") as MusicDirector
+	music.crossfade_time = 0.4
 	check(music.current == null, "the valley has no music yet, only wind")
 	check(not music.is_reverb_on(), "no reverb outdoors")
 	(world.get_node("Courtyard/Encounter") as Encounter).start(player())
 	check(music.current == music.combat, "the ambush brings the combat drums")
-	(world.get_node("Courtyard/Encounter") as Encounter).reset()
+	await seconds(0.5)
 	(world.get_node("Sanctum/Encounter") as Encounter).start(player())
 	check(music.current == music.boss, "the Gatekeeper has its own cue")
+	await seconds(0.2)
+	check(music.music_player().volume_db > -32.0, "the boss cue fades in while the drums fade out (%.1f dB)" % music.music_player().volume_db)
+	(world.get_node("Courtyard/Encounter") as Encounter).reset()
 	check(music.is_reverb_on(), "the sanctum echoes")
 	(world.get_node("Sanctum/Encounter") as Encounter).reset()
 

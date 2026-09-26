@@ -72,7 +72,7 @@ bash tools/ci/validate.sh [--filter=hit]   # same, but downloads Godot 4.7.1 fir
 | `tests/test_combat.gd` | Buffered 3-hit combo kills a wolf (hits, hit-stop, death, collision off, freed); draw then sheathe after 3 s; uncaptured clicks don't attack but key and touch actions do |
 | `tests/test_wolves.gd` | Wander and chase on the navmesh; a bite damages and flinches the player; striking during the wind-up cancels the bite; player death, wolves disengaging, respawn |
 | `tests/test_game_loop.gd` | The title holds the paused world until Begin; the pause action toggles the pause menu and Return to shrine respawns there; a shrine stands on the ground, heals and becomes the checkpoint; death slows time, fades to black, respawns at the shrine and fades back; lighting blends to dusk, then night, and never back, without touching the shared Environment; clearing the courtyard unlocks the sanctum; the boss's death shows the victory stats |
-| `tests/test_feedback.gd` | The voice pool steals the oldest voice and every bank event loads; footsteps classify gravel, grass, metadata and stone, and walking plays them; trauma clamps, squares and decays in real time through a hit-stop, and the option turns it off; hits make sound, sparks and shake, being hit shakes harder, swings whoosh and sparks clean up; music and reverb follow the beats; the lock-on gauge shows the target in view and hides behind the camera |
+| `tests/test_feedback.gd` | The voice pool steals the oldest voice, every bank event loads and every surface has footsteps; a surface without its own steps falls back to stone; footsteps classify gravel, grass, metadata and stone, and walking plays them; trauma clamps, squares and decays in real time through a hit-stop, and the option turns it off; hits make sound, sparks and shake, being hit shakes harder, swings whoosh and sparks clean up; music and reverb follow the beats, and a cue change fades the new cue in while the old one fades out; the lock-on gauge shows the target in view and hides behind the camera |
 | `tests/test_touch.gd` | Touch buttons press and release actions (multi-touch safe), RUN latches, the look pad turns the camera (one finger), RESET respawns |
 | `tests/test_project.gd` | Every script compiles and every scene loads. It's the parse gate, because `godot --import` exits 0 even with broken scripts |
 | `tests/test_smoke.gd` | Player and wolf scenes spawn at full health; a Hitbox hits each target once per activation; i-frames; `HealthComponent.resolve()` |
@@ -172,7 +172,7 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 │  ├─ ComboManager      FIFO input buffer + combo graph (resources/combat/sword_combo.tres)
 │  └─ MotionWarping     steers each lunge at the lock-on target or a nearby enemy
 ├─ TargetingSystem      lock-on: acquire, cycle, retarget, release; reticle over the target (pulses on hits)
-├─ SurfaceFoley         footsteps by distance travelled: gravel on the path, grass off it, stone elsewhere
+├─ SurfaceFoley         footsteps by distance travelled: gravel on the path, grass off it, "surface" metadata (wood…), else stone
 └─ CameraRig            CombatCamera: free look, lock-on framing → SpringArm3D/Camera3D (+ CameraTrauma)
 ```
 

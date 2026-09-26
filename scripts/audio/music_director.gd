@@ -82,15 +82,20 @@ func play_cue(stream: AudioStream) -> void:
 	var incoming := _players[_active]
 	if _fade and _fade.is_valid():
 		_fade.kill()
-	_fade = create_tween().set_parallel()
-	if outgoing.playing:
-		_fade.tween_property(outgoing, ^"volume_db", -80.0, crossfade_time)
-		_fade.chain().tween_callback(outgoing.stop)
+	_fade = create_tween().set_parallel()                   # both fades run together
 	if stream:
 		incoming.stream = stream
 		incoming.volume_db = -40.0
 		incoming.play()
 		_fade.tween_property(incoming, ^"volume_db", music_db, crossfade_time)
+	if outgoing.playing:
+		_fade.tween_property(outgoing, ^"volume_db", -80.0, crossfade_time)
+		_fade.chain().tween_callback(outgoing.stop)            # only the stop waits for the fade
+
+
+## The player carrying the current cue (or fading it in).
+func music_player() -> AudioStreamPlayer:
+	return _players[_active]
 
 
 ## Turns the sanctum reverb on the SFX bus on or off.

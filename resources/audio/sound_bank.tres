@@ -38,6 +38,10 @@
 [ext_resource type="AudioStream" path="res://assets/audio/placeholder/whoosh_light_2.wav" id="35_whoosh_light_2"]
 [ext_resource type="AudioStream" path="res://assets/audio/placeholder/whoosh_light_3.wav" id="36_whoosh_light_3"]
 
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_wood_1.wav" id="50_step_wood_1"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_wood_2.wav" id="50_step_wood_2"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_wood_3.wav" id="50_step_wood_3"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/step_wood_4.wav" id="50_step_wood_4"]
 [sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_block"]
 random_pitch = 1.06
 streams_count = 3
@@ -187,6 +191,18 @@ stream_1/weight = 1.0
 stream_2/stream = ExtResource("36_whoosh_light_3")
 stream_2/weight = 1.0
 
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_step_wood"]
+random_pitch = 1.06
+streams_count = 4
+stream_0/stream = ExtResource("50_step_wood_1")
+stream_0/weight = 1.0
+stream_1/stream = ExtResource("50_step_wood_2")
+stream_1/weight = 1.0
+stream_2/stream = ExtResource("50_step_wood_3")
+stream_2/weight = 1.0
+stream_3/stream = ExtResource("50_step_wood_4")
+stream_3/weight = 1.0
+
 [resource]
 script = ExtResource("0_bank")
 sounds = Dictionary[StringName, AudioStream]({
@@ -203,6 +219,7 @@ sounds = Dictionary[StringName, AudioStream]({
 &"step_grass": SubResource("AudioStreamRandomizer_step_grass"),
 &"step_gravel": SubResource("AudioStreamRandomizer_step_gravel"),
 &"step_stone": SubResource("AudioStreamRandomizer_step_stone"),
+&"step_wood": SubResource("AudioStreamRandomizer_step_wood"),
 &"ui_back": SubResource("AudioStreamRandomizer_ui_back"),
 &"ui_confirm": SubResource("AudioStreamRandomizer_ui_confirm"),
 &"whoosh_heavy": SubResource("AudioStreamRandomizer_whoosh_heavy"),

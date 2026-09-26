@@ -5,8 +5,11 @@ extends Node3D
 ## `run_speed`. Each step looks at what's underfoot:
 ##   the terrain      → gravel on the path (HeightmapTerrain.path_mask_at above 0.5), grass off it
 ##   anything else    → its "surface" metadata (grass, gravel, stone, wood), or stone
-## and plays step_<surface> through the SfxPool. Landing after `landing_air_time` seconds in the
-## air plays a louder step.
+## and plays step_<surface> through the SfxPool (step_stone when the bank has no sound for that
+## surface). Landing after `landing_air_time` seconds in the air plays a louder step.
+
+## Surfaces classify() can report (each has a step_<surface> event in the sound bank).
+const SURFACES: Array[StringName] = [&"grass", &"gravel", &"stone", &"wood"]
 
 @export var body: CharacterBody3D
 @export var walk_stride := 0.75
@@ -41,13 +44,19 @@ func _physics_process(delta: float) -> void:
 
 
 ## Plays one footstep for whatever is underfoot (animation method tracks can call this).
-func step(extra_db := 0.0) -> void:
+## Returns the event played (or that would have played without an SfxPool).
+func step(extra_db := 0.0) -> StringName:
 	var surface := surface_under(body.global_position if body else global_position)
 	last_surface = surface
 	steps += 1
+	var event := StringName("step_" + String(surface))
 	var pool := SfxPool.find(get_tree())
-	if pool:
-		pool.play(StringName("step_" + String(surface)), global_position, volume_db + extra_db, randf_range(0.94, 1.06))
+	if pool == null:
+		return event
+	if pool.bank and not pool.bank.has_sound(event):
+		event = &"step_stone"
+	pool.play(event, global_position, volume_db + extra_db, randf_range(0.94, 1.06))
+	return event
 
 
 ## The surface under `feet`: a ray 0.4 m up to 0.6 m down on the world layer.

@@ -277,12 +277,13 @@ main.gd: every node in group "ground_snap" under Main is stood on the terrain (s
 Buses (default_bus_layout.tres): Master → SFX (effect 0: sanctum Reverb, off by default), Music, Ambience, UI
 class_name SoundBank extends Resource         # sounds: Dictionary[StringName, AudioStream] (AudioStreamRandomizers)
   # events: whoosh_light, whoosh_heavy, hit, hit_heavy, block, parry, posture_break, step_grass, step_gravel,
-  # step_stone, glint_gold, glint_red, shrine_ignite, gate, roar, ui_confirm, ui_back
+  # step_stone, step_wood, glint_gold, glint_red, shrine_ignite, gate, roar, ui_confirm, ui_back
 class_name SfxPool extends Node3D             # group "sfx_pool", SfxPool.find(tree); @export bank, voices := 8
   func play(event, at: Vector3, volume_db := 0.0, pitch := 1.0) -> AudioStreamPlayer3D   # steals the oldest voice
   func play_2d(event, volume_db := 0.0) -> void   # UI bus, works while paused; func busy_voices() -> int
-class_name SurfaceFoley extends Node3D        # on the player; func step(extra_db := 0.0); static func classify(collider, point) -> StringName
-  # terrain: gravel where path_mask_at > 0.5, else grass; other colliders: meta "surface", else stone
+class_name SurfaceFoley extends Node3D        # on the player; func step(extra_db := 0.0) -> StringName; static func classify(collider, point) -> StringName
+  # terrain: gravel where path_mask_at > 0.5, else grass; other colliders: meta "surface", else stone;
+  # a surface the bank has no step_<surface> for plays step_stone
 class_name MusicDirector extends Node         # PROCESS_MODE_ALWAYS (set in the scene); cues per GameManager state, set_reverb(on)
   @export game, ambience, exploration, combat, boss, victory: AudioStream; crossfade_time := 1.5
 class_name CameraTrauma extends Node          # child of the Camera3D; group "camera_trauma"; static var enabled

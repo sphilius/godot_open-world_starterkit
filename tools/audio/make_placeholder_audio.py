@@ -5,7 +5,9 @@ loops. Standard library only and seeded, so re-running produces identical files.
     python3 tools/audio/make_placeholder_audio.py            # writes assets/audio/placeholder/
 
 SFX are 16-bit mono 44.1 kHz WAV. Loops (ambience, music) are written as WAV and, when ffmpeg is
-on PATH, converted to Ogg Vorbis (much smaller); the WAV is then removed. Every file is original
+on PATH, converted to Ogg Vorbis (much smaller); the WAV is then removed. The WAVs are
+byte-identical run to run; the Ogg files differ only in the encoder's random stream serial, so
+restore them with git if you didn't mean to change a loop. Every file is original
 and released as CC0 (see assets/LICENSES.md). They stand in until sourced or composed audio
 (PLAN §4.4) replaces them under the same event names (resources/audio/sound_bank.tres).
 """
@@ -196,6 +198,9 @@ def footstep(rng, kind):
             at = int(rng.betavariate(1.5, 4.0) * n * 0.8)
             circular_add(out, [x * rng.uniform(0.3, 1.0) for x in click(rng, 0.004, 2500)], at)
         return fade_out(mix((out, 1.0), (thump(0.16, 90, 60, 0.03), 0.4)))
+    if kind == "wood":                                        # hollow plank knock
+        knock = ring(0.16, [(210, 0.6, 0.05), (470, 0.35, 0.03), (910, 0.2, 0.02)], rng, 0.03)
+        return fade_out(mix((click(rng, 0.005, 2200), 0.5), (knock, 0.9), (thump(0.16, 130, 95, 0.03), 0.5)))
     return fade_out(mix((click(rng, 0.008, 1800), 0.7), (thump(0.12, 150, 90, 0.025), 0.8)))   # stone
 
 
@@ -306,6 +311,9 @@ def main():
     write_loop("music_combat", drum_loop(rng, 96, 4, boss=False))
     write_loop("music_boss", drum_loop(rng, 118, 4, boss=True))
     write_wav("music_victory", victory(rng), -4.0)
+    wood = random.Random(20260927)          # its own seed, so adding it left the files above unchanged
+    for i in range(4):
+        write_wav(f"step_wood_{i + 1}", footstep(wood, "wood"), -6.0)
     print("wrote", len(os.listdir(OUT)), "files to", os.path.normpath(OUT))
 
 

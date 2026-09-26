@@ -5,7 +5,7 @@ extends Resource
 ## pointing these entries at the new files; the event names stay the same.
 ##
 ## Events: whoosh_light, whoosh_heavy, hit, hit_heavy, block, parry, posture_break,
-## step_grass, step_gravel, step_stone, glint_gold, glint_red, shrine_ignite, gate, roar,
+## step_grass, step_gravel, step_stone, step_wood, glint_gold, glint_red, shrine_ignite, gate, roar,
 ## ui_confirm, ui_back.
 
 @export var sounds: Dictionary[StringName, AudioStream] = {}
