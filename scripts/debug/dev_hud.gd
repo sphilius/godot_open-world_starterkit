@@ -50,7 +50,7 @@ const PRESETS := {
 @export var world_environment: WorldEnvironment
 @export var grass: GrassField
 @export var sun: DirectionalLight3D
-## Optional: shows the player's combat state in the overlay (IDLE, ATTACK_2, HURT…).
+## Optional: shows the player's combat state in the overlay (IDLE, ATTACK attack_2, DODGE, HURT…).
 @export var combat: CombatStateMachine
 ## Used instead of the PhysicalSkyMaterial on the Compatibility (web) renderer, where the
 ## physical sky renders almost black and takes the ambient light down with it.
@@ -82,10 +82,12 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	var state := CombatStateMachine.State.keys()[combat.state] as String if combat else ""
+	if combat and combat.current_attack:
+		state += " " + String(combat.current_attack.animation)
 	if touch_mode:
 		_label.text = "%d FPS  ·  %s  ·  %s" % [Engine.get_frames_per_second(), QUALITY_NAMES[_quality], state]
 	else:
-		_label.text = "%d FPS  ·  %s quality [F2]  ·  %s  ·  LMB/J attack (3-hit combo)  ·  F12 screenshot  ·  Esc frees mouse" % [
+		_label.text = "%d FPS  ·  %s quality [F2]  ·  %s  ·  LMB/J light · RMB/K heavy · L/C dodge  ·  F12 screenshot  ·  Esc frees mouse" % [
 			Engine.get_frames_per_second(), QUALITY_NAMES[_quality], state]
 
 

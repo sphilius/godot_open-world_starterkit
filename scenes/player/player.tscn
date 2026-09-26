@@ -6,12 +6,20 @@
 [ext_resource type="AnimationNodeStateMachine" path="res://assets/characters/samurai/samurai_state_machine.tres" id="4_state_machine"]
 [ext_resource type="Script" path="res://scripts/combat/weapon_holster.gd" id="5_holster"]
 [ext_resource type="Script" path="res://scripts/combat/combat_state_machine.gd" id="6_combat"]
-[ext_resource type="Script" path="res://scripts/combat/attack_data.gd" id="7_attack_data"]
-[ext_resource type="Resource" path="res://resources/combat/attack_1.tres" id="8_attack_1"]
-[ext_resource type="Resource" path="res://resources/combat/attack_2.tres" id="9_attack_2"]
-[ext_resource type="Resource" path="res://resources/combat/attack_3.tres" id="10_attack_3"]
+[ext_resource type="Script" path="res://scripts/combat/combo_manager.gd" id="7_combo"]
+[ext_resource type="Resource" path="res://resources/combat/sword_combo.tres" id="8_graph"]
+[ext_resource type="Script" path="res://scripts/combat/motion_warping.gd" id="9_warping"]
+[ext_resource type="Script" path="res://scripts/camera/combat_camera.gd" id="13_camera"]
+[ext_resource type="Script" path="res://scripts/combat/targeting_system.gd" id="14_targeting"]
 [ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="11_health"]
 [ext_resource type="Script" path="res://scripts/combat/hurtbox.gd" id="12_hurtbox"]
+[ext_resource type="Script" path="res://scripts/combat/defense/posture_component.gd" id="15_posture"]
+[ext_resource type="Script" path="res://scripts/combat/defense/guard_component.gd" id="16_guard"]
+[ext_resource type="Script" path="res://scripts/combat/defense/parry_system.gd" id="17_parry"]
+[ext_resource type="Script" path="res://scripts/combat/defense/damage_reaction_component.gd" id="18_reaction"]
+[ext_resource type="Resource" path="res://resources/combat/execution.tres" id="19_execution"]
+[ext_resource type="Script" path="res://scripts/camera/camera_trauma.gd" id="20_trauma"]
+[ext_resource type="Script" path="res://scripts/audio/surface_foley.gd" id="21_foley"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.35
@@ -20,10 +28,11 @@ height = 1.8
 [sub_resource type="SphereShape3D" id="SphereShape3D_camera"]
 radius = 0.2
 
-[node name="Player" type="CharacterBody3D"]
+[node name="Player" type="CharacterBody3D" groups=["player"] node_paths=PackedStringArray("targeting")]
 collision_layer = 2
 collision_mask = 5
 script = ExtResource("1_controller")
+targeting = NodePath("TargetingSystem")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 position = Vector3(0, 0.9, 0)
@@ -34,16 +43,41 @@ script = ExtResource("11_health")
 max_health = 100.0
 invulnerability_time = 0.8
 
-[node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health")]
+[node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health", "posture")]
 collision_layer = 64
 collision_mask = 0
 monitoring = false
 script = ExtResource("12_hurtbox")
 health = NodePath("../HealthComponent")
+posture = NodePath("../PostureComponent")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Hurtbox"]
 position = Vector3(0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_body")
+
+[node name="PostureComponent" type="Node" parent="." node_paths=PackedStringArray("health", "guard", "body")]
+script = ExtResource("15_posture")
+health = NodePath("../HealthComponent")
+guard = NodePath("../GuardComponent")
+body = NodePath("..")
+
+[node name="GuardComponent" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "posture", "body")]
+script = ExtResource("16_guard")
+hurtbox = NodePath("../Hurtbox")
+posture = NodePath("../PostureComponent")
+body = NodePath("..")
+
+[node name="ParrySystem" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "guard")]
+script = ExtResource("17_parry")
+hurtbox = NodePath("../Hurtbox")
+guard = NodePath("../GuardComponent")
+
+[node name="DamageReaction" type="Node" parent="." node_paths=PackedStringArray("body", "hurtbox", "posture", "guard")]
+script = ExtResource("18_reaction")
+body = NodePath("..")
+hurtbox = NodePath("../Hurtbox")
+posture = NodePath("../PostureComponent")
+guard = NodePath("../GuardComponent")
 
 [node name="Visual" type="Node3D" parent="."]
 
@@ -57,23 +91,46 @@ callback_mode_process = 0
 tree_root = ExtResource("4_state_machine")
 anim_player = NodePath("../Visual/SamuraiModel/AnimationPlayer")
 
-[node name="WeaponHolster" type="Node" parent="." node_paths=PackedStringArray("katana", "hand_socket", "back_socket")]
+[node name="WeaponHolster" type="Node" parent="." node_paths=PackedStringArray("katana", "hand_socket", "sheath_socket")]
 script = ExtResource("5_holster")
 katana = NodePath("../Katana")
 hand_socket = NodePath("../Visual/SamuraiModel/Skeleton3D/HandSocket")
-back_socket = NodePath("../Visual/SamuraiModel/Skeleton3D/BackSocket")
+sheath_socket = NodePath("../Visual/SamuraiModel/Skeleton3D/SheathSocket")
 
-[node name="Combat" type="Node" parent="." node_paths=PackedStringArray("body", "animation_tree", "katana", "holster", "health")]
+[node name="Combat" type="Node" parent="." node_paths=PackedStringArray("body", "animation_tree", "katana", "holster", "health", "combo", "warping", "targeting", "guard", "parry", "reaction", "posture")]
 script = ExtResource("6_combat")
 body = NodePath("..")
 animation_tree = NodePath("../AnimationTree")
 katana = NodePath("../Katana")
 holster = NodePath("../WeaponHolster")
 health = NodePath("../HealthComponent")
-combo = Array[ExtResource("7_attack_data")]([ExtResource("8_attack_1"), ExtResource("9_attack_2"), ExtResource("10_attack_3")])
+combo = NodePath("ComboManager")
+warping = NodePath("MotionWarping")
+targeting = NodePath("../TargetingSystem")
+guard = NodePath("../GuardComponent")
+parry = NodePath("../ParrySystem")
+reaction = NodePath("../DamageReaction")
+posture = NodePath("../PostureComponent")
+execution = ExtResource("19_execution")
 
-[node name="CameraRig" type="Node3D" parent="."]
+[node name="ComboManager" type="Node" parent="Combat"]
+script = ExtResource("7_combo")
+graph = ExtResource("8_graph")
+
+[node name="MotionWarping" type="Node" parent="Combat" node_paths=PackedStringArray("body", "targeting")]
+script = ExtResource("9_warping")
+body = NodePath("../..")
+targeting = NodePath("../../TargetingSystem")
+
+[node name="TargetingSystem" type="Node" parent="." node_paths=PackedStringArray("body", "camera")]
+script = ExtResource("14_targeting")
+body = NodePath("..")
+camera = NodePath("../CameraRig")
+
+[node name="CameraRig" type="Node3D" parent="." node_paths=PackedStringArray("targeting")]
 top_level = true
+script = ExtResource("13_camera")
+targeting = NodePath("../TargetingSystem")
 
 [node name="SpringArm3D" type="SpringArm3D" parent="CameraRig"]
 shape = SubResource("SphereShape3D_camera")
@@ -84,3 +141,10 @@ margin = 0.15
 current = true
 fov = 68.0
 far = 1500.0
+
+[node name="CameraTrauma" type="Node" parent="CameraRig/SpringArm3D/Camera3D"]
+script = ExtResource("20_trauma")
+
+[node name="SurfaceFoley" type="Node3D" parent="." node_paths=PackedStringArray("body")]
+script = ExtResource("21_foley")
+body = NodePath("..")

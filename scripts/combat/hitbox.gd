@@ -5,10 +5,15 @@ extends Area3D
 ## The owner arms it with an AttackData (begin) and opens or closes the active window
 ## (set_active). While active, `area_entered` (Hurtboxes) and `body_entered` (bodies) resolve
 ## the target's HealthComponent. Each target is hit at most once per activation, even when its
-## hurtbox and body both overlap. A landed hit applies damage, knockback and stagger, and
+## hurtbox and body both overlap.
+## The hit goes through the target's Hurtbox (receive_hit), so its defenders (guard, parry)
+## can claim it. That happens even when the body is touched first. Only targets without a
+## Hurtbox take the damage directly. A landed hit applies damage, knockback and stagger, and
 ## triggers hit-stop.
 
 signal hit_landed(target: HealthComponent, hit: HitInfo)
+## The active window opened (swing sounds, M9b).
+signal swing_started(attack: AttackData)
 
 ## The attacker: knockback pushes away from it, and it never hits itself.
 var source: Node3D
@@ -34,6 +39,8 @@ func set_active(on: bool) -> void:
 		return
 	_active = on
 	set_deferred(&"monitoring", on)   # overlaps already present report on the next physics step
+	if on and _attack:
+		swing_started.emit(_attack)
 
 
 func is_active() -> bool:
@@ -50,12 +57,58 @@ func _on_struck(node: Node3D) -> void:
 		return
 	_hit_this_swing[health] = true
 
-	var push := Vector3.ZERO
-	if source:
-		push = node.global_position - source.global_position
-		push.y = 0.0
-		push = push.normalized()
-	var hit := HitInfo.new(_attack.damage, source, push * _attack.knockback, _attack.stagger_time)
-	if health.take_damage(hit):
+	var hit := HitInfo.new(_attack.damage, source, _knockback_direction(node) * _attack.knockback, _attack.stagger_time)
+	hit.attack = _attack
+	hit.poise_damage = _attack.poise_damage
+	hit.damage_type = _attack.damage_type
+	hit.unblockable = _attack.unblockable
+	hit.can_be_parried = _attack.can_be_parried
+	hit.hit_position = _contact_point(node)
+
+	var hurtbox := node as Hurtbox
+	if hurtbox == null:
+		hurtbox = Hurtbox.find_for(node, health)
+	var landed: bool
+	if hurtbox:
+		landed = HitInfo.is_landed(hurtbox.receive_hit(hit))
+	else:
+		landed = health.take_damage(hit)
+	if landed:
 		HitStop.trigger(_attack.hitstop)
 		hit_landed.emit(health, hit)
+
+
+## Away from the attacker, or AttackData.knockback_direction_override turned into world space
+## by the attacker's facing. Horizontal, unit length (zero without a source).
+func _knockback_direction(target: Node3D) -> Vector3:
+	if source == null:
+		return Vector3.ZERO
+	var push := target.global_position - source.global_position
+	if _attack.knockback_direction_override != Vector3.ZERO:
+		push = _attacker_basis() * _attack.knockback_direction_override
+	push.y = 0.0
+	return push.normalized()
+
+
+## The attacker's facing as a basis. PlayerController never rotates its body (only its model
+## turns), so a source that reports get_facing() is trusted over its node rotation.
+func _attacker_basis() -> Basis:
+	if source.has_method(&"get_facing"):
+		var forward: Vector3 = source.call(&"get_facing")
+		forward.y = 0.0
+		if forward.length_squared() > 0.0001:
+			return Basis.looking_at(forward.normalized(), Vector3.UP)
+	return source.global_basis
+
+
+## Approximate contact point: midway between this hitbox's shape and the target's first shape
+## (or the target's origin when it has no shape child).
+func _contact_point(target: Node3D) -> Vector3:
+	return _shape_center(self).lerp(_shape_center(target), 0.5)
+
+
+static func _shape_center(node: Node3D) -> Vector3:
+	for child in node.get_children():
+		if child is CollisionShape3D:
+			return (child as CollisionShape3D).global_position
+	return node.global_position

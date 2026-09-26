@@ -5,8 +5,11 @@ extends CanvasLayer
 ## forces them on, and on a desktop the mouse then acts as a single finger.
 ##
 ##   Left side  : floating thumbstick (built-in VirtualJoystick, move)       Anywhere else : drag to look
-##   Bottom right: ATK (tap, keep tapping for the 3-hit combo) · JUMP · RUN (sprint toggle)
-##   Top right  : FULL (fullscreen) · QUAL (cycle quality) · RESET (back to the path start)
+##   Bottom right: ATK (light: tap, keep tapping for the combo) · HVY (heavy) · DODGE · JUMP ·
+##                 GUARD (hold; tap just before a hit to parry) · RUN (sprint toggle) ·
+##                 LOCK (lock-on toggle) · NEXT (next target)
+##   Top right  : FULL (fullscreen) · QUAL (cycle quality) · RESET (back to the last checkpoint) ·
+##                PAUSE (the pause menu)
 
 @export var player: PlayerController
 @export var dev_hud: DevHUD
@@ -66,6 +69,11 @@ func _build() -> void:
 	_add_button("Attack", &"attack", "ATK", Rect2(-260, -260, 200, 200), false, Color(1.0, 0.78, 0.6), 34)
 	_add_button("Jump", &"jump", "JUMP", Rect2(-430, -190, 130, 130), false)
 	_add_button("Run", &"sprint", "RUN", Rect2(-235, -410, 120, 120), true)
+	_add_button("Heavy", &"attack_heavy", "HVY", Rect2(-400, -360, 120, 120), false, Color(1.0, 0.7, 0.55), 24)
+	_add_button("Dodge", &"dodge", "DODGE", Rect2(-575, -170, 130, 130), false, Color(0.75, 0.9, 1.0), 22)
+	_add_button("Guard", &"guard", "GUARD", Rect2(-560, -330, 120, 120), false, Color(0.8, 0.85, 1.0), 20)
+	_add_button("Lock", &"lock_on", "LOCK", Rect2(-100, -400, 90, 90), false, Color(1.0, 0.85, 0.55), 18)
+	_add_button("Next", &"target_next", "NEXT", Rect2(-100, -510, 90, 90), false, Color(1.0, 0.85, 0.55), 18)
 
 	# Top-right utilities.
 	_add_button("Fullscreen", &"", "FULL", Rect2(-110, 20, 88, 88), false, Color(1, 1, 1), 18, true) \
@@ -74,6 +82,7 @@ func _build() -> void:
 			.activated.connect(_cycle_quality)
 	_add_button("Reset", &"", "RESET", Rect2(-310, 20, 88, 88), false, Color(1, 1, 1), 16, true) \
 			.activated.connect(player.respawn)
+	_add_button("Pause", &"pause", "PAUSE", Rect2(-410, 20, 88, 88), false, Color(1, 1, 1), 15, true)
 
 
 func _add_button(node_name: String, action: StringName, text: String, rect: Rect2, toggle: bool,

@@ -1,0 +1,73 @@
+[gd_resource type="Resource" script_class="ComboGraph" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/combo_node.gd" id="1_ajlof"]
+[ext_resource type="Resource" path="res://resources/combat/draw_attack.tres" id="2_2jn5p"]
+[ext_resource type="Resource" path="res://resources/combat/attack_2.tres" id="3_r3m13"]
+[ext_resource type="Resource" path="res://resources/combat/attack_3.tres" id="4_lxgfl"]
+[ext_resource type="Resource" path="res://resources/combat/heavy_finisher.tres" id="5_oysqh"]
+[ext_resource type="Resource" path="res://resources/combat/heavy_2.tres" id="6_a746j"]
+[ext_resource type="Resource" path="res://resources/combat/attack_1.tres" id="7_r4kge"]
+[ext_resource type="Resource" path="res://resources/combat/heavy_1.tres" id="8_tilmr"]
+[ext_resource type="Script" path="res://scripts/combat/combo_graph.gd" id="9_xo3x3"]
+
+[sub_resource type="Resource" id="Resource_1cje5"]
+script = ExtResource("1_ajlof")
+attack = ExtResource("4_lxgfl")
+
+[sub_resource type="Resource" id="Resource_x80l5"]
+script = ExtResource("1_ajlof")
+attack = ExtResource("5_oysqh")
+
+[sub_resource type="Resource" id="Resource_6qylx"]
+script = ExtResource("1_ajlof")
+attack = ExtResource("3_r3m13")
+next = Dictionary[StringName, Resource]({
+&"attack_heavy": SubResource("Resource_x80l5"),
+&"attack_light": SubResource("Resource_1cje5")
+})
+
+[sub_resource type="Resource" id="Resource_gvjdq"]
+script = ExtResource("1_ajlof")
+attack = ExtResource("6_a746j")
+
+[sub_resource type="Resource" id="Resource_b5af2"]
+script = ExtResource("1_ajlof")
+attack = ExtResource("2_2jn5p")
+next = Dictionary[StringName, Resource]({
+&"attack_heavy": SubResource("Resource_gvjdq"),
+&"attack_light": SubResource("Resource_6qylx")
+})
+
+[sub_resource type="Resource" id="Resource_s43aw"]
+script = ExtResource("1_ajlof")
+next = Dictionary[StringName, Resource]({
+&"attack_heavy": SubResource("Resource_b5af2"),
+&"attack_light": SubResource("Resource_b5af2")
+})
+
+[sub_resource type="Resource" id="Resource_fm3f4"]
+script = ExtResource("1_ajlof")
+attack = ExtResource("7_r4kge")
+next = Dictionary[StringName, Resource]({
+&"attack_heavy": SubResource("Resource_gvjdq"),
+&"attack_light": SubResource("Resource_6qylx")
+})
+
+[sub_resource type="Resource" id="Resource_0twxc"]
+script = ExtResource("1_ajlof")
+attack = ExtResource("8_tilmr")
+next = Dictionary[StringName, Resource]({
+&"attack_light": SubResource("Resource_6qylx")
+})
+
+[sub_resource type="Resource" id="Resource_lwp2c"]
+script = ExtResource("1_ajlof")
+next = Dictionary[StringName, Resource]({
+&"attack_heavy": SubResource("Resource_0twxc"),
+&"attack_light": SubResource("Resource_fm3f4")
+})
+
+[resource]
+script = ExtResource("9_xo3x3")
+root = SubResource("Resource_lwp2c")
+draw_root = SubResource("Resource_s43aw")

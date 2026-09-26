@@ -1,0 +1,16 @@
+{
+	// Reusable game-dev container (VS Code Dev Containers, GitHub Codespaces, or `devcontainer up`):
+	// Godot 4.7.1, Blender 4.5 LTS, Xvfb and Mesa, ffmpeg. Same setup as the cloud agents use.
+	"name": "godot-gamedev",
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {}
+	},
+	// The Godot and Blender Linux builds are x86_64; on Apple Silicon this runs under emulation.
+	"runArgs": ["--platform=linux/amd64"],
+	"postCreateCommand": "bash tools/setup/gamedev_env.sh",
+	"containerEnv": {
+		"GODOT_VERSION": "4.7.1",
+		"BLENDER_VERSION": "4.5.14"
+	}
+}

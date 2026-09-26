@@ -14,16 +14,25 @@ browser, with on-screen touch controls for tablets and phones.
    `godot --path .`
 2. The world is procedural and builds in about 1.3 s on launch (it also previews in the editor).
    The wolves' navmesh bakes on a worker thread in ~0.3 s.
+3. The title screen waits over the paused world: **Begin** (Enter or gamepad A) starts the run.
+   `--skip-menu` skips it.
 
 | Action | Keyboard + mouse | Touch (tablet / phone) |
 |---|---|---|
-| Move (camera-relative) | WASD / arrows | Thumbstick: touch anywhere on the left side |
-| Look | Mouse | Drag anywhere else |
-| **Attack (3-hit combo)** | **LMB / J** (keep pressing) | **ATK** (keep tapping) |
+| Move (camera-relative) | WASD / arrows · left stick | Thumbstick: touch anywhere on the left side |
+| Look | Mouse · right stick | Drag anywhere else |
+| **Lock on / release** | **MMB / Q** · right-stick click | **LOCK** |
+| Switch target (left / right on screen) | Mouse wheel (E = next) · flick the right stick | **NEXT** |
+| **Light attack (combo)** | **LMB / J** (keep pressing) | **ATK** (keep tapping) |
+| **Heavy attack** (branches the combo) | **RMB / K** | **HVY** |
+| **Dodge** (i-frames; backstep with no input) | **L / C** | **DODGE** |
+| **Guard** (hold) · **parry** (press just before a hit lands) | **F / I** · LB | **GUARD** |
+| **Execute** (an enemy with a broken posture, in front) | Light attack | **ATK** |
 | Jump | Space | JUMP |
 | Sprint | Shift (hold) | RUN (tap to toggle) |
 | Quality LOW/MEDIUM/HIGH | F2 | QUAL |
-| Back to the path start | — | RESET |
+| **Pause** (Resume · Return to shrine · Screen shake on/off · Quit to title) | **Esc / P** · Start | **PAUSE** |
+| Back to the last checkpoint | — | RESET |
 | Fullscreen | — | FULL |
 | Screenshot | F12 | — |
 
@@ -52,8 +61,9 @@ Docs-only pushes are skipped. To redeploy by hand, use **Actions ▸ Test & depl
 ## Tests (the deploy gate)
 
 ```
-godot --headless --path . --script res://tests/run_tests.gd                    # all tests, ~45 s
+godot --headless --path . --script res://tests/run_tests.gd                    # all tests, ~95 s
 godot --headless --path . --script res://tests/run_tests.gd -- --filter=wolves # file or test name substring
+bash tools/ci/validate.sh [--filter=hit]   # same, but downloads Godot 4.7.1 first if needed and re-imports
 ```
 
 | File | Covers |
@@ -61,20 +71,32 @@ godot --headless --path . --script res://tests/run_tests.gd -- --filter=wolves #
 | `tests/test_data.gd` | Attack timing windows are sane; generated clips match `AttackData` durations (a stale rig build fails); every AnimationTree state exists |
 | `tests/test_combat.gd` | Buffered 3-hit combo kills a wolf (hits, hit-stop, death, collision off, freed); draw then sheathe after 3 s; uncaptured clicks don't attack but key and touch actions do |
 | `tests/test_wolves.gd` | Wander and chase on the navmesh; a bite damages and flinches the player; striking during the wind-up cancels the bite; player death, wolves disengaging, respawn |
+| `tests/test_game_loop.gd` | The title holds the paused world until Begin; the pause action toggles the pause menu and Return to shrine respawns there; a shrine stands on the ground, heals and becomes the checkpoint; death slows time, fades to black, respawns at the shrine and fades back; lighting blends to dusk, then night, and never back, without touching the shared Environment; clearing the courtyard unlocks the sanctum; the boss's death shows the victory stats |
+| `tests/test_feedback.gd` | The voice pool steals the oldest voice, every bank event loads and every surface has footsteps; a surface without its own steps falls back to stone; footsteps classify gravel, grass, metadata and stone, and walking plays them; trauma clamps, squares and decays in real time through a hit-stop, and the option turns it off; hits make sound, sparks and shake, being hit shakes harder, swings whoosh and sparks clean up; music and reverb follow the beats, and a cue change fades the new cue in while the old one fades out; the lock-on gauge shows the target in view and hides behind the camera |
 | `tests/test_touch.gd` | Touch buttons press and release actions (multi-touch safe), RUN latches, the look pad turns the camera (one finger), RESET respawns |
+| `tests/test_project.gd` | Every script compiles and every scene loads. It's the parse gate, because `godot --import` exits 0 even with broken scripts |
+| `tests/test_smoke.gd` | Player and wolf scenes spawn at full health; a Hitbox hits each target once per activation; i-frames; `HealthComponent.resolve()` |
+| `tests/test_time_scale.gd` | `TimeScale` requests (slowest wins); hit-stop ending mid slow-motion keeps the slow-motion; hit-stop re-arms after a reset; overlapping stops extend |
+| `tests/test_hit_pipeline.gd` | `grant_invulnerability()`; Hurtbox defenders (order, claiming, pass-through); posture damage; a Hitbox touching the body still goes through the Hurtbox's defenders |
+| `tests/test_combat_integration.gd` | On a bare stage: the attack input lands the animated katana on a wolf; a wolf's bite lands on the player |
 
 A test fails on a failed check, a 60 s timeout, or **any engine or script error logged while it
-runs** (caught with a `Logger`). A test file that fails to load, or a run with zero tests, also
+runs**, including its setup and teardown (caught with a `Logger`). A test that logs an error and
+then stops making progress fails after 0.5 s instead of waiting out the timeout. A test file that fails to load, or a run with zero tests, also
 fails. Failures show as annotations on the GitHub Actions run.
 
 To add a test, create `tests/test_<topic>.gd` that `extends "res://tests/test_case.gd"` and add
 `test_*` methods. Start with `await load_world()` for a fresh, seeded copy of the main scene, then
 use `check()`, `check_eq()`, `wait_until()` and helpers like `place_player_near()` and `press_attack()`.
+For a component test that doesn't need the world, build nodes with `add_to_stage()` (a bare Node3D
+in the running tree, freed after the test) and `tests/lib/combat_fixtures.gd`.
+Pull requests into `vertical-slice-prototype` run the same suite (`.github/workflows/validate.yml`), and
+`.claude/hooks/session-start.sh` installs Godot in Claude Code web sessions.
 Headless mode doesn't dispatch input to the GUI, so feed UI events straight into `_gui_input()`
 (see `test_touch.gd`).
 
 URL options: `?touch` forces the touch UI, and `?quality=low|medium|high` picks a preset (web defaults to LOW).
-The overlay shows FPS, the quality preset and the samurai's combat state (IDLE, ATTACK_2, HURT…),
+The overlay shows FPS, the quality preset and the samurai's combat state (IDLE, ATTACK attack_2, DODGE, HURT…),
 which helps confirm that taps register while playtesting.
 
 What changes in the browser (handled automatically):
@@ -115,7 +137,7 @@ On this chip SDFGI has a fixed cost of about 18 ms. The presets are a data table
 ## Architecture
 
 ```
-Main (main.gd: drops player at path start, facing the sunset)
+Main (main.gd: stands the shrines on the ground, drops the player at the path start, facing the sunset)
 ├─ WorldEnvironment    resources/environment/golden_hour_environment.tres
 ├─ Sun                 DirectionalLight3D, low and warm; PCSS soft shadows; drives the PhysicalSky
 ├─ ValleyMist          FogVolume, height-falloff mist hugging the valley floor
@@ -124,23 +146,43 @@ Main (main.gd: drops player at path start, facing the sunset)
 ├─ GrassField          GrassField        ─┘  grass scatter · landmark placement
 ├─ NavigationRegion3D  navigation_baker.gd: bakes terrain + landmarks (group "navigation_source")
 ├─ Wolves              4 × wolf.tscn
+├─ Courtyard           courtyard.tscn at the path's end: greybox arena, Entry/East gates, Encounter (3 waves)
+├─ Sanctum             sanctum.tscn east of it: causeway, sanctum gate, Encounter (the Gatekeeper), torches, moon shaft
+├─ Shrines             2 × checkpoint_shrine.tscn: PathShrine before the courtyard, SanctumShrine on the causeway
 ├─ Player              player.tscn (see below)
-└─ DevHUD              FPS, quality presets, screenshots, CLI capture
+├─ DevHUD              FPS, quality presets, screenshots, CLI capture
+├─ PlayerHUD           health and posture bars, boss bar, execution prompt
+├─ TouchControls       on-screen controls (touchscreens, --touch)
+├─ GameManager         game loop: states, checkpoints, death slow motion, per-beat lighting, sanctum lock, stats
+├─ GameMenus           title, pause and victory screens; checkpoint toast; fades; clean quit
+├─ SfxPool             8 positional voices (SFX bus) + a UI voice; plays resources/audio/sound_bank.tres events
+├─ MusicDirector       music cue per game state (cross-fades), wind ambience, sanctum reverb
+└─ FeedbackDirector    watches hurtboxes, swings, glints, shrines, gates → sounds, sparks, screen shake
 
 Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hooks)
-├─ Visual/SamuraiModel  generated rig: Skeleton3D + skinned mesh + HandSocket/BackSocket (BoneAttachment3D)
+├─ Visual/SamuraiModel  generated rig: Skeleton3D + skinned mesh + HandSocket/SheathSocket (BoneAttachment3D)
 ├─ Katana               katana.tscn: blade, Area3D Hitbox, Trail (GPUParticles3D), MeshTrail
-├─ AnimationTree        StateMachine root: idle, run, attack_1..3 (physics-process callback)
+├─ PostureComponent     posture meter: filled by poise damage and blocks, breaks when full, recovers after a delay
+├─ GuardComponent       Hurtbox defender: blocks frontal hits into posture; breaks when posture fills
+├─ ParrySystem          Hurtbox defender (runs first): 0.15 s window per guard press, reflects 3x poise
+├─ DamageReaction       picks the stagger (directional flinch, heavy, knockdown, guard break) and knockback
+├─ AnimationTree        StateMachine root: idle, run, every strike, dodge_f/b/l/r, guard/parry, hurt_f/b/l/r, hurt_heavy, knockdown, guard_break, death
 ├─ WeaponHolster        tweens the katana between the hand and back sockets
-├─ Combat               CombatStateMachine: IDLE/RUN/ATTACK_1..3, input buffer, active frames, sheathing
-└─ CameraRig/SpringArm3D/Camera3D
+├─ Combat               CombatStateMachine: IDLE/RUN/ATTACK/DODGE/GUARD/HURT/DEAD, active frames, sheathing
+│  ├─ ComboManager      FIFO input buffer + combo graph (resources/combat/sword_combo.tres)
+│  └─ MotionWarping     steers each lunge at the lock-on target or a nearby enemy
+├─ TargetingSystem      lock-on: acquire, cycle, retarget, release; reticle over the target (pulses on hits)
+├─ SurfaceFoley         footsteps by distance travelled: gravel on the path, grass off it, "surface" metadata (wood…), else stone
+└─ CameraRig            CombatCamera: free look, lock-on framing → SpringArm3D/Camera3D (+ CameraTrauma)
 ```
 
 ### World
 
 | System | File | Key ideas |
 |---|---|---|
-| Player | `scripts/player/player_controller.gd` | Exponential look/follow smoothing; rig follows the *physics-interpolated* body; separate accel/decel and air control; `floor_snap_length` ground snapping; `begin_attack()` locks steering and lunges |
+| Player | `scripts/player/player_controller.gd` | Separate accel/decel and air control; `floor_snap_length` ground snapping; `begin_attack()`/`begin_dodge()` lock steering and lunge (eased out); faces the lock-on target and strafes while locked. Keyboard, mouse and gamepad bindings are registered at runtime |
+| Camera | `scripts/camera/combat_camera.gd` | Exponential look/follow smoothing; the rig follows the *physics-interpolated* body. Locked on, it turns to look past the player at the target, shifts its anchor 30% toward it, pitches down and lengthens the arm (4.2 → 6 m) as they spread apart; releasing keeps the view |
+| Lock-on | `scripts/combat/targeting_system.gd` | Picks the enemy nearest the view centre within 18 m and a 70° cone, in line of sight. Wheel or a right-stick flick switches by screen position. Retargets when the target dies, releases past 24 m or after 1.5 s out of sight |
 | Terrain | `scripts/world/heightmap_terrain.gd` | FBM meadow + ridged mountains; path cross-section levelled; path mask in vertex colour; triangle-exact `height_at()` |
 | Grass | `scripts/world/grass_field.gd` + `shaders/grass.gdshader` | 100 MultiMesh chunks; scrolling simplex wind gusts; radial player push; distance shrink-fade |
 | Path + landmarks | `scripts/world/scenic_path.gd` | Torii every 36 m, lanterns every 11 m on alternating sides, all on the terrain surface |
@@ -149,14 +191,30 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 
 | System | File | Key ideas |
 |---|---|---|
-| Combat FSM | `scripts/combat/combat_state_machine.gd` | Owns the logic; drives the AnimationTree with `playback.travel()`. An attack press is buffered for **0.35 s**. It chains at `max(combo_window_open, active_end)`, so presses during the wind-up aren't lost and swings are never cut short |
-| Attack data | `resources/combat/attack_*.tres` (`AttackData`) | Per strike: damage, active window, combo window, lunge, hit-stop, stagger, knockback. Designer-tunable |
+| Combat FSM | `scripts/combat/combat_state_machine.gd` | Owns the logic; drives the AnimationTree with `playback.travel()`. A strike chains at `max(combo_window_open, active_end)`, so presses during the wind-up aren't lost and swings are never cut short. `cancel_open`/`cancel_into` allow earlier cancels (a dodge out of a heavy wind-up), and a dodge can always cancel a strike's recovery. **Dodge**: 3.2 m eased dash, invulnerable 0.08–0.3 s; with no input it backsteps |
+| Combos | `scripts/combat/combo_manager.gd`, `resources/combat/sword_combo.tres` | Light, heavy and dodge presses are buffered **0.35 s** (FIFO). The graph: L→L→L, L→H (thrust), L→L→H (finisher), H→L; from sheathed, the first press is a quick-draw strike. The chain survives **1.1 s** after a strike ends |
+| Motion warping | `scripts/combat/motion_warping.gd` | Each lunge points at the lock-on target, or the nearest enemy within 60° and reach, and stretches to stop 1.2 m short of it (at most 3.5 m). It's velocity through `move_and_slide()`, eased out, so it never passes through walls |
+| Attack data | `resources/combat/*.tres` (`AttackData`) | Per strike: damage, poise damage, damage type, active window, combo and cancel windows, lunge, hit-stop, stagger, knockback (and an optional direction), trauma, unblockable/parryable. Designer-tunable |
 | Katana | `scripts/combat/katana.gd`, `scenes/weapons/katana.tscn` | `Area3D` hitbox on the weapon-bone socket. `area_entered` (hurtboxes) and `body_entered` (bodies) resolve a `HealthComponent`. One hit per target per swing; a landed hit triggers `HitStop` |
-| Health | `scripts/combat/health_component.gd`, `hurtbox.gd`, `hit_info.gd` | Reusable node with `damaged` / `died` / `health_changed` signals. `HealthComponent.resolve()` accepts a Hurtbox, a HealthComponent, or a body with one as a child |
-| Hit-stop | `scripts/combat/hit_stop.gd` | Static utility (not an autoload): `Engine.time_scale` 0.03 for the strike's duration. Overlapping requests extend; the timer ignores time scale |
-| Sheathing | `scripts/combat/weapon_holster.gd` | After **3.0 s** without attacking, the katana reparents (keeping its world pose) and tweens position plus quaternion (slerp) from the `weapon_r` hand bone to the `scabbard` back bone. Drawing takes 0.12 s, before the first active frame |
+| Posture | `scripts/combat/defense/posture_component.gd` | Filled by the poise damage of hits that land and of blocks. Recovery starts 1.2 s after the last posture damage, slows as health drops, and doubles while guarding and standing still. Full posture **breaks**: ignored damage for `break_duration`, then back to 0. The HUD shows it under the health bar |
+| Guard and parry | `scripts/combat/defense/guard_component.gd`, `parry_system.gd` | Hurtbox defenders. **Guard** (hold) blocks hits from the front 150°: no health damage (optional non-lethal chip), poise damage to posture; a block that fills posture is a **guard break** (2.5 s stagger). Unblockable hits pass. **Parry** runs first: each press opens a 0.15 s real-time window; a parryable hit inside it deals the attacker 3x its poise damage to posture and staggers them. Presses within 0.4 s after a window closes open nothing (spam lockout); a successful parry lifts it |
+| Combat director | `scripts/ai/combat_director.gd` | One per encounter. At most 2 attack tokens (leases: released on attack end, stagger and death, expiring after 4 s), 0.8 s between releases and the next issue. Everyone else circles on a 5 m ring of evenly spaced slots whose gap sits behind the player, so enemies stay on screen; slots are sticky (1.5 m hysteresis) |
+| Humanoid enemies | `scripts/ai/enemy_combat_controller.gd`, `scenes/mobs/enemy_grunt.tscn`, `enemy_brute.tscn` | With a token: approach to 2 m and strike; without: flank. Every strike glints 0.4 s before its active frames: **gold** (blockable and parryable) or **red** (unblockable: dodge it). Grunts are quick with low posture; Brutes are slow and heavy (slam, sweep, red thrust). A broken posture can be **executed** with a light attack |
+| Encounters | `scripts/game/encounter.gd`, `scenes/levels/courtyard.tscn`, `sanctum.tscn` | Walking into an arena closes the gate behind you and spawns its waves, each once the last one is dead. The **courtyard ambush**: 3 Grunts; 3 Grunts and a Brute; 2 Brutes and 2 Grunts. Clearing it opens the east gate to the **sanctum**, where the gate seals you in with the Gatekeeper. Dying mid-fight resets the encounter. Arenas are greybox (`GreyboxArena`, `LevelGate`) on terrain flattened by `HeightmapTerrain.flatten_zones` until the M2 art kit lands |
+| Game loop | `scripts/game/game_manager.gd`, `scripts/ui/game_menus.gd` | States: START_MENU (title over the paused world) → EXPLORATION → COURTYARD_AMBUSH → EXPLORATION → SANCTUM_GATEKEEPER → VICTORY_SCREEN (time, parries, deaths). The light only moves forward (D9): golden hour on the path, **dusk** once the courtyard fight starts, **night** once the sanctum fight starts, each blended over 4 s (`resources/lighting/*.tres`, `BeatLighting`). The sanctum gate stays locked until the courtyard is clear. Dying slows the world to 30 % for 1.2 s, the fight resets, and you respawn at the last shrine |
+| Checkpoints | `scripts/game/checkpoint_shrine.gd`, `scenes/landmarks/checkpoint_shrine.tscn` | Walking up to a shrine lights it (first visit), heals you to full and resets posture, and every visit makes its RespawnPoint where you come back after dying (going back to an earlier shrine moves the checkpoint back). One stands before the courtyard, one on the sanctum causeway. The stone lantern stands in for the M2 shrine model |
+| Gatekeeper | `scripts/ai/gatekeeper.gd`, `scenes/mobs/enemy_gatekeeper.tscn` | Two-phase Brute with a health and posture bar at the top of the HUD. At 50 % health it roars (invulnerable), recovers 20 % faster, regenerates posture twice as fast and adds a red unblockable combo. Its execution deals 40 % of its health |
+| Combat feedback | `scripts/game/feedback_director.gd`, `scripts/vfx/hit_vfx.gd` | Every hit, block, parry, guard break and posture break plays its sound and throws sparks (warm for hits, pale for blocks, blue-white with a flash for parries, an orange burst for breaks); every swing whooshes (heavy from 30 poise damage); glints chime gold or red; shrines ignite; gates grind. Screen shake follows hits the player deals (AttackData `trauma`) or takes, parries, breaks, executions, the Gatekeeper's roar and death. Hits on the locked target pulse the reticle |
+| Camera shake | `scripts/camera/camera_trauma.gd` | Trauma (0–1) decays at 1.5/s of real time; the shake is trauma², up to 0.35 m of offset and 4° of pitch, yaw and roll from noise. Written to the Camera3D only, so the spring arm's collision is untouched. The pause menu turns it off |
+| Audio | `scripts/audio/`, `resources/audio/sound_bank.tres`, `default_bus_layout.tres` | Buses Master → SFX (with the sanctum reverb), Music, Ambience, UI. Events map to AudioStreamRandomizers (variants, pitch spread). Music: wind ambience throughout, drums in the courtyard, a faster boss loop, a victory sting; the valley itself has no music yet. **All audio is placeholder** synthesised by `tools/audio/make_placeholder_audio.py`; swap in sourced files by re-pointing the bank and MusicDirector |
+| Lock-on gauge | `scripts/ui/player_hud.gd` | A small health bar and posture line float over the locked target, except the boss (it has the boss bar) or a target behind the camera |
+| Hit reactions | `scripts/combat/defense/damage_reaction_component.gd` | Shared by the player and the wolves. Poise below 30 → a light flinch by direction (front/back/left/right); from 30 → heavy; from 60, or a posture break → animated knockdown (D8). Sets knockback; the owner plays the clip and locks controls or AI until `stagger_ended` |
+| Health | `scripts/combat/health_component.gd`, `hurtbox.gd`, `hit_info.gd` | Reusable node with `damaged` / `died` / `health_changed` signals and `grant_invulnerability()` for i-frames. `Hurtbox.receive_hit()` runs registered defenders (guard, parry) before health and posture, and returns a `HitInfo.Result` (HIT, BLOCKED, PARRIED…). `HealthComponent.resolve()` accepts a Hurtbox, a HealthComponent, or a body with one as a child |
+| Time scale | `scripts/core/time_scale.gd` | The only writer of `Engine.time_scale`: named requests, and the slowest one wins, so a hit-stop ending mid slow-motion can't snap time back to 1.0 |
+| Hit-stop | `scripts/combat/hit_stop.gd` | Static utility (not an autoload): a `TimeScale` request at 0.03 for the strike's duration. Overlapping requests extend; the timer ignores time scale |
+| Sheathing | `scripts/combat/weapon_holster.gd` | After **3.0 s** without attacking or guarding, the katana reparents (keeping its world pose) and tweens position plus quaternion (slerp) from the `weapon_r` hand bone to the `scabbard` bone on the left hip. Drawing takes 0.12 s, before the first active frame. `snap_weapon_to_hand()` / `snap_weapon_to_sheath()` are there for animation method tracks |
 | Sword trail | `katana.gd` → `TrailRenderer` | **GPU_PARTICLES**: one particle glued to the blade by `shaders/sword_trail_particles.gdshader`, with a `RibbonTrailMesh` skinned along its path. **MESH**: `sword_trail_mesh.gd` stitches blade base and tip samples. AUTO picks MESH on Intel iGPUs (see below) |
-| Hitbox | `scripts/combat/hitbox.gd` | Shared by the katana and the wolf's jaws: arm it with an `AttackData`, open or close the active window, and it hits each target once per activation |
+| Hitbox | `scripts/combat/hitbox.gd` | Shared by the katana and the wolf's jaws: arm it with an `AttackData`, open or close the active window, and it hits each target once per activation. Hits go through the target's `Hurtbox` even when the body is touched first, so defenders can't be bypassed |
 | Wolf AI | `scripts/mobs/wolf.gd`, `scenes/mobs/wolf.tscn` | **WANDER**: a random navmesh point within 15 m of home every 4 s. **CHASE**: the 10 m detection `Area3D`, repath every 0.25 s, arrival braking (v = √(2·a·d)). **BITE**: telegraphed 0.34 s wind-up that tracks you, then a lunge with an active jaw window (`wolf_bite.tres`, 12 dmg) and a 1.4–2.2 s cooldown; striking the wolf during the wind-up cancels it. **STAGGER**: knockback, flinch, white flash. **DEAD**: death animation, collision disabled (deferred), sink, `queue_free` |
 | Player health | `player.tscn` HealthComponent + Hurtbox, `scripts/ui/player_hud.gd` | 100 HP, 0.8 s i-frames. The FSM adds **HURT** (flinch plus knockback) and **DEAD** (kneel, respawn after 2.5 s). The HUD has a draining health bar, a hurt flash and a defeat banner |
 | Touch controls | `scripts/ui/touch/` | Godot 4.7's built-in `VirtualJoystick` (dynamic), `TouchActionButton` (fires `InputEventAction`s, so the combo buffer works unchanged), `TouchLookPad` (multi-touch camera drag) |
@@ -171,10 +229,12 @@ The katana hitbox masks 3 and 5; the wolf's bite hitbox masks 7.
 godot --headless --path . --script res://tools/build_placeholder_rigs.gd
 ```
 
-Re-run after changing bones, poses or `attack_*.tres` timings. To swap in real characters
-(Mixamo, Blender), keep the animation names (`idle`, `run`, `attack_1..3`; wolf: `idle`,
-`walk`, `run`, `hurt`, `death`) and the socket bones (`weapon_r`, `scabbard`). Or point the
-sockets and state machine at the new names, then set the AttackData timings to match the clips.
+Re-run after changing bones, poses or any strike's AttackData timings (`tests/test_data.gd` fails
+on a stale build). To swap in real characters (Mixamo, Blender), keep the clip names listed in
+`docs/vertical-slice/HANDOFF_MANIFEST.md` (every strike's `AttackData.animation`, `dodge_f/b/l/r`,
+`idle`, `run`, the guard, parry and hurt clips, `death`; wolf: `idle`, `walk`, `run`, `bite`, `hurt`, `death`) and the socket
+bones (`weapon_r`, `scabbard`). Or point the sockets and state machine at the new names, then set
+the AttackData timings to match the clips.
 
 ## Differences from the original spec
 
@@ -192,11 +252,21 @@ sockets and state machine at the new names, then set the AttackData timings to m
 
 | Want to change… | Where |
 |---|---|
-| Combo feel (damage, timing, lunge, hit-stop) | `resources/combat/attack_1..3.tres` |
-| Input buffer / sheathe delay | Player ▸ Combat → `input_buffer_seconds`, `sheathe_delay` |
+| Strike feel (damage, timing, lunge, hit-stop, cancels) | `resources/combat/attack_*.tres`, `heavy_*.tres`, `draw_attack.tres` |
+| Combo branches | `resources/combat/sword_combo.tres` (ComboGraph: edit the nodes' `next` in the inspector) |
+| Input buffer / chain reset | Player ▸ Combat ▸ ComboManager → `buffer_window`, `combo_reset_time` |
+| Dodge / sheathe delay | Player ▸ Combat → `dodge_distance`, `dodge_iframes`, `sheathe_delay` |
+| Lunge steering | Player ▸ Combat ▸ MotionWarping → `max_warp_distance`, `max_warp_angle`, `stop_distance` |
 | Wolf behaviour | `wolf.tscn` → `wander_radius`, `wander_interval`, `run_speed`, `chase_stop_distance`, `bite_cooldown`; `resources/combat/wolf_bite.tres`; HealthComponent `max_health`; DetectionArea sphere radius |
 | Player toughness | `player.tscn` ▸ HealthComponent `max_health`, `invulnerability_time`; Combat `respawn_delay` |
+| Guard, parry and posture | Player ▸ ParrySystem → `parry_window`, `spam_lockout`, `posture_reflect_multiplier`; GuardComponent → `guard_arc_degrees`, `chip_damage`, `guard_break_stagger`; PostureComponent → `max_posture`, `recovery_rate`, `recovery_delay`, `break_duration`; Combat → `guard_move_scale` |
+| Waves and arenas | `resources/encounters/*.tres` (which enemies per wave); Courtyard/Sanctum ▸ Encounter → `wave_delay`, `max_attack_tokens`; ▸ Greybox → `size`, `openings`, `cover`; Terrain → `flatten_zones` |
+| Enemy pressure | Encounter ▸ Director → `max_attack_tokens`, `token_cooldown`, `ring_radius`; enemy scene → `attack_cooldown`, `telegraph_lead`, `approach_distance`, `aggro_radius`; strikes in `resources/combat/enemies/` |
+| Stagger tiers | DamageReaction (player and `wolf.tscn`) → `poise_threshold`, `knockdown_threshold`, `flinch_time`, `heavy_time`, `knockdown_time`, `parried_time`, `blocked_push` |
+| Game loop | GameManager → `beat_blend_time`, `death_slow_motion_scale`, `death_slow_motion_time`, `victory_delay`; beat looks in `resources/lighting/beat_*.tres`; shrines → `lit_energy`, RestZone radius, RespawnPoint |
+| Sound and shake | `resources/audio/sound_bank.tres` (event → sounds); MusicDirector → cues, `crossfade_time`, `music_db`, `ambience_db`; SfxPool → `voices`, `unit_size`, `max_distance`; FeedbackDirector → `heavy_poise`; CameraTrauma → `decay`, `max_offset`, `max_angle_degrees` and the preset constants; strikes → AttackData `trauma`; SurfaceFoley → strides; the SFX bus's Reverb effect in `default_bus_layout.tres` |
 | Touch layout / feel | `scripts/ui/touch/touch_controls.gd` (button rects, joystick size); TouchLookPad `sensitivity` |
+| Lock-on range, cone, camera framing | Player ▸ TargetingSystem → `radius`, `cone_degrees`, `break_distance`; Player ▸ CameraRig → `lock_*` |
 | Wind / grass | `grass_material.tres` → `wind_*`, `push_*`; GrassField density |
 | Sun / haze | Sun rotation X; Environment volumetric fog; ValleyMist density |
 | Path route | Edit the ScenicPath curve, then **Terrain ▸ Regenerate** (landmarks and grass follow) |
@@ -206,5 +276,6 @@ sockets and state machine at the new names, then set the AttackData timings to m
 ```
 godot --path . -- --quality=low                 # force a preset
 godot --path . -- --spawn-offset=62             # start 62 m along the path
+godot --path . -- --skip-menu                   # straight into play, no title screen
 godot --path . -- --capture=C:/tmp/shot.png     # render ~6 s, save one frame, quit
 ```

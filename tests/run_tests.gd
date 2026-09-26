@@ -5,11 +5,16 @@ extends SceneTree
 ##
 ## Runs every `test_*` method in res://tests/test_*.gd, each on a fresh instance (and usually
 ## a fresh world). A test fails on a failed check, a timeout, or any engine or script error
-## logged while it runs (captured with a Logger). Failures are also printed as GitHub Actions
-## annotations. Exits 0 when everything passes, 1 otherwise.
+## logged while it runs, including its setup and teardown (captured with a Logger). A test
+## that logs an error and then doesn't finish within ERROR_GRACE seconds was aborted by that
+## error, so it fails at once instead of waiting out the timeout. Failures are also printed
+## as GitHub Actions annotations. Exits 0 when everything passes, 1 otherwise.
+## `godot --import` exits 0 even with scripts that don't parse; test_project.gd is the parse gate.
 
 const TESTS_DIR := "res://tests/"
 const TEST_TIMEOUT := 60.0
+## After an error is logged, how long an unfinished test gets before it counts as aborted.
+const ERROR_GRACE := 0.5
 
 
 class ErrorCatcher extends Logger:
@@ -24,6 +29,12 @@ class ErrorCatcher extends Logger:
 		_mutex.lock()
 		errors.append("%s (%s:%d in %s)" % [text, file.get_file(), line, function])
 		_mutex.unlock()
+
+	func has_errors() -> bool:
+		_mutex.lock()
+		var any := not errors.is_empty()
+		_mutex.unlock()
+		return any
 
 	func take() -> Array[String]:
 		_mutex.lock()
@@ -78,29 +89,41 @@ func _run() -> void:
 				print("Aborting: a timed-out test may still be running.")
 				_finish(passed, failed, started)
 				return
+	# Streams stopped when the last world was freed are released on the audio thread; give it a
+	# moment so they aren't reported as leaks at exit.
+	await create_timer(0.3).timeout
 	_finish(passed, failed, started)
 
 
 func _run_test(script: GDScript, test_name: String) -> Dictionary:
+	_catcher.take()                         # drop anything logged between tests
 	var case: RefCounted = script.new()
 	case.tree = self
-	_catcher.take()                         # drop anything logged between tests
 	var state := {"done": false}
 	var start := Time.get_ticks_msec()
 	var body := func() -> void:
 		await Callable(case, test_name).call()
 		state.done = true
 	body.call()
+	var error_seen := -1
 	while not state.done and Time.get_ticks_msec() - start < TEST_TIMEOUT * 1000.0:
+		if error_seen < 0 and _catcher.has_errors():
+			error_seen = Time.get_ticks_msec()
+		if error_seen >= 0 and Time.get_ticks_msec() - error_seen > ERROR_GRACE * 1000.0:
+			break                               # the error aborted the test's coroutine
 		await process_frame
 	var failures: PackedStringArray = case.failures.duplicate()
 	if not state.done:
-		failures.append("timed out after %d s" % TEST_TIMEOUT)
-	for error in _catcher.take():
-		failures.append("engine/script error: " + error)
-	if state.done:
+		if error_seen >= 0:
+			failures.append("aborted by an error")
+		else:
+			failures.append("timed out after %d s" % TEST_TIMEOUT)
+	if state.done or error_seen >= 0:
 		await case.free_world()
-	return {"failures": failures, "seconds": (Time.get_ticks_msec() - start) / 1000.0, "timed_out": not state.done}
+	for error in _catcher.take():           # errors from the test, its setup and its teardown
+		failures.append("engine/script error: " + error)
+	return {"failures": failures, "seconds": (Time.get_ticks_msec() - start) / 1000.0,
+			"timed_out": not state.done and error_seen < 0}
 
 
 func _test_files() -> PackedStringArray:

@@ -1,15 +1,18 @@
 class_name WeaponHolster
 extends Node
-## Moves the katana between two BoneAttachment3D sockets: the hand bone (drawn) and the
-## back-scabbard bone (sheathed). It reparents while keeping the world transform, then tweens
-## the local position and rotation to the new socket, so the blade travels instead of teleporting.
+## Moves the weapon between two BoneAttachment3D sockets: the hand bone (drawn) and the
+## scabbard bone on the left hip (sheathed). It reparents while keeping the world transform, then
+## tweens the local position and rotation to the new socket, so the blade travels instead of
+## teleporting. (The runbook calls this WeaponManager.)
+## Imported clips with draw and sheathe animations can call snap_weapon_to_hand() and
+## snap_weapon_to_sheath() from method tracks to move it on the exact frame instead.
 
 signal drawn
 signal sheathed
 
 @export var katana: Node3D
 @export var hand_socket: BoneAttachment3D
-@export var back_socket: BoneAttachment3D
+@export var sheath_socket: BoneAttachment3D
 ## Fast, so the blade is in hand before the first active frame.
 @export var draw_time := 0.12
 @export var sheathe_time := 0.45
@@ -22,7 +25,7 @@ var _tween: Tween
 func _ready() -> void:
 	_drawn = not start_sheathed
 	# Deferred: the player is still adding its children, so nothing can be reparented yet.
-	_snap_to.call_deferred(hand_socket if _drawn else back_socket)
+	_snap_to.call_deferred(hand_socket if _drawn else sheath_socket)
 
 
 func is_drawn() -> bool:
@@ -41,8 +44,28 @@ func sheathe() -> void:
 	if not _drawn:
 		return
 	_drawn = false
-	_move_to(back_socket, sheathe_time)
+	_move_to(sheath_socket, sheathe_time)
 	sheathed.emit()
+
+
+## Method-track hook: the fingers close on the grip.
+func snap_weapon_to_hand() -> void:
+	if _tween:
+		_tween.kill()
+	_snap_to(hand_socket)
+	if not _drawn:
+		_drawn = true
+		drawn.emit()
+
+
+## Method-track hook: the blade is back in the scabbard.
+func snap_weapon_to_sheath() -> void:
+	if _tween:
+		_tween.kill()
+	_snap_to(sheath_socket)
+	if _drawn:
+		_drawn = false
+		sheathed.emit()
 
 
 func _snap_to(socket: Node3D) -> void:

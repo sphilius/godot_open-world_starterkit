@@ -16,6 +16,23 @@
 [ext_resource type="Script" path="res://scripts/ui/player_hud.gd" id="14_player_hud"]
 [ext_resource type="Script" path="res://scripts/ui/touch/touch_controls.gd" id="15_touch"]
 [ext_resource type="Material" path="res://resources/environment/golden_hour_procedural_sky.tres" id="16_compat_sky"]
+[ext_resource type="PackedScene" path="res://scenes/levels/courtyard.tscn" id="31_courtyard"]
+[ext_resource type="PackedScene" path="res://scenes/levels/sanctum.tscn" id="32_sanctum"]
+[ext_resource type="PackedScene" path="res://scenes/landmarks/checkpoint_shrine.tscn" id="33_shrine"]
+[ext_resource type="Script" path="res://scripts/game/game_manager.gd" id="34_game"]
+[ext_resource type="Script" path="res://scripts/ui/game_menus.gd" id="35_menus"]
+[ext_resource type="Resource" path="res://resources/lighting/beat_golden_hour.tres" id="36_golden"]
+[ext_resource type="Resource" path="res://resources/lighting/beat_dusk.tres" id="37_dusk"]
+[ext_resource type="Resource" path="res://resources/lighting/beat_night.tres" id="38_night"]
+[ext_resource type="Script" path="res://scripts/game/beat_lighting.gd" id="39_beat"]
+[ext_resource type="Script" path="res://scripts/audio/sfx_pool.gd" id="40_sfx"]
+[ext_resource type="Resource" path="res://resources/audio/sound_bank.tres" id="41_bank"]
+[ext_resource type="Script" path="res://scripts/audio/music_director.gd" id="42_music"]
+[ext_resource type="Script" path="res://scripts/game/feedback_director.gd" id="43_feedback"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/ambience_wind.ogg" id="44_wind"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/music_combat.ogg" id="45_combat"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/music_boss.ogg" id="46_boss"]
+[ext_resource type="AudioStream" path="res://assets/audio/placeholder/music_victory.wav" id="47_victory"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_valley"]
 geometry_parsed_geometry_type = 1
@@ -27,7 +44,7 @@ agent_radius = 0.5
 agent_max_climb = 0.5
 agent_max_slope = 40.0
 cell_size = 0.5
-filter_baking_aabb = AABB(-80, -10, -85, 160, 40, 170)
+filter_baking_aabb = AABB(-80, -10, -100, 160, 40, 185)
 
 [sub_resource type="FogMaterial" id="FogMaterial_mist"]
 density = 0.012
@@ -71,6 +88,7 @@ material = SubResource("FogMaterial_mist")
 [node name="Terrain" type="StaticBody3D" parent="." node_paths=PackedStringArray("scenic_path") groups=["navigation_source"]]
 script = ExtResource("3_terrain")
 scenic_path = NodePath("../ScenicPath")
+flatten_zones = Array[Vector4]([Vector4(-6, -80, 17.5, 1), Vector4(26, -80, 13.5, 1), Vector4(11.5, -80, 6, 1)])
 terrain_material = ExtResource("4_terrain_mat")
 
 [node name="ScenicPath" type="Path3D" parent="." node_paths=PackedStringArray("terrain") groups=["navigation_source"]]
@@ -104,6 +122,21 @@ position = Vector3(30, 8, -20)
 [node name="Wolf4" parent="Wolves" instance=ExtResource("13_wolf")]
 position = Vector3(-28, 8, -30)
 
+[node name="Courtyard" parent="." instance=ExtResource("31_courtyard")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 1, -80)
+
+[node name="Sanctum" parent="." instance=ExtResource("32_sanctum")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 1, -80)
+
+[node name="Shrines" type="Node3D" parent="."]
+
+[node name="PathShrine" parent="Shrines" instance=ExtResource("33_shrine")]
+position = Vector3(-13, 0, -60.5)
+
+[node name="SanctumShrine" parent="Shrines" instance=ExtResource("33_shrine")]
+position = Vector3(9, 0, -83.6)
+rotation = Vector3(0, -1.5707964, 0)
+
 [node name="Player" parent="." instance=ExtResource("10_player")]
 position = Vector3(0, 10, 70)
 
@@ -125,11 +158,47 @@ theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 15
 text = "Scenic Open World"
 
-[node name="PlayerHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("health")]
+[node name="PlayerHUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("health", "posture", "combat", "targeting")]
 script = ExtResource("14_player_hud")
 health = NodePath("../Player/HealthComponent")
+posture = NodePath("../Player/PostureComponent")
+combat = NodePath("../Player/Combat")
+targeting = NodePath("../Player/TargetingSystem")
 
 [node name="TouchControls" type="CanvasLayer" parent="." node_paths=PackedStringArray("player", "dev_hud")]
 script = ExtResource("15_touch")
 player = NodePath("../Player")
 dev_hud = NodePath("../DevHUD")
+
+[node name="GameManager" type="Node" parent="." node_paths=PackedStringArray("player", "combat", "courtyard", "sanctum", "sanctum_locks", "world_environment", "sun")]
+script = ExtResource("34_game")
+player = NodePath("../Player")
+combat = NodePath("../Player/Combat")
+courtyard = NodePath("../Courtyard/Encounter")
+sanctum = NodePath("../Sanctum/Encounter")
+sanctum_locks = [NodePath("../Sanctum/SanctumGate")]
+world_environment = NodePath("../WorldEnvironment")
+sun = NodePath("../Sun")
+beat_lighting = Array[ExtResource("39_beat")]([ExtResource("36_golden"), ExtResource("37_dusk"), ExtResource("38_night")])
+
+[node name="GameMenus" type="CanvasLayer" parent="." node_paths=PackedStringArray("game")]
+script = ExtResource("35_menus")
+game = NodePath("../GameManager")
+
+[node name="SfxPool" type="Node3D" parent="."]
+script = ExtResource("40_sfx")
+bank = ExtResource("41_bank")
+
+[node name="MusicDirector" type="Node" parent="." node_paths=PackedStringArray("game")]
+process_mode = 3
+script = ExtResource("42_music")
+game = NodePath("../GameManager")
+ambience = ExtResource("44_wind")
+combat = ExtResource("45_combat")
+boss = ExtResource("46_boss")
+victory = ExtResource("47_victory")
+
+[node name="FeedbackDirector" type="Node" parent="." node_paths=PackedStringArray("sfx", "player")]
+script = ExtResource("43_feedback")
+sfx = NodePath("../SfxPool")
+player = NodePath("../Player")

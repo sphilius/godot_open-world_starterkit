@@ -2,18 +2,20 @@ class_name PlayerController
 extends CharacterBody3D
 ## Third-person explorer.
 ##
-## Camera   : the mouse feeds yaw/pitch *targets*, eased with frame-rate-independent
-##            exponential smoothing. A top-level rig follows the physics-*interpolated*
-##            body, so the view stays smooth at any refresh rate. SpringArm3D pulls the
-##            camera in when terrain or landmarks get between it and the player.
+## Camera   : CombatCamera on the CameraRig (free look, and lock-on framing). Mouse, touch and
+##            the gamepad right stick all feed it through add_look_input().
 ## Movement : camera-relative, with separate acceleration and deceleration rates and
-##            reduced air control.
+##            reduced air control. The model turns toward its travel direction, or, while
+##            locked on (TargetingSystem), keeps facing the target and strafes.
 ## Snapping : floor_snap_length keeps the body glued to the terrain when running downhill
 ##            or over crests, instead of launching off every bump.
 ## Also publishes its feet position to the `player_position` global shader uniform (grass push).
-## Combat : CombatStateMachine calls begin_attack() / end_attack() to lock steering and lunge,
-##            and lock_controls() / apply_knockback() / respawn() when the samurai is hurt.
+## Combat : CombatStateMachine calls begin_attack() / begin_dodge() / end_attack() to lock
+##            steering and lunge (eased out, as velocity), and lock_controls() / apply_knockback()
+##            / respawn() when the samurai is hurt, and sets move_speed_scale / hold_facing while
+##            guarding (slow walk that keeps the facing).
 ## Look     : mouse and touch both feed add_look_input(). Touch mode turns off mouse capture.
+## Respawn  : respawn() returns to the last spawn_at() or set_respawn_point() (checkpoints).
 
 @export_group("Movement")
 @export var walk_speed := 4.5
@@ -32,54 +34,64 @@ extends CharacterBody3D
 @export var snap_length := 0.6
 @export_range(0.0, 89.0) var max_slope_degrees := 50.0
 
-@export_group("Camera")
+@export_group("Look")
 ## Radians per screen pixel.
 @export var mouse_sensitivity := 0.0022
-## Exponential-decay rate for look smoothing (higher = snappier).
-@export_range(1.0, 50.0) var look_smoothing := 16.0
-## Exponential-decay rate for the rig chasing the body.
-@export_range(1.0, 50.0) var follow_smoothing := 12.0
-@export var camera_height := 1.6
-@export_range(-89.0, 0.0) var min_pitch_degrees := -65.0
-@export_range(0.0, 89.0) var max_pitch_degrees := 30.0
-@export var default_pitch_degrees := -6.0
-@export var invert_y := false
+## Gamepad right stick, radians per second at full tilt.
+@export var stick_look_speed := 3.2
+## Lock-on source; while it holds a target the body faces it.
+@export var targeting: TargetingSystem
 
 @export_group("Safety")
 ## Respawn if the player ever falls below this height.
 @export var kill_height := -40.0
 
-# Registered at runtime (physical keys → layout-independent WASD). Rebind in Project Settings ▸ Input Map to override.
-# MOUSE_BUTTON_* values (1, 2) never collide with Key codes, so one list can hold both.
+# Registered at runtime (physical keys → layout-independent WASD). Rebind in Project Settings ▸
+# Input Map to override. Each entry is [kind, code(, axis sign)]: "key", "mouse", "joy" (button)
+# or "axis" (joypad axis). Gamepad layout: Xbox names.
 const _DEFAULT_BINDINGS := {
-	&"move_forward": [KEY_W, KEY_UP],
-	&"move_back": [KEY_S, KEY_DOWN],
-	&"move_left": [KEY_A, KEY_LEFT],
-	&"move_right": [KEY_D, KEY_RIGHT],
-	&"jump": [KEY_SPACE],
-	&"sprint": [KEY_SHIFT],
-	&"attack": [KEY_J, MOUSE_BUTTON_LEFT],
+	&"move_forward": [["key", KEY_W], ["key", KEY_UP], ["axis", JOY_AXIS_LEFT_Y, -1.0]],
+	&"move_back": [["key", KEY_S], ["key", KEY_DOWN], ["axis", JOY_AXIS_LEFT_Y, 1.0]],
+	&"move_left": [["key", KEY_A], ["key", KEY_LEFT], ["axis", JOY_AXIS_LEFT_X, -1.0]],
+	&"move_right": [["key", KEY_D], ["key", KEY_RIGHT], ["axis", JOY_AXIS_LEFT_X, 1.0]],
+	&"jump": [["key", KEY_SPACE], ["joy", JOY_BUTTON_A]],
+	&"sprint": [["key", KEY_SHIFT], ["joy", JOY_BUTTON_LEFT_STICK]],
+	&"attack": [["key", KEY_J], ["mouse", MOUSE_BUTTON_LEFT], ["joy", JOY_BUTTON_X]],
+	&"attack_heavy": [["key", KEY_K], ["mouse", MOUSE_BUTTON_RIGHT], ["joy", JOY_BUTTON_Y]],
+	&"dodge": [["key", KEY_L], ["key", KEY_C], ["joy", JOY_BUTTON_B]],
+	&"guard": [["key", KEY_F], ["key", KEY_I], ["joy", JOY_BUTTON_LEFT_SHOULDER]],
+	&"lock_on": [["mouse", MOUSE_BUTTON_MIDDLE], ["key", KEY_Q], ["joy", JOY_BUTTON_RIGHT_STICK]],
+	&"target_next": [["mouse", MOUSE_BUTTON_WHEEL_DOWN], ["key", KEY_E]],
+	&"target_prev": [["mouse", MOUSE_BUTTON_WHEEL_UP]],
+	&"look_left": [["axis", JOY_AXIS_RIGHT_X, -1.0]],
+	&"look_right": [["axis", JOY_AXIS_RIGHT_X, 1.0]],
+	&"look_up": [["axis", JOY_AXIS_RIGHT_Y, -1.0]],
+	&"look_down": [["axis", JOY_AXIS_RIGHT_Y, 1.0]],
+	&"pause": [["key", KEY_ESCAPE], ["key", KEY_P], ["joy", JOY_BUTTON_START]],
 }
+## Stick deadzone for the move actions.
+const _AXIS_DEADZONE := 0.2
 
 @onready var _visual: Node3D = $Visual
-@onready var _camera_rig: Node3D = $CameraRig
-@onready var _spring_arm: SpringArm3D = $CameraRig/SpringArm3D
+@onready var camera: CombatCamera = $CameraRig
 
-var _yaw := 0.0
-var _pitch := 0.0
-var _target_yaw := 0.0
-var _target_pitch := 0.0
 var _spawn_position := Vector3.ZERO
 var _spawn_yaw := 0.0
 var _look_blocked_until_msec := 0   # swallows the cursor-warp jump that follows a mouse capture
 var _move_direction := Vector3.ZERO # camera-relative input, even while attacking
 var _controls_locked := false      # attacking, flinching or dead: no steering or jumping
-var _lunge_velocity := Vector3.ZERO
+var _lunge_velocity := Vector3.ZERO   # average velocity; the lunge eases out around it
+var _lunge_duration := 0.0
 var _lunge_time_left := 0.0
 var _lunge_delay_left := 0.0
 
 ## Off in touch mode (TouchControls): clicks and taps never grab the pointer.
 var mouse_capture_enabled := true
+## Top speed multiplier (guarding walks slowly).
+var move_speed_scale := 1.0
+## Keep the current facing instead of turning toward travel (guarding strafes). Lock-on
+## still faces the target.
+var hold_facing := false
 
 
 func _enter_tree() -> void:
@@ -91,8 +103,8 @@ func _ready() -> void:
 	floor_max_angle = deg_to_rad(max_slope_degrees)
 	floor_constant_speed = true    # same ground speed uphill and downhill
 	floor_stop_on_slope = true     # no creeping down slopes while idle
-	_camera_rig.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # moved by hand in _process
-	_spring_arm.add_excluded_object(get_rid())
+	camera.follow = self
+	camera.spring_arm.add_excluded_object(get_rid())
 	var yaw := rotation.y
 	rotation = Vector3.ZERO          # the body stays upright/unrotated; only $Visual turns
 	spawn_at(global_position, yaw)
@@ -100,7 +112,13 @@ func _ready() -> void:
 		mouse_capture_enabled = false
 	# Browsers only grant pointer lock from a user gesture: on the web, the first click captures.
 	if not OS.has_feature("web"):
-		_capture_mouse()
+		capture_mouse()
+
+
+## Makes (`pos`, `yaw`) where respawn() returns to, without moving the player (checkpoints).
+func set_respawn_point(pos: Vector3, yaw: float) -> void:
+	_spawn_position = pos
+	_spawn_yaw = yaw
 
 
 ## Place the player and make this the respawn point. Yaw 0 faces -Z.
@@ -110,25 +128,43 @@ func spawn_at(pos: Vector3, yaw: float) -> void:
 	global_position = pos
 	velocity = Vector3.ZERO
 	_visual.rotation.y = yaw
-	_yaw = yaw
-	_target_yaw = yaw
-	_pitch = deg_to_rad(default_pitch_degrees)
-	_target_pitch = _pitch
 	reset_physics_interpolation()
-	_camera_rig.global_position = pos + Vector3.UP * camera_height
-	_apply_camera_rotation()
+	camera.snap_to(pos, yaw)
 
 
-## Face `direction`, lock steering and burst forward (after `lunge_delay`). Called at the start of every strike.
+## Face `direction`, lock steering and burst forward (after `lunge_delay`). Called at the start
+## of every strike. `lunge_speed` is the average: the burst starts at twice that and eases out
+## (quadratic), so it covers lunge_speed × lunge_duration metres.
 func begin_attack(direction: Vector3, lunge_speed: float, lunge_duration: float, lunge_delay := 0.0) -> void:
 	lock_controls(true)
 	direction.y = 0.0
 	direction = direction.normalized()
 	if direction != Vector3.ZERO:
-		_visual.rotation.y = atan2(-direction.x, -direction.z)
-	_lunge_velocity = direction * lunge_speed
-	_lunge_time_left = lunge_duration
-	_lunge_delay_left = lunge_delay
+		face(direction)
+	_start_lunge(direction * lunge_speed, lunge_duration, lunge_delay)
+
+
+## Dash along `direction` like a lunge. With `turn` off (strafing, locked on), the body keeps
+## its facing and the dash can go sideways or backwards.
+func begin_dodge(direction: Vector3, speed: float, duration: float, turn := true) -> void:
+	lock_controls(true)
+	direction.y = 0.0
+	direction = direction.normalized()
+	if turn and direction != Vector3.ZERO:
+		face(direction)
+	_start_lunge(direction * speed, duration, 0.0)
+
+
+## Turn the model to face `direction` at once (yaw only).
+func face(direction: Vector3) -> void:
+	_visual.rotation.y = atan2(-direction.x, -direction.z)
+
+
+func _start_lunge(average_velocity: Vector3, duration: float, delay: float) -> void:
+	_lunge_velocity = average_velocity
+	_lunge_duration = maxf(duration, 0.001)
+	_lunge_time_left = duration
+	_lunge_delay_left = delay
 
 
 func end_attack() -> void:
@@ -151,13 +187,14 @@ func apply_knockback(knockback: Vector3) -> void:
 func respawn() -> void:
 	spawn_at(_spawn_position, _spawn_yaw)
 	lock_controls(false)
+	move_speed_scale = 1.0
+	hold_facing = false
 
 
-## Rotate the camera by a look delta in radians (x = yaw, y = pitch). Mouse and touch drags both land here.
+## Rotate the camera by a look delta in radians (x = yaw, y = pitch). Mouse, touch drags and the
+## right stick all land here.
 func add_look_input(delta: Vector2) -> void:
-	_target_yaw -= delta.x
-	_target_pitch -= delta.y * (-1.0 if invert_y else 1.0)
-	_target_pitch = clampf(_target_pitch, deg_to_rad(min_pitch_degrees), deg_to_rad(max_pitch_degrees))
+	camera.add_look_input(delta)
 
 
 ## Camera-relative movement input (unit length or zero). Still reported while attacking.
@@ -185,10 +222,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed(&"ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and event.is_pressed() and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		_capture_mouse()
+		capture_mouse()
 
 
-func _capture_mouse() -> void:
+## Captures the pointer for mouse look (unless touch mode turned capture off).
+func capture_mouse() -> void:
 	if not mouse_capture_enabled:
 		return
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -196,16 +234,10 @@ func _capture_mouse() -> void:
 
 
 func _process(delta: float) -> void:
-	# Mouse smoothing: exponential decay toward the target, alpha = 1 - e^(-k·dt).
-	var look_t := 1.0 - exp(-look_smoothing * delta)
-	_yaw = lerpf(_yaw, _target_yaw, look_t)
-	_pitch = lerpf(_pitch, _target_pitch, look_t)
-	_apply_camera_rotation()
-
-	var feet := get_global_transform_interpolated().origin
-	var anchor := feet + Vector3.UP * camera_height
-	_camera_rig.global_position = _camera_rig.global_position.lerp(anchor, 1.0 - exp(-follow_smoothing * delta))
-	RenderingServer.global_shader_parameter_set(&"player_position", feet)
+	var stick := Input.get_vector(&"look_left", &"look_right", &"look_up", &"look_down")
+	if stick != Vector2.ZERO:
+		add_look_input(stick * stick_look_speed * delta)
+	RenderingServer.global_shader_parameter_set(&"player_position", get_global_transform_interpolated().origin)
 
 
 func _physics_process(delta: float) -> void:
@@ -216,11 +248,12 @@ func _physics_process(delta: float) -> void:
 
 	# Camera-relative wish direction (yaw only, so looking down never slows you).
 	var input := Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back")
-	var wish := Vector3(input.x, 0.0, input.y).rotated(Vector3.UP, _yaw)
+	var wish := Vector3(input.x, 0.0, input.y).rotated(Vector3.UP, camera.yaw)
 	_move_direction = wish.normalized()
 	if _controls_locked:
 		wish = Vector3.ZERO           # strikes and flinches commit: no steering, just brake
-	var top_speed := sprint_speed if Input.is_action_pressed(&"sprint") else walk_speed
+	var top_speed := sprint_speed if Input.is_action_pressed(&"sprint") and move_speed_scale >= 1.0 else walk_speed
+	top_speed *= move_speed_scale
 
 	# Acceleration / deceleration: steer horizontal velocity toward the target at a capped rate.
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
@@ -232,7 +265,8 @@ func _physics_process(delta: float) -> void:
 		if _lunge_delay_left > 0.0:
 			_lunge_delay_left -= delta
 		else:
-			horizontal = _lunge_velocity
+			var progress := 1.0 - _lunge_time_left / _lunge_duration
+			horizontal = _lunge_velocity * 2.0 * (1.0 - progress)   # ease-out quad, same distance
 			_lunge_time_left -= delta
 	velocity.x = horizontal.x
 	velocity.z = horizontal.z
@@ -242,32 +276,43 @@ func _physics_process(delta: float) -> void:
 	# velocity suspends the snap automatically, so jumps are never eaten.
 	move_and_slide()
 
-	if horizontal.length_squared() > 0.05 and not _controls_locked:
-		var facing := atan2(-horizontal.x, -horizontal.z)   # model faces -Z
-		_visual.rotation.y = lerp_angle(_visual.rotation.y, facing, 1.0 - exp(-turn_speed * delta))
+	if not _controls_locked:
+		var look := Vector3.ZERO if hold_facing else horizontal
+		if targeting and targeting.is_locked():
+			look = targeting.current_target.global_position - global_position   # strafe: face the target
+			look.y = 0.0
+		if look.length_squared() > 0.05:
+			var facing := atan2(-look.x, -look.z)   # model faces -Z
+			_visual.rotation.y = lerp_angle(_visual.rotation.y, facing, 1.0 - exp(-turn_speed * delta))
 
 	if global_position.y < kill_height:
 		spawn_at(_spawn_position, _spawn_yaw)
-
-
-func _apply_camera_rotation() -> void:
-	_camera_rig.rotation = Vector3(0.0, _yaw, 0.0)   # rig is top_level → global yaw
-	_spring_arm.rotation = Vector3(_pitch, 0.0, 0.0)
 
 
 static func _register_default_input_actions() -> void:
 	for action: StringName in _DEFAULT_BINDINGS:
 		if InputMap.has_action(action):
 			continue
-		InputMap.add_action(action)
-		for code: int in _DEFAULT_BINDINGS[action]:
-			var input_event: InputEvent
-			if code == MOUSE_BUTTON_LEFT or code == MOUSE_BUTTON_RIGHT:
-				var mouse_event := InputEventMouseButton.new()
-				mouse_event.button_index = code as MouseButton
-				input_event = mouse_event
-			else:
-				var key_event := InputEventKey.new()
-				key_event.physical_keycode = code as Key
-				input_event = key_event
-			InputMap.action_add_event(action, input_event)
+		InputMap.add_action(action, _AXIS_DEADZONE)
+		for binding: Array in _DEFAULT_BINDINGS[action]:
+			InputMap.action_add_event(action, _binding_event(binding))
+
+
+static func _binding_event(binding: Array) -> InputEvent:
+	match binding[0]:
+		"mouse":
+			var mouse_event := InputEventMouseButton.new()
+			mouse_event.button_index = binding[1] as MouseButton
+			return mouse_event
+		"joy":
+			var button_event := InputEventJoypadButton.new()
+			button_event.button_index = binding[1] as JoyButton
+			return button_event
+		"axis":
+			var axis_event := InputEventJoypadMotion.new()
+			axis_event.axis = binding[1] as JoyAxis
+			axis_event.axis_value = binding[2]
+			return axis_event
+	var key_event := InputEventKey.new()
+	key_event.physical_keycode = binding[1] as Key
+	return key_event
