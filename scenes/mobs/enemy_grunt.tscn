@@ -12,6 +12,8 @@
 [ext_resource type="Resource" path="res://resources/combat/enemies/grunt_cut.tres" id="10_cut"]
 [ext_resource type="Script" path="res://scripts/combat/defense/guard_component.gd" id="40_guard"]
 [ext_resource type="Script" path="res://scripts/ai/enemy_defense.gd" id="42_defense"]
+[ext_resource type="Script" path="res://scripts/combat/defense/stamina_component.gd" id="43_stamina"]
+[ext_resource type="Script" path="res://scripts/combat/defense/equipment_durability.gd" id="44_equipment"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.35
@@ -92,11 +94,24 @@ path_max_distance = 3.0
 height = 1.8
 radius = 0.35
 
-[node name="GuardComponent" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "posture", "body")]
+[node name="StaminaComponent" type="Node" parent="."]
+script = ExtResource("43_stamina")
+max_stamina = 60.0
+regen_rate = 22.0
+regen_delay = 1.0
+
+[node name="Equipment" type="Node" parent="."]
+script = ExtResource("44_equipment")
+weapon_integrity = 60.0
+armor_integrity = 60.0
+
+[node name="GuardComponent" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "posture", "body", "equipment", "stamina")]
 script = ExtResource("40_guard")
 hurtbox = NodePath("../Hurtbox")
 posture = NodePath("../PostureComponent")
 body = NodePath("..")
+equipment = NodePath("../Equipment")
+stamina = NodePath("../StaminaComponent")
 guard_break_stagger = 2.0
 
 [node name="Defense" type="Node" parent="." node_paths=PackedStringArray("enemy", "guard")]

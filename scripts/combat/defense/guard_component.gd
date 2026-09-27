@@ -7,6 +7,13 @@ extends Node
 ## breaks: intercept() returns GUARD_BROKEN, the guard drops and guard_broken fires
 ## (DamageReactionComponent plays the `guard_break_stagger`). Unblockable hits, hits from
 ## outside the frontal `guard_arc_degrees`, and any hit while the guard is down pass through.
+##
+## Phase C (D16–D18): with `equipment`, the gear absorbs each blocked hit's damage and cracks
+## when worn out; each cracked item halves blocking, so the missing share of the damage leaks
+## through as (non-lethal) chip damage and the posture damage is multiplied by the inverse.
+## With `stamina`, each block drains `block_stamina_per_poise` × the hit's poise damage, and
+## blocking with no stamina left breaks the guard too. A guard break is the defensive posture
+## cracking: stamina.crack() leaves the fighter exhausted until it refills.
 
 signal guard_started
 signal guard_ended
@@ -26,6 +33,12 @@ signal blocked(hit: HitInfo)
 @export var guard_break_stagger := 2.5
 ## Share of a blocked hit's damage that still reaches health (0 = none). Never lethal.
 @export_range(0.0, 1.0) var chip_damage := 0.0
+## Optional (Phase C): the gear that absorbs blocked hits and cracks.
+@export var equipment: EquipmentDurability
+## Optional (Phase C): drained by blocks; cracked by a guard break.
+@export var stamina: StaminaComponent
+## Stamina a block costs per point of the hit's poise damage.
+@export var block_stamina_per_poise := 0.5
 
 var is_guarding := false
 
@@ -53,10 +66,21 @@ func set_guarding(on: bool) -> void:
 func intercept(hit: HitInfo) -> HitInfo.Result:
 	if not is_guarding or hit.unblockable or not covers(hit):
 		return HitInfo.Result.IGNORED
-	if chip_damage > 0.0 and hurtbox and hurtbox.health:
-		hurtbox.health.chip(hit.damage * chip_damage)
-	if posture and posture.add_posture(hit.poise_damage):
+	var effectiveness := equipment.block_effectiveness() if equipment else 1.0
+	if equipment:
+		equipment.absorb(hit.damage)
+	var leak := chip_damage + (1.0 - effectiveness) * (1.0 - chip_damage)
+	if leak > 0.0 and hurtbox and hurtbox.health:
+		hurtbox.health.chip(hit.damage * leak)
+	var out_of_stamina := false
+	if stamina:
+		out_of_stamina = stamina.current <= 0.0
+		stamina.drain(hit.poise_damage * block_stamina_per_poise)
+	var broke := posture != null and posture.add_posture(hit.poise_damage / effectiveness)
+	if broke or out_of_stamina:
 		set_guarding(false)
+		if stamina:
+			stamina.crack()
 		guard_broken.emit()
 		return HitInfo.Result.GUARD_BROKEN
 	blocked.emit(hit)

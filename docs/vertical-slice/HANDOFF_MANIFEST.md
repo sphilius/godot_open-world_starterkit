@@ -66,6 +66,8 @@ class_name CombatStateMachine extends Node    # player "Combat" node (runbook: C
   @export side_step_speed := 2.75   # m/s the strafe_l/r/b clips match; locked-on RUN plays them, time-scaled to the ground speed
   @export hurtbox: Hurtbox (defaults to guard.hurtbox; becomes its evader); guard_move_scale := 0.4; perfect_dodge_window := 0.2
   @export critical_multiplier := 2.0; critical_grace := 0.3   # Phase A
+  @export stamina: StaminaComponent; equipment: EquipmentDurability   # Phase C, optional
+  @export strike_stamina_base := 6.0; strike_stamina_per_poise := 0.4; dodge_stamina := 20.0; guard_stamina_regen := 0.5
   signal perfect_dodged(attacker: Node3D); signal critical_armed(seconds: float)
   func evade(hit: HitInfo) -> bool; func try_perfect_dodge(attacker: Node3D) -> bool   # the dodge's perfect window (once per dodge)
   func arm_critical(seconds: float) -> void; func is_critical_armed() -> bool; func dodge_origin() -> Vector3
@@ -215,6 +217,7 @@ class_name EnemyCombatController extends CharacterBody3D   # group "enemies"; ta
   enum State { IDLE, APPROACH, FLANKING, ATTACK_WINDUP, ATTACK_ACTIVE, RECOVER, STAGGERED, DEAD, GUARD, EVADE }
   @export attacks: Array[AttackData]; combos: Array[EnemyCombo]; director: CombatDirector
   @export evade_speed := 6.0; evade_time := 0.35; evade_iframes := 0.3   # Phase B
+  @export strike_stamina := 15.0; evade_stamina := 15.0; var stamina: StaminaComponent; var equipment: EquipmentDurability   # Phase C, optional children
   var guard: GuardComponent (child "GuardComponent"); var defense: EnemyDefense (child "Defense")   # both optional
   func can_defend() -> bool; func start_guard(hold: float) -> void; func extend_guard(hold: float) -> void
   func start_evade(perfect: bool) -> void; func counter_attack() -> void   # a perfect evade counters at its end
@@ -332,6 +335,14 @@ class_name InkSplats extends Node3D           # in main.tscn; pooled ground quad
   @export max_splats := 24, lifetime := 25.0, fade_time := 3.0, size_range, kill_scale := 1.7, color, ground_mask := 1, lift := 0.06
   func splat(at: Vector3, size_scale := 1.0) -> MeshInstance3D   # null without ground within max_drop; var splats; func visible_count() -> int
   static func make_mask(size: int, seed_value: int) -> Image
+StaminaComponent: signal stamina_changed(current, maximum); signal exhausted; signal recovered
+  @export max_stamina := 100.0; regen_rate := 32.0; regen_delay := 0.7; lockout_ratio := 0.3; var current; var is_exhausted; var regen_scale
+  func can_act() -> bool; func spend(amount) -> bool; func drain(amount); func refund(amount); func crack(); func reset(); func ratio() -> float; static func find_on(node)
+EquipmentDurability: signal item_cracked(item: StringName); signal integrity_changed; signal repaired   # const WEAPON, ARMOR
+  @export weapon_integrity := 100.0; armor_integrity := 140.0; weapon_share := 0.5; wear_scale := 1.0
+  func absorb(damage); func is_cracked(item) -> bool; func block_effectiveness() -> float (1 / 0.5 / 0.25); func ratio(item) -> float; func repair(); static func find_on(node)
+GuardComponent: @export equipment: EquipmentDurability; stamina: StaminaComponent; block_stamina_per_poise := 0.5   # Phase C: gear absorbs, cracked gear leaks chip and doubles posture; empty or posture-full → GUARD_BROKEN + stamina.crack()
+PlayerHUD: @export stamina: StaminaComponent; equipment: EquipmentDurability   # stamina bar (30% mark), W/A gear bars
 EnemyDefense: @export enemy; guard: GuardComponent; parry: ParrySystem (elites); block_chance, dodge_chance, parry_chance, perfect_dodge_chance
   @export reaction_time := Vector2(0.12, 0.25); defend_range := 3.6; defend_arc_degrees := 120.0; guard_hold := 0.9; counter_after_blocks := 2; cooldown := 0.8
   var rng: RandomNumberGenerator   # reacts to CombatStateMachine.attack_started and the katana hitbox's swing_started

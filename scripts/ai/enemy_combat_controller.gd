@@ -20,6 +20,9 @@ extends CharacterBody3D
 ##                 the hold runs out, or turns into a counter-attack (EnemyDefense).
 ## EVADE         : a backstep with i-frames (strafe_b played fast); a perfect evade ends in a
 ##                 counter-attack.
+## Stamina (Phase C, optional StaminaComponent child): each attack costs `strike_stamina` and a
+## backstep `evade_stamina` (a perfect evade is free); blocks drain it through the guard. While
+## empty or exhausted (a guard break cracks its defensive posture) it neither attacks nor defends.
 ## Defence decisions come from the optional EnemyDefense child ("Defense"). During the wind-up
 ## and active frames light flinches don't land (DamageReactionComponent.flinch_resistant), so a
 ## started strike can't be mashed out of; heavy hits still stagger it.
@@ -81,6 +84,9 @@ const GLINT_SCENE := preload("res://scenes/vfx/telegraph_glint.tscn")
 @export var evade_speed := 6.0
 @export var evade_time := 0.35
 @export var evade_iframes := 0.3
+## Stamina an attack (a whole combo) and a backstep cost.
+@export var strike_stamina := 15.0
+@export var evade_stamina := 15.0
 
 @export_group("Execution and death")
 ## Share of max health an execution deals (1 = always kills).
@@ -99,6 +105,9 @@ const GLINT_SCENE := preload("res://scenes/vfx/telegraph_glint.tscn")
 ## Optional (Phase B): the guard that GUARD raises, and the defence brain.
 @onready var guard: GuardComponent = get_node_or_null(^"GuardComponent")
 @onready var defense: EnemyDefense = get_node_or_null(^"Defense")
+## Optional (Phase C): stamina and the gear its guard wears out.
+@onready var stamina: StaminaComponent = get_node_or_null(^"StaminaComponent")
+@onready var equipment: EquipmentDurability = get_node_or_null(^"Equipment")
 
 var state := State.IDLE
 var target: Node3D
@@ -200,7 +209,8 @@ func has_attack_token() -> bool:
 
 ## Free to defend: aware of the player and not committed to a strike, a stagger or a defence.
 func can_defend() -> bool:
-	return state in [State.APPROACH, State.FLANKING, State.RECOVER] and not health.is_dead and _target_valid()
+	return state in [State.APPROACH, State.FLANKING, State.RECOVER] and not health.is_dead and _target_valid() \
+			and (stamina == null or stamina.can_act())
 
 
 ## Raises the guard for `hold` seconds (EnemyDefense). A strike's recovery is abandoned.
@@ -224,6 +234,8 @@ func extend_guard(hold: float) -> void:
 ## blade) counter-attacks at the end.
 func start_evade(perfect: bool) -> void:
 	_abort_attack()
+	if stamina and not perfect:
+		stamina.spend(evade_stamina)
 	_evade_left = evade_time
 	_counter_after_evade = perfect
 	var away := _flat(global_position - target.global_position) if _target_valid() else -_forward()
@@ -259,6 +271,10 @@ func reset_to_spawn() -> void:
 	health.revive()
 	posture.reset()
 	reaction.clear()
+	if stamina:
+		stamina.reset()
+	if equipment:
+		equipment.repair()
 	target = null
 	_engaged = false
 	_cooldown_left = 0.0
@@ -396,6 +412,9 @@ func _offer_perfect_dodge() -> void:
 
 
 func _start_attack() -> void:
+	if stamina and not stamina.spend(strike_stamina):
+		_finish_attack()                                  # too tired: back off and wait
+		return
 	var pool: Array = []
 	pool.append_array(attacks)
 	pool.append_array(combos)

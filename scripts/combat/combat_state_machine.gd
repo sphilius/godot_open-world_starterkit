@@ -22,6 +22,11 @@ extends Node
 ##   and slow motion come from FeedbackDirector).
 ## • Parry counter: a parry arms a critical for as long as the attacker's parried stagger.
 ##   Criticals scale the strike's damage and poise damage by `critical_multiplier`.
+## • Stamina (Phase C): strikes cost `strike_stamina_base` + `strike_stamina_per_poise` × poise
+##   damage, dodges `dodge_stamina` (refunded by a perfect dodge); guarding slows the refill.
+##   Nothing starts (strike, dodge, guard, execution) while stamina is empty or exhausted: a
+##   guard break (the defensive posture cracking) exhausts it until it refills past 30%.
+##   Respawning refills stamina and mends the gear.
 ## • Dodge: a dash with invulnerability frames. With a lock-on target it keeps facing the
 ##   target and plays the directional clip; otherwise it turns into the dash (dodge_f), or
 ##   backsteps (dodge_b) when there's no movement input.
@@ -79,6 +84,10 @@ const SIDE_STEPS := {
 @export var guard: GuardComponent
 @export var parry: ParrySystem
 @export var reaction: DamageReactionComponent
+## Optional (Phase C): pays for strikes, dodges and blocks.
+@export var stamina: StaminaComponent
+## Optional (Phase C): mended on respawn.
+@export var equipment: EquipmentDurability
 ## The player's Hurtbox: the dodge's perfect window evades hits through it. Defaults to the
 ## guard's.
 @export var hurtbox: Hurtbox
@@ -116,6 +125,13 @@ const SIDE_STEPS := {
 @export var dodge_cancel_time := 0.3
 ## A strike that would land in the first this-many seconds of a dodge is a perfect dodge.
 @export var perfect_dodge_window := 0.2
+
+@export_group("Stamina")
+@export var strike_stamina_base := 6.0
+@export var strike_stamina_per_poise := 0.4
+@export var dodge_stamina := 20.0
+## Stamina refill speed while guarding.
+@export_range(0.0, 1.0) var guard_stamina_regen := 0.5
 
 @export_group("Critical")
 ## Damage and poise damage multiplier of a critical strike.
@@ -225,6 +241,8 @@ func try_perfect_dodge(attacker: Node3D) -> bool:
 	if _perfect_this_dodge:
 		return true
 	_perfect_this_dodge = true
+	if stamina:
+		stamina.refund(dodge_stamina)                # a perfect dodge is free
 	var opening := 0.0
 	var attacker_reaction := DamageReactionComponent.find_on(attacker)
 	if attacker_reaction:
@@ -258,7 +276,7 @@ static func find_on(node: Node) -> CombatStateMachine:
 ## state allows it; otherwise the guard goes up as soon as it does, without a parry window.
 func guard_pressed() -> void:
 	_guard_held = true
-	if _can_guard_now():
+	if _can_guard_now() and _has_stamina():
 		parry.on_guard_pressed()
 		_start_guard()
 
@@ -418,7 +436,7 @@ func _start_execution(enemy: Node3D) -> void:
 
 func _tick_guard() -> void:
 	_time_since_attack = 0.0                     # the weapon stays out while guarding
-	if not _guard_held:
+	if not _guard_held or (stamina and stamina.is_exhausted):   # empty but held: the next block cracks it
 		_end_guard()
 		_enter_locomotion()
 		return
@@ -432,6 +450,8 @@ func _start_guard() -> void:
 	body.end_attack()                            # guarding walks
 	holster.draw()
 	guard.set_guarding(true)
+	if stamina:
+		stamina.regen_scale = guard_stamina_regen
 	body.move_speed_scale = guard_move_scale
 	body.hold_facing = true
 	current_attack = null
@@ -439,8 +459,15 @@ func _start_guard() -> void:
 		_change_state(State.GUARD, &"guard_idle")
 
 
+## True if stamina allows starting an action (always without a StaminaComponent).
+func _has_stamina() -> bool:
+	return stamina == null or stamina.can_act()
+
+
 func _end_guard() -> void:
 	guard.set_guarding(false)
+	if stamina:
+		stamina.regen_scale = 1.0
 	body.move_speed_scale = 1.0
 	body.hold_facing = false
 
@@ -448,6 +475,8 @@ func _end_guard() -> void:
 ## Starts the oldest buffered action if it's allowed now and leads somewhere. Returns true if
 ## something started.
 func _take_action(allowed: Array[StringName]) -> bool:
+	if not _has_stamina():
+		return false                             # empty or exhausted: nothing starts
 	if LIGHT in allowed and combo.peek() == LIGHT:
 		var victim := execution_target()
 		if victim:
@@ -476,6 +505,8 @@ func _start_attack(attack: AttackData) -> void:
 	var motion := warping.plan(attack)
 	body.begin_attack(motion.direction, motion.speed, motion.duration, motion.delay)
 	warping.notify_started(motion.target, motion.delay + motion.duration)
+	if stamina and attack != execution:
+		stamina.spend(strike_stamina_base + strike_stamina_per_poise * attack.poise_damage)
 	katana.begin_swing(attack)
 	if _critical_left > 0.0 and attack != execution:
 		katana.hitbox.damage_scale = critical_multiplier    # used up by this strike
@@ -510,6 +541,8 @@ func _start_dodge() -> void:
 		body.begin_dodge(direction, dodge_distance / dodge_move_time, dodge_move_time, false)
 	else:
 		body.begin_dodge(direction, dodge_distance / dodge_move_time, dodge_move_time, true)
+	if stamina:
+		stamina.spend(dodge_stamina)
 	current_attack = null
 	_iframes_granted = false
 	_perfect_this_dodge = false
@@ -577,6 +610,10 @@ func _on_died(_hit: HitInfo) -> void:
 	await get_tree().create_timer(respawn_delay).timeout
 	health.revive()
 	posture.reset()
+	if stamina:
+		stamina.reset()
+	if equipment:
+		equipment.repair()
 	body.respawn()
 	_time_since_attack = 0.0
 	_change_state(State.IDLE, &"idle")
