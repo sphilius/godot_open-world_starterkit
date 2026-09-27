@@ -33,7 +33,7 @@ extends Node
 @export var guard_hold := 0.9
 ## Blocked hits before a counter-attack.
 @export var counter_after_blocks := 2
-## Seconds after a defence ends before the next one.
+## Seconds after a defence ends (the enemy leaves GUARD or EVADE) before the next one.
 @export var cooldown := 0.8
 
 var rng := RandomNumberGenerator.new()
@@ -48,6 +48,7 @@ func _ready() -> void:
 	rng.randomize()
 	if enemy == null:
 		enemy = get_parent() as EnemyCombatController
+	enemy.state_changed.connect(_on_enemy_state_changed)
 	if guard:
 		guard.blocked.connect(_on_blocked)
 	if parry:
@@ -69,7 +70,6 @@ func _physics_process(delta: float) -> void:
 				else:
 					_blocks = 0
 					enemy.start_guard(guard_hold)
-				_cooldown_left = cooldown
 
 
 ## True while a defence is waiting on its reaction time.
@@ -108,10 +108,24 @@ func _on_player_blade_open(_attack: AttackData) -> void:
 		return
 	if enemy.can_defend() and rng.randf() < perfect_dodge_chance:
 		_pending = &""
-		enemy.start_evade(true)
-		var player_reaction := DamageReactionComponent.find_on(_player_combat.body)
-		if player_reaction:
-			player_reaction.play_evaded()
+		# Deferred: this runs inside the katana's activation, which staggering the player now
+		# would undo half-way (the trail). The evade's i-frames still land before the overlap.
+		_perfect_evade.call_deferred()
+
+
+func _perfect_evade() -> void:
+	if not enemy.can_defend() or _player_combat == null or not is_instance_valid(_player_combat.body):
+		return
+	enemy.start_evade(true)
+	var player_reaction := DamageReactionComponent.find_on(_player_combat.body)
+	if player_reaction:
+		player_reaction.play_evaded()
+
+
+## The cooldown runs from the end of a defence.
+func _on_enemy_state_changed(previous: EnemyCombatController.State, current: EnemyCombatController.State) -> void:
+	var defending := [EnemyCombatController.State.GUARD, EnemyCombatController.State.EVADE]
+	if previous in defending and current not in defending:
 		_cooldown_left = cooldown
 
 
