@@ -63,7 +63,7 @@ class_name CombatStateMachine extends Node    # player "Combat" node (runbook: C
   const ALL_ACTIONS := [ComboManager.LIGHT, ComboManager.HEAVY, ComboManager.DODGE]
   @export combo: ComboManager; @export warping: MotionWarping; @export targeting: Node   # targeting optional (M7)
   @export dodge_duration := 0.45; dodge_distance := 3.2; dodge_move_time := 0.32; dodge_iframes := Vector2(0.08, 0.3); dodge_cancel_time := 0.3
-  @export side_step_speed := 2.75   # m/s the strafe_l/r/b clips match; locked-on RUN plays them, time-scaled to the ground speed
+  @export side_step_speed := 2.75   # m/s the strafe_l/r/b clips match; locked-on RUN plays them, time-scaled to the ground speed; side_step_hysteresis := 0.15
   @export hurtbox: Hurtbox (defaults to guard.hurtbox; becomes its evader); guard_move_scale := 0.4; perfect_dodge_window := 0.2
   @export critical_multiplier := 2.0; critical_grace := 0.3   # Phase A
   signal perfect_dodged(attacker: Node3D); signal critical_armed(seconds: float)
@@ -76,7 +76,7 @@ class_name CombatStateMachine extends Node    # player "Combat" node (runbook: C
   func is_attacking() -> bool; static func dodge_clip(facing: Vector3, direction: Vector3) -> StringName
 
 class_name PlayerController extends CharacterBody3D
-  @export lock_on_speed_scale := 0.5   # walk speed multiplier while locked on (not sprinting)
+  @export lock_on_speed_scale := 0.75   # walk speed multiplier while locked on (not sprinting)
   func spawn_at(pos: Vector3, yaw: float) -> void; func respawn() -> void
   func begin_attack(direction: Vector3, lunge_speed: float, lunge_duration: float, lunge_delay := 0.0) -> void   # lunge_speed = average; eases out
   func begin_dodge(direction: Vector3, speed: float, duration: float, turn := true) -> void; func face(direction: Vector3) -> void
