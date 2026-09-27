@@ -6,3 +6,7 @@
 # Local web export output (the .gdignore stops Godot importing exported files)
 /build/*
 !/build/.gdignore
+
+# Raw downloads whose licences forbid redistributing the files (Mixamo FBX and similar): keep
+# them on your PC only (docs/vertical-slice/M2_GUIDE.md §2)
+/assets/incoming/private/

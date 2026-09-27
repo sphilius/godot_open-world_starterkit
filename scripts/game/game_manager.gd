@@ -20,6 +20,8 @@ extends Node
 signal state_changed(previous: GameState, current: GameState)
 signal checkpoint_reached(shrine: CheckpointShrine)
 signal victory
+## Quit to title, just before the scene reloads (the playtest log closes the run).
+signal returning_to_title
 
 enum GameState { START_MENU, EXPLORATION, COURTYARD_AMBUSH, SANCTUM_GATEKEEPER, VICTORY_SCREEN }
 
@@ -130,6 +132,7 @@ func return_to_checkpoint() -> void:
 
 ## Back to the title with a fresh world.
 func return_to_title() -> void:
+	returning_to_title.emit()
 	TimeScale.reset()
 	get_tree().paused = false
 	get_tree().reload_current_scene()

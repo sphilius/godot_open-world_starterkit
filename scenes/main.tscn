@@ -29,6 +29,8 @@
 [ext_resource type="Resource" path="res://resources/audio/sound_bank.tres" id="41_bank"]
 [ext_resource type="Script" path="res://scripts/audio/music_director.gd" id="42_music"]
 [ext_resource type="Script" path="res://scripts/game/feedback_director.gd" id="43_feedback"]
+[ext_resource type="Script" path="res://scripts/game/playtest_logger.gd" id="48_playtest"]
+[ext_resource type="Script" path="res://scripts/vfx/ink_splats.gd" id="49_ink"]
 [ext_resource type="AudioStream" path="res://assets/audio/placeholder/ambience_wind.ogg" id="44_wind"]
 [ext_resource type="AudioStream" path="res://assets/audio/placeholder/music_combat.ogg" id="45_combat"]
 [ext_resource type="AudioStream" path="res://assets/audio/placeholder/music_boss.ogg" id="46_boss"]
@@ -198,7 +200,16 @@ combat = ExtResource("45_combat")
 boss = ExtResource("46_boss")
 victory = ExtResource("47_victory")
 
-[node name="FeedbackDirector" type="Node" parent="." node_paths=PackedStringArray("sfx", "player")]
+[node name="InkSplats" type="Node3D" parent="."]
+script = ExtResource("49_ink")
+
+[node name="FeedbackDirector" type="Node" parent="." node_paths=PackedStringArray("sfx", "player", "ink")]
 script = ExtResource("43_feedback")
 sfx = NodePath("../SfxPool")
 player = NodePath("../Player")
+ink = NodePath("../InkSplats")
+
+[node name="PlaytestLogger" type="Node" parent="." node_paths=PackedStringArray("game", "dev_hud")]
+script = ExtResource("48_playtest")
+game = NodePath("../GameManager")
+dev_hud = NodePath("../DevHUD")

@@ -252,7 +252,7 @@ either way.
 | **M7** ✅ | 07 | `TargetingSystem` (hard lock, cycling on mouse wheel and right stick), `CombatCamera3D` extracted from `PlayerController` with dual focus; strafe locomotion while locked | `scripts/camera/`, `player_controller.gd` | M3 | 3–5 h | 1 wk |
 | **M8** ✅ (greybox) | 08 | Level assembly: Beat 1 on the existing scenic path, then the courtyard at the path's end, then the sanctum gate. Encounter volumes, arena gates, navmesh. **Built as greybox** (`GreyboxArena`, `LevelGate`) on flattened terrain; the M2 kit swaps in scene by scene. Per-beat environments (D9) move to M9, where GameManager tweens them | `scenes/levels/`, `scenes/main.tscn` | M2 environment kit, M6 | 3–5 h agent + editor dressing | 1–2 wk |
 | **M9** ✅ | 09 | **M9a ✅**: `GameManager` (a scene node, not an autoload), `CheckpointShrine`, title, pause and victory screens, death slow motion and fades, per-beat lighting (D9). **M9b ✅**: audio runtime (buses, voice pool, surface foley, music per beat, sanctum reverb) with **placeholder audio** synthesised in-repo until sourced audio replaces it; `CameraTrauma`; hit sparks and flashes; lock-on gauge and reticle pulse. Blood or ink decals move to M10 polish | `scripts/audio/`, `scripts/ui/`, `scripts/game/` | M6–M8, **audio purchases** | 5–8 h | 2–3 wk |
-| **M10** | 10 | End-to-end 10-minute playtest, tuning pass, performance pass per D5, desktop export (plus web if D4), README update, capture a demo video | — | all | 2–4 h + human playtests | 1–2 wk |
+| **M10** (prep ✅) | 10 | End-to-end 10-minute playtest, tuning pass, performance pass per D5, desktop export (plus web if D4), README update, capture a demo video. **Prep ✅**: `PlaytestLogger` (per-beat CSV with frame hitches), `tools/playtest/summarize.py`, `PLAYTEST.md`, ink splats (the blood/ink decal polish from M9), Windows and Linux export presets plus a CI export job, README beats and credits, the free audio list (`AUDIO_SOURCING.md`) and `tools/audio/ingest_audio.py`. Left: the playtests themselves and the tuning they drive, the demo video | — | all | 2–4 h + human playtests | 1–2 wk |
 
 **Totals (rough):** agent ≈ 35–55 h of implementation spread over many sessions. A solo human
 developer would need about **10–16 weeks**, with art and animation as the long pole. With AI
@@ -304,9 +304,9 @@ rig. The runbook's order puts art at step 02, which would idle the code track fo
   `assets/incoming/` for the import pipeline to process.
 - [ ] **Audio files** (`.ogg` for loops and music, `.wav` for short SFX) into
   `assets/incoming/audio/`, each with its license or attribution line.
-- [ ] **Blender MCP sessions run on your machine.** This cloud session has no Blender and no
-  Godot editor. Run the §2 prompts in `PROMPTS.md` locally, or with your
-  `godot-asset-pipeline` skill, and commit the `.glb` outputs.
+- [ ] **Blender MCP sessions run on your machine.** Interactive Blender work needs your PC.
+  Follow `M2_GUIDE.md`, which covers setup, the free CC0 route, the prompts and the hand-off, and
+  commit the `.glb` outputs.
 - [ ] **Playtest recordings and notes** at M8 and M10.
 
 ### 7.3 Purchase (all optional; free routes exist)

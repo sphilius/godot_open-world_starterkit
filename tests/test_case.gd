@@ -63,6 +63,7 @@ func wait_until(condition: Callable, timeout: float) -> bool:
 func load_world(skip_start_menu := true) -> void:
 	seed(20260925)
 	GameManager.skip_start_menu = skip_start_menu   # by default start playable, not paused on the title
+	PlaytestLogger.log_path = ""                    # tests never append to the real playtest log
 	world = (load(MAIN_SCENE) as PackedScene).instantiate()
 	(world.get_node("GrassField") as GrassField).blades_per_square_metre = 1.0
 	tree.root.add_child(world)
