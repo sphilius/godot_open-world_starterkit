@@ -1,0 +1,76 @@
+{
+ "attack_1": {
+  "length": 0.9333,
+  "loop": false
+ },
+ "attack_2": {
+  "length": 1.0667,
+  "loop": false
+ },
+ "death": {
+  "length": 2.4,
+  "loop": false
+ },
+ "executed": {
+  "length": 2.4,
+  "loop": false
+ },
+ "hurt_b": {
+  "length": 0.4333,
+  "loop": false
+ },
+ "hurt_f": {
+  "length": 0.3333,
+  "loop": false
+ },
+ "idle": {
+  "length": 1.6667,
+  "loop": true
+ },
+ "parried": {
+  "length": 1.2,
+  "loop": false
+ },
+ "posture_break": {
+  "length": 1.6,
+  "loop": false
+ },
+ "roar": {
+  "length": 1.2,
+  "loop": false
+ },
+ "run": {
+  "length": 0.9333,
+  "loop": true
+ },
+ "slam": {
+  "length": 1.6,
+  "loop": false
+ },
+ "stagger": {
+  "length": 0.7,
+  "loop": false
+ },
+ "strafe_l": {
+  "length": 0.5,
+  "loop": true,
+  "speed": 1.2
+ },
+ "strafe_r": {
+  "length": 0.5,
+  "loop": true,
+  "speed": 1.2
+ },
+ "sweep": {
+  "length": 1.4,
+  "loop": false
+ },
+ "thrust_unblockable": {
+  "length": 1.5,
+  "loop": false
+ },
+ "walk": {
+  "length": 1.3333,
+  "loop": true
+ }
+}

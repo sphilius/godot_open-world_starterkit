@@ -1,0 +1,141 @@
+{
+ "attack_1": {
+  "length": 0.5333,
+  "loop": false
+ },
+ "attack_2": {
+  "length": 0.5333,
+  "loop": false
+ },
+ "attack_3": {
+  "length": 0.8,
+  "loop": false
+ },
+ "death": {
+  "length": 2.4,
+  "loop": false
+ },
+ "dodge_b": {
+  "length": 0.4667,
+  "loop": false
+ },
+ "dodge_f": {
+  "length": 0.4667,
+  "loop": false
+ },
+ "dodge_l": {
+  "length": 0.4667,
+  "loop": false
+ },
+ "dodge_r": {
+  "length": 0.4667,
+  "loop": false
+ },
+ "draw_attack": {
+  "length": 0.5,
+  "loop": false
+ },
+ "execution": {
+  "length": 1.2,
+  "loop": false
+ },
+ "guard_break": {
+  "length": 0.7,
+  "loop": false
+ },
+ "guard_hit": {
+  "length": 0.5,
+  "loop": false
+ },
+ "guard_idle": {
+  "length": 2.5,
+  "loop": true
+ },
+ "heavy_1": {
+  "length": 0.8667,
+  "loop": false
+ },
+ "heavy_2": {
+  "length": 0.7,
+  "loop": false
+ },
+ "heavy_finisher": {
+  "length": 0.9,
+  "loop": false
+ },
+ "hurt_b": {
+  "length": 0.3,
+  "loop": false
+ },
+ "hurt_f": {
+  "length": 0.3,
+  "loop": false
+ },
+ "hurt_heavy": {
+  "length": 0.7,
+  "loop": false
+ },
+ "hurt_l": {
+  "length": 0.3,
+  "loop": false
+ },
+ "hurt_r": {
+  "length": 0.3,
+  "loop": false
+ },
+ "idle": {
+  "length": 1.6667,
+  "loop": true
+ },
+ "jump_land": {
+  "length": 1.2667,
+  "loop": false
+ },
+ "jump_loop": {
+  "length": 2.5,
+  "loop": true
+ },
+ "jump_start": {
+  "length": 1.3333,
+  "loop": false
+ },
+ "knockdown": {
+  "length": 1.8,
+  "loop": false
+ },
+ "parry_1": {
+  "length": 0.3333,
+  "loop": false
+ },
+ "parry_2": {
+  "length": 0.4667,
+  "loop": false
+ },
+ "run": {
+  "length": 0.9333,
+  "loop": true
+ },
+ "sprint": {
+  "length": 0.6667,
+  "loop": true
+ },
+ "strafe_b": {
+  "length": 0.5,
+  "loop": true,
+  "speed": 1.2
+ },
+ "strafe_l": {
+  "length": 0.5,
+  "loop": true,
+  "speed": 1.2
+ },
+ "strafe_r": {
+  "length": 0.5,
+  "loop": true,
+  "speed": 1.2
+ },
+ "walk": {
+  "length": 1.3333,
+  "loop": true
+ }
+}
