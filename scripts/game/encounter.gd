@@ -99,7 +99,7 @@ func _spawn_wave(index: int) -> void:
 			(enemy as EnemyCombatController).director = director
 			(enemy as EnemyCombatController).aggro_radius = enemy_aggro_radius
 		var point := _spawn_points[i % _spawn_points.size()] if not _spawn_points.is_empty() else self
-		var jitter := Vector3((i / maxi(_spawn_points.size(), 1)) * 1.2, 0.0, 0.0)
+		var jitter := Vector3(floori(float(i) / maxi(_spawn_points.size(), 1)) * 1.2, 0.0, 0.0)
 		add_child(enemy)
 		enemy.global_position = point.global_position + jitter
 		enemy.global_rotation.y = point.global_rotation.y

@@ -84,7 +84,10 @@ const SIDE_STEPS := {
 ## Ground speed (m/s) the side-step clips (strafe_l/r/b) match at normal playback: while locked
 ## on they play faster or slower with the actual speed, so the feet don't slide
 ## (tools/art/build_animations.py STEP_STRIDE / STEP_CYCLE).
-@export var side_step_speed := 1.75
+@export var side_step_speed := 2.75
+## How far past the run / side-step / backpedal edges (a dot product) the travel direction must
+## go before the clip changes.
+@export_range(0.0, 0.4) var side_step_hysteresis := 0.15
 
 @export_group("Dodge")
 ## Must match the dodge clips' length (tools/art/build_animations.py DODGE).
@@ -369,11 +372,11 @@ func _take_action(allowed: Array[StringName]) -> bool:
 			_start_execution(victim)
 			return true
 	var sheathed := not holster.is_drawn()
-	var ready: Array[StringName] = []
+	var startable: Array[StringName] = []
 	for action in allowed:
 		if action == DODGE or combo.has_branch(action, sheathed):
-			ready.append(action)
-	var action := combo.consume(ready)
+			startable.append(action)
+	var action := combo.consume(startable)
 	if action == &"":
 		return false
 	if action == DODGE:
@@ -499,7 +502,8 @@ func _locomotion_state() -> State:
 
 
 ## The clip for a locomotion state: while locked on, moving sideways or backward side-steps
-## (the body keeps facing the target); otherwise idle or run.
+## (the body keeps facing the target); otherwise idle or run. The run/side-step/backpedal edges
+## are sticky by `side_step_hysteresis`, so a diagonal doesn't flicker between clips.
 func _locomotion_clip_for(next: State) -> StringName:
 	if next != State.RUN:
 		return &"idle"
@@ -508,9 +512,10 @@ func _locomotion_clip_for(next: State) -> StringName:
 	var travel := Vector3(body.velocity.x, 0.0, body.velocity.z).normalized()
 	var facing := body.get_facing()
 	var ahead := travel.dot(facing)
-	if ahead > 0.5:
+	var hold := side_step_hysteresis
+	if ahead > 0.5 + (hold if _locomotion_clip in SIDE_STEPS else -hold):
 		return &"run"
-	if ahead < -0.5:
+	if ahead < -0.5 + (hold if _locomotion_clip == &"strafe_b" else -hold):
 		return &"strafe_b"
 	return &"strafe_r" if travel.dot(facing.cross(Vector3.UP)) > 0.0 else &"strafe_l"
 

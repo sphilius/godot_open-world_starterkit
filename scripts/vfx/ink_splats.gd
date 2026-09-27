@@ -44,9 +44,9 @@ func _ready() -> void:
 		_textures.append(ImageTexture.create_from_image(make_mask(texture_size, 1000 + i)))
 
 
-## Lays a splat on the ground below `at`, `scale` times the usual size. Returns it, or null
+## Lays a splat on the ground below `at`, `size_scale` times the usual size. Returns it, or null
 ## when there's no ground within `max_drop`.
-func splat(at: Vector3, scale := 1.0) -> MeshInstance3D:
+func splat(at: Vector3, size_scale := 1.0) -> MeshInstance3D:
 	if not is_inside_tree():
 		return null
 	var query := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 0.3, at + Vector3.DOWN * max_drop, ground_mask)
@@ -56,9 +56,9 @@ func splat(at: Vector3, scale := 1.0) -> MeshInstance3D:
 	var mesh := _take()
 	var normal: Vector3 = hit.normal
 	var side := normal.cross(Vector3.FORWARD if absf(normal.z) < 0.9 else Vector3.RIGHT).normalized()
-	var basis := Basis(side, normal, side.cross(normal)).rotated(normal, _rng.randf() * TAU)
-	var diameter := _rng.randf_range(size_range.x, size_range.y) * scale
-	mesh.global_transform = Transform3D(basis, hit.position + normal * lift)
+	var splat_basis := Basis(side, normal, side.cross(normal)).rotated(normal, _rng.randf() * TAU)
+	var diameter := _rng.randf_range(size_range.x, size_range.y) * size_scale
+	mesh.global_transform = Transform3D(splat_basis, hit.position + normal * lift)
 	var material := mesh.material_override as StandardMaterial3D
 	material.albedo_texture = _textures[_rng.randi() % _textures.size()]
 	material.albedo_color = color

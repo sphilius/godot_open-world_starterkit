@@ -69,6 +69,7 @@ body = NodePath("..")
 
 [node name="ParrySystem" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "guard")]
 script = ExtResource("17_parry")
+parry_window = 0.3
 hurtbox = NodePath("../Hurtbox")
 guard = NodePath("../GuardComponent")
 

@@ -30,8 +30,9 @@ extends CharacterBody3D
 ## How quickly the body turns to face its travel direction.
 @export var turn_speed := 10.0
 ## Walk speed multiplier while locked on (TargetingSystem): circling a target is a guarded
-## side-step, not a jog (the side-step clips play at about 1.75 m/s). Sprinting ignores it.
-@export_range(0.1, 1.0) var lock_on_speed_scale := 0.5
+## side-step, a little slower than a jog (the side-step clips cover 2.75 m/s). Sprinting
+## ignores it.
+@export_range(0.1, 1.0) var lock_on_speed_scale := 0.75
 
 @export_group("Ground Snapping")
 ## How far below the feet the body searches for ground to stick to while grounded.

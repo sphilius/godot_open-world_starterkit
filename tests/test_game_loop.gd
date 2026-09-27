@@ -146,4 +146,6 @@ func test_the_game_starts_on_low_quality() -> void:
 	await load_world()
 	var hud := world.get_node("DevHUD") as DevHUD
 	check_eq(hud.quality_name(), "LOW", "start-up quality preset")
-	check(not world.get_node("WorldEnvironment").environment.sdfgi_enabled, "LOW leaves SDFGI off")
+	var environment: Environment = world.get_node("WorldEnvironment").environment
+	check(not environment.sdfgi_enabled, "LOW leaves SDFGI off")
+	check(environment.ambient_light_energy > 1.5, "LOW lifts the ambient fill to make up for the missing GI")

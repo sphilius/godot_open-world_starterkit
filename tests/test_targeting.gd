@@ -1,5 +1,5 @@
 extends "res://tests/test_case.gd"
-## M7: lock-on targeting (acquire, cone, line of sight, cycling, retarget, release) and the
+## M7: lock-on targeting (acquire, cone, range, cycling, retarget, release, highlight) and the
 ## combat camera and player behaviour while locked.
 
 
@@ -33,17 +33,59 @@ func test_centring_beats_distance_when_acquiring() -> void:
 	check(targeting.current_target != off_centre, "the 10° enemy isn't picked")
 
 
-func test_cone_and_line_of_sight_filter_targets() -> void:
+func test_any_enemy_in_range_can_be_locked_whatever_the_facing_or_cover() -> void:
 	var player := await _setup()
-	var off_angle := _wolf(Vector3(5, 0, -5))                 # 45°: outside the 70° cone
+	var behind := _wolf(Vector3(0, 0, 6))                     # behind the player and the camera
+	_wall(Vector3(0, 1.5, 3))                                 # and behind a wall
 	await physics_frames(2)
 	player.targeting.toggle_lock()
-	check(not player.targeting.is_locked(), "an enemy outside the cone isn't locked")
-	off_angle.position = Vector3(0, 0, -8)
-	_wall(Vector3(0, 1.5, -4))
+	check(player.targeting.current_target == behind, "the enemy behind, behind cover, is locked")
+	player.targeting.toggle_lock()
+	var beside := _wolf(Vector3(4, 0, 1))                     # beside the player, nearer
 	await physics_frames(2)
 	player.targeting.toggle_lock()
-	check(not player.targeting.is_locked(), "an enemy behind a wall isn't locked")
+	check(player.targeting.current_target == beside, "nobody in view: the nearest one is locked")
+	player.targeting.toggle_lock()
+	var ahead := _wolf(Vector3(1, 0, -14))                    # farther, but in view
+	await physics_frames(2)
+	player.targeting.toggle_lock()
+	check(player.targeting.current_target == ahead, "someone in view still wins over nearer ones")
+	player.targeting.toggle_lock()
+	for wolf in [behind, beside, ahead]:
+		wolf.position.z += 40.0                                # all out of combat range
+	await physics_frames(2)
+	player.targeting.toggle_lock()
+	check(not player.targeting.is_locked(), "nobody within radius: no lock")
+
+
+func test_the_lock_follows_the_nearest_enemy_and_clears_a_freed_target() -> void:
+	var player := await _setup()
+	var hud := PlayerHUD.new()
+	hud.health = player.get_node("HealthComponent")
+	hud.targeting = player.targeting
+	add_to_stage(hud)
+	var first := _wolf(Vector3(0, 0, -6))
+	var near_behind := _wolf(Vector3(0, 0, 3))                # nearest, but out of view
+	_wolf(Vector3(0.5, 0, -10))                               # in view, farther
+	await physics_frames(2)
+	var targeting := player.targeting
+	targeting.set_target(first)
+	check(not targeting.highlighted_meshes().is_empty(), "the target wears the highlight")
+	var first_mesh := targeting.highlighted_meshes()[0]
+	await physics_frames(2)
+	check(hud.gauge_target() == first, "the gauge shows the target")
+	first.health.take_damage(HitInfo.new(999.0))
+	await physics_frames(2)
+	check(targeting.current_target == near_behind, "the lock moved straight to the nearest enemy")
+	await seconds(0.3)                                        # past the death's hit flash
+	check(first_mesh.material_overlay == null, "the fallen target lost the highlight")
+	# A fight reset frees the enemies outright: the lock and the gauge must let go.
+	var survivors := player.get_tree().get_nodes_in_group(&"enemies")
+	for enemy in survivors:
+		enemy.free()
+	await physics_frames(2)
+	check(is_same(targeting.current_target, null), "a freed target is cleared, not kept as a dead reference")
+	check(is_same(hud._gauge_target, null), "the gauge let go of the freed target (and redrew empty)")
 
 
 func test_cycling_follows_screen_position() -> void:
@@ -118,6 +160,20 @@ func test_camera_frames_the_target_and_keeps_its_view_on_release() -> void:
 	await seconds(0.5)
 	check(absf(camera.yaw - yaw_locked) > 0.2, "free look works again after release")
 
+
+func test_a_far_target_keeps_the_player_in_frame() -> void:
+	var player := await _setup()
+	player.targeting.set_target(_wolf(Vector3(0, 0, -17)))
+	await seconds(1.5)
+	var camera := player.camera.camera
+	var head := player.global_position + Vector3.UP * 1.7
+	var feet := player.global_position + Vector3.UP * 0.1
+	check(not camera.is_position_behind(head), "the player is in front of the camera")
+	var size := camera.get_viewport().get_visible_rect().size
+	for point in [head, feet]:
+		var screen := camera.unproject_position(point)
+		check(Rect2(Vector2.ZERO, size).has_point(screen), "player point %s on screen (%s)" % [point, screen])
+	check(camera.global_position.distance_to(player.global_position) > 3.0, "the camera stays well behind the player")
 
 func test_look_input_is_ignored_while_locked() -> void:
 	var player := await _setup()

@@ -50,7 +50,7 @@ const GLINT_SCENE := preload("res://scenes/vfx/telegraph_glint.tscn")
 @export var turn_speed := 8.0
 ## Ground speed (m/s) the strafe clips match at normal playback; flanking plays them faster or
 ## slower with the actual speed (tools/art/build_animations.py STEP_STRIDE / STEP_CYCLE).
-@export var strafe_clip_speed := 1.75
+@export var strafe_clip_speed := 2.75
 ## Stops this far from the player (m) before striking.
 @export var approach_distance := 2.0
 @export var aggro_radius := 14.0

@@ -159,7 +159,9 @@ func _update_gauge() -> void:
 			target = null
 		else:
 			_gauge_point = camera.unproject_position(head)
-	if target != _gauge_target or target:
+	# is_same, not ==: a freed target (the fight reset on the player's death) equals null, and
+	# the last gauge would stay drawn.
+	if not is_same(target, _gauge_target) or target:
 		_gauge_target = target
 		_gauge.queue_redraw()
 

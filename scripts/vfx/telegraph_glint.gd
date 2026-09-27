@@ -9,9 +9,10 @@ const GOLD := Color(1.0, 0.78, 0.3)
 const RED := Color(1.0, 0.16, 0.08)
 
 ## Seconds the flare takes to bloom and fade.
-@export var duration := 0.4
-@export var size := 0.55
-@export var light_energy := 3.0
+@export var duration := 0.5
+## Playtest 1: bigger and brighter, so the parry cue reads in the dark courtyard.
+@export var size := 0.9
+@export var light_energy := 5.0
 
 var last_color := Color.TRANSPARENT
 var flashes := 0

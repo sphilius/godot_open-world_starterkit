@@ -16,7 +16,8 @@ enum Quality { LOW, MEDIUM, HIGH }
 const QUALITY_NAMES: Array[String] = ["LOW", "MEDIUM", "HIGH"]
 
 ## Per-tier knobs, measured on an Intel UHD G1 (i5-1035G1) iGPU.
-## LOW    : SDFGI and volumetric fog off, for frame rate.
+## LOW    : SDFGI and volumetric fog off, for frame rate. Without GI's bounce light the walled
+##          courtyard and sanctum go near-black, so `ambient_energy` lifts the fill instead.
 ## MEDIUM : SDFGI and volumetric fog stay on but lean (half-res GI, 3 cascades, small
 ##          froxel grid). Soft PCF replaces PCSS contact-hardening shadows.
 ## HIGH   : the full look (PCSS, 4 shadow splits, dense grass). Aimed at discrete GPUs.
@@ -27,7 +28,7 @@ const PRESETS := {
 		volumetric_fog = false, froxels = Vector2i(48, 32), ssao = false,
 		shadow_atlas = 2048, shadow_splits = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS,
 		shadow_distance = 60.0, shadow_filter = RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW, pcss = false,
-		grass_density = 0.35, grass_distance = 30.0, render_scale = 0.6,
+		grass_density = 0.35, grass_distance = 30.0, render_scale = 0.6, ambient_energy = 2.2,
 	},
 	Quality.MEDIUM: {
 		sdfgi = true, sdfgi_cascades = 3, sdfgi_rays = RenderingServer.ENV_SDFGI_RAY_COUNT_8,
@@ -35,7 +36,7 @@ const PRESETS := {
 		volumetric_fog = true, froxels = Vector2i(48, 32), ssao = false,
 		shadow_atlas = 2048, shadow_splits = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS,
 		shadow_distance = 90.0, shadow_filter = RenderingServer.SHADOW_QUALITY_SOFT_LOW, pcss = false,
-		grass_density = 0.5, grass_distance = 40.0, render_scale = 0.67,
+		grass_density = 0.5, grass_distance = 40.0, render_scale = 0.67, ambient_energy = 1.2,
 	},
 	Quality.HIGH: {
 		sdfgi = true, sdfgi_cascades = 4, sdfgi_rays = RenderingServer.ENV_SDFGI_RAY_COUNT_32,
@@ -43,7 +44,7 @@ const PRESETS := {
 		volumetric_fog = true, froxels = Vector2i(128, 96), ssao = true,
 		shadow_atlas = 4096, shadow_splits = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS,
 		shadow_distance = 140.0, shadow_filter = RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM, pcss = true,
-		grass_density = 1.0, grass_distance = 60.0, render_scale = 1.0,
+		grass_density = 1.0, grass_distance = 60.0, render_scale = 1.0, ambient_energy = 1.0,
 	},
 }
 
@@ -122,6 +123,8 @@ func _apply_quality() -> void:
 	env.sdfgi_enabled = p.sdfgi and forward_plus
 	env.volumetric_fog_enabled = p.volumetric_fog and forward_plus
 	env.ssao_enabled = p.ssao and forward_plus
+	# Fill light: stands in for the bounce light SDFGI gives (the web never has SDFGI).
+	env.ambient_light_energy = p.ambient_energy if env.sdfgi_enabled else PRESETS[Quality.LOW].ambient_energy
 
 	if forward_plus:
 		# Global illumination
