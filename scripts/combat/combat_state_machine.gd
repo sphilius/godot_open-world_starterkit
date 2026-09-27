@@ -56,7 +56,7 @@ const ALL_ACTIONS: Array[StringName] = [ComboManager.LIGHT, ComboManager.HEAVY, 
 const STAGGER_CLIPS := {
 	&"front": &"hurt_f", &"back": &"hurt_b", &"left": &"hurt_l", &"right": &"hurt_r",
 	&"heavy": &"hurt_heavy", &"parried": &"hurt_heavy", &"knockdown": &"knockdown",
-	&"guard_break": &"guard_break",
+	&"guard_break": &"guard_break", &"evaded": &"hurt_heavy",
 }
 
 ## Side-step states and the AnimationTree parameter that sets each one's playback speed.

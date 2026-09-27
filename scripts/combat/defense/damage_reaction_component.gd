@@ -17,6 +17,11 @@ extends Node
 ## Lethal hits are left to the owner's death handling. A knockdown, guard break or parried
 ## stagger is never cut short by a later, shorter one (hits during a posture break, say).
 ##
+## Flinch resistance (Phase B, against light-attack spam): while `flinch_resistant` is set (an
+## enemy's wind-up and active frames) light flinches don't happen; and after `flinch_limit` light
+## flinches within `flinch_window` seconds, light flinches are shrugged off for
+## `flinch_immunity` seconds. Heavy staggers, knockdowns and guard breaks always land, and the
+## health damage always does. `flinch_limit` 0 turns the limit off (the player).
 ## Knockback: a body with apply_knockback() (PlayerController) gets it there and brakes itself;
 ## any other CharacterBody3D gets its velocity set, and it decays here with `friction`.
 
@@ -47,12 +52,25 @@ signal stagger_ended
 ## Share of the knockback a blocked hit still pushes.
 @export_range(0.0, 1.0) var blocked_push := 0.35
 
+@export_group("Flinch resistance")
+## Light flinches within `flinch_window` seconds before they stop landing (0 = never).
+@export var flinch_limit := 0
+@export var flinch_window := 2.0
+## Seconds light flinches are shrugged off once the limit is reached.
+@export var flinch_immunity := 2.0
+
 ## Staggers a later, shorter reaction must not cut short.
 const HELD_TYPES: Array[StringName] = [&"knockdown", &"guard_break", &"parried", &"evaded", &"roar"]
+## The directional light flinches that flinch resistance can shrug off.
+const LIGHT_FLINCHES: Array[StringName] = [&"front", &"back", &"left", &"right"]
 
 var is_staggered := false
 var stagger_type := &""
+## Set by the owner: light flinches don't land while true (an enemy's committed strike).
+var flinch_resistant := false
 var _time_left := 0.0
+var _flinch_times: Array[int] = []          # msec of recent light flinches
+var _immune_until_msec := 0
 
 
 func _ready() -> void:
@@ -145,6 +163,8 @@ func _on_hit_received(hit: HitInfo, result: HitInfo.Result) -> void:
 	match result:
 		HitInfo.Result.HIT:
 			var reaction := classify(hit)
+			if reaction[0] in LIGHT_FLINCHES and _shrugs_off_flinch():
+				return
 			_push(hit.knockback)
 			react(reaction[0], reaction[1])
 		HitInfo.Result.GUARD_BROKEN:
@@ -152,6 +172,30 @@ func _on_hit_received(hit: HitInfo, result: HitInfo.Result) -> void:
 			react(&"guard_break", guard.guard_break_stagger if guard else 2.5)
 		HitInfo.Result.BLOCKED:
 			_push(hit.knockback * blocked_push)
+
+
+## True if a light flinch shouldn't land now; otherwise counts it toward `flinch_limit`.
+func _shrugs_off_flinch() -> bool:
+	var now := Time.get_ticks_msec()
+	if flinch_resistant or now < _immune_until_msec:
+		return true
+	if flinch_limit <= 0:
+		return false
+	var recent: Array[int] = []
+	for time in _flinch_times:
+		if now - time <= int(flinch_window * 1000.0):
+			recent.append(time)
+	recent.append(now)
+	_flinch_times = recent
+	if recent.size() >= flinch_limit:
+		_flinch_times.clear()
+		_immune_until_msec = now + int(flinch_immunity * 1000.0)
+	return false                                         # this one still lands; the next ones don't
+
+
+## True while light flinches are being shrugged off (resistance or the flinch limit).
+func is_flinch_immune() -> bool:
+	return flinch_resistant or Time.get_ticks_msec() < _immune_until_msec
 
 
 func _push(knockback: Vector3) -> void:

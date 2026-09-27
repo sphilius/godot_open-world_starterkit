@@ -132,10 +132,12 @@ func test_the_token_is_released_on_every_exit_path() -> void:
 	check_eq(director.token_count(), 1, "an attacking grunt holds a token")
 	check(await wait_until(func() -> bool: return grunt.state not in ATTACKING, 3.0), "the attack never ended")
 	check(not director.has_attack_token(grunt), "released when the attack ended")
-	# 2. Staggered mid-wind-up.
+	# 2. Staggered mid-wind-up (a heavy hit: light ones don't interrupt a started strike).
 	check(await wait_until(func() -> bool: return grunt.state == S.ATTACK_WINDUP, 4.0), "no second attack")
 	_hurtbox(grunt).receive_hit(CombatFixtures.make_hit(player, 1.0, 5.0))
-	check_eq(grunt.state, S.STAGGERED, "state after a hit")
+	check_eq(grunt.state, S.ATTACK_WINDUP, "a light hit doesn't interrupt the wind-up")
+	_hurtbox(grunt).receive_hit(CombatFixtures.make_hit(player, 1.0, 40.0))
+	check_eq(grunt.state, S.STAGGERED, "state after a heavy hit")
 	check(not director.has_attack_token(grunt), "released when staggered")
 	check(not grunt.weapon_hitbox.is_active(), "the weapon is off")
 	# 3. Reset mid-attack.

@@ -16,6 +16,13 @@ extends CharacterBody3D
 ## RECOVER       : the strike's recovery (`recovery_scale` shortens it), then the next strike of
 ##                 a combo or back to deciding.
 ## STAGGERED     : a DamageReaction stagger (hit, knockdown, parried, posture break, roar).
+## GUARD         : guard up (GuardComponent), facing the player; blocks play guard_hit. Ends when
+##                 the hold runs out, or turns into a counter-attack (EnemyDefense).
+## EVADE         : a backstep with i-frames (strafe_b played fast); a perfect evade ends in a
+##                 counter-attack.
+## Defence decisions come from the optional EnemyDefense child ("Defense"). During the wind-up
+## and active frames light flinches don't land (DamageReactionComponent.flinch_resistant), so a
+## started strike can't be mashed out of; heavy hits still stagger it.
 ## DEAD          : death clip; frees itself (`free_on_death`) or stays until reset_to_spawn().
 ## The attack token is released on every way out of an attack: its end, a stagger, death,
 ## reset, and leaving the tree. A posture break makes it executable: execute() deals
@@ -26,7 +33,7 @@ signal state_changed(previous: State, current: State)
 signal defeated
 signal executed(by: Node3D)
 
-enum State { IDLE, APPROACH, FLANKING, ATTACK_WINDUP, ATTACK_ACTIVE, RECOVER, STAGGERED, DEAD }
+enum State { IDLE, APPROACH, FLANKING, ATTACK_WINDUP, ATTACK_ACTIVE, RECOVER, STAGGERED, DEAD, GUARD, EVADE }
 
 ## DamageReaction stagger type → clip (enemy animation library).
 const STAGGER_CLIPS := {
@@ -69,6 +76,12 @@ const GLINT_SCENE := preload("res://scenes/vfx/telegraph_glint.tscn")
 ## Multiplies each strike's recovery (after its active frames).
 @export var recovery_scale := 1.0
 
+@export_group("Defence")
+## Backstep speed (m/s, easing out), length (s) and invulnerability (s).
+@export var evade_speed := 6.0
+@export var evade_time := 0.35
+@export var evade_iframes := 0.3
+
 @export_group("Execution and death")
 ## Share of max health an execution deals (1 = always kills).
 @export_range(0.0, 1.0) var execution_damage_ratio := 1.0
@@ -83,6 +96,9 @@ const GLINT_SCENE := preload("res://scenes/vfx/telegraph_glint.tscn")
 @onready var agent: NavigationAgent3D = $NavigationAgent3D
 @onready var model: Node3D = $Model
 @onready var anim: AnimationPlayer = $Model/AnimationPlayer
+## Optional (Phase B): the guard that GUARD raises, and the defence brain.
+@onready var guard: GuardComponent = get_node_or_null(^"GuardComponent")
+@onready var defense: EnemyDefense = get_node_or_null(^"Defense")
 
 var state := State.IDLE
 var target: Node3D
@@ -98,6 +114,10 @@ var _cooldown_left := 0.0
 var _retry_left := 0.0
 var _repath_left := 0.0
 var _engaged := false
+var _guard_left := 0.0
+var _evade_left := 0.0
+var _evade_direction := Vector3.ZERO
+var _counter_after_evade := false
 var _sink: Tween
 
 
@@ -116,6 +136,8 @@ func _ready() -> void:
 	health.died.connect(_on_died)
 	reaction.stagger_started.connect(_on_stagger_started)
 	reaction.stagger_ended.connect(_on_stagger_ended)
+	if guard:
+		guard.blocked.connect(_on_guard_blocked)
 	if _director():
 		_director().register(self)
 	anim.play(&"idle")
@@ -139,6 +161,10 @@ func _physics_process(delta: float) -> void:
 			_tick_flanking(delta)
 		State.ATTACK_WINDUP, State.ATTACK_ACTIVE, State.RECOVER:
 			_tick_attack(delta)
+		State.GUARD:
+			_tick_guard(delta)
+		State.EVADE:
+			_tick_evade(delta)
 		State.STAGGERED:
 			pass                                         # DamageReaction brakes it and ends it
 	move_and_slide()
@@ -170,6 +196,56 @@ func has_attack_token() -> bool:
 	if _director():
 		return _director().has_attack_token(self)
 	return state in [State.APPROACH, State.ATTACK_WINDUP, State.ATTACK_ACTIVE, State.RECOVER]
+
+
+## Free to defend: aware of the player and not committed to a strike, a stagger or a defence.
+func can_defend() -> bool:
+	return state in [State.APPROACH, State.FLANKING, State.RECOVER] and not health.is_dead and _target_valid()
+
+
+## Raises the guard for `hold` seconds (EnemyDefense). A strike's recovery is abandoned.
+func start_guard(hold: float) -> void:
+	if guard == null:
+		return
+	_abort_attack()
+	_guard_left = hold
+	guard.set_guarding(true)
+	_set_state(State.GUARD)
+	anim.speed_scale = 1.0
+	anim.play(&"guard_idle", 0.1)
+
+
+## Keeps the guard up at least `hold` more seconds.
+func extend_guard(hold: float) -> void:
+	_guard_left = maxf(_guard_left, hold)
+
+
+## Backsteps away from the player with i-frames. `perfect` (a timed evade of the player's
+## blade) counter-attacks at the end.
+func start_evade(perfect: bool) -> void:
+	_abort_attack()
+	_evade_left = evade_time
+	_counter_after_evade = perfect
+	var away := _flat(global_position - target.global_position) if _target_valid() else -_forward()
+	_evade_direction = away.normalized() if away.length_squared() > 0.0001 else -_forward()
+	health.grant_invulnerability(evade_iframes)
+	_set_state(State.EVADE)
+	anim.speed_scale = 1.8
+	anim.play(&"strafe_b" if anim.has_animation(&"strafe_b") else &"walk", 0.05)
+
+
+## Strikes back at once if the player is in reach and a token is free; otherwise decides again.
+func counter_attack() -> void:
+	if state == State.GUARD:
+		_set_state(State.FLANKING)                  # lowers the guard
+	if not _target_valid() or state in [State.STAGGERED, State.DEAD] or health.is_dead:
+		return
+	var close := _flat(target.global_position - global_position).length() <= approach_distance + 1.0
+	if close and (not _director() or _director().request_attack_token(self)):
+		_cooldown_left = 0.0
+		_start_attack()
+	else:
+		_decide()
 
 
 ## Encounter reset: back to the spawn point, alive and idle.
@@ -272,6 +348,39 @@ func _tick_attack(delta: float) -> void:
 			_begin_strike(_strike_index + 1)
 		else:
 			_finish_attack()
+
+
+func _tick_guard(delta: float) -> void:
+	_brake(delta)
+	if _target_valid():
+		_face(_flat(target.global_position - global_position), delta)
+	_guard_left -= delta
+	if _guard_left <= 0.0:
+		_decide()                                        # leaving GUARD lowers the guard
+
+
+func _tick_evade(delta: float) -> void:
+	_evade_left -= delta
+	var speed := evade_speed * clampf(_evade_left / evade_time, 0.0, 1.0) * 2.0   # eases out, same distance
+	velocity.x = _evade_direction.x * speed
+	velocity.z = _evade_direction.z * speed
+	if _target_valid():
+		_face(_flat(target.global_position - global_position), delta)
+	if _evade_left <= 0.0:
+		anim.speed_scale = 1.0
+		if _counter_after_evade:
+			_counter_after_evade = false
+			counter_attack()
+		else:
+			_decide()
+
+
+func _on_guard_blocked(_hit: HitInfo) -> void:
+	if state != State.GUARD:
+		return
+	anim.play(&"guard_hit", 0.05)
+	anim.seek(0.0, true)
+	anim.queue(&"guard_idle")
 
 
 # --- Attacks -----------------------------------------------------------------------------
@@ -420,6 +529,10 @@ func _set_state(next: State) -> void:
 		return
 	var previous := state
 	state = next
+	if previous == State.GUARD and guard:
+		guard.set_guarding(false)
+	# A started strike can't be mashed out of with light hits (heavy ones still stagger it).
+	reaction.flinch_resistant = next == State.ATTACK_WINDUP or next == State.ATTACK_ACTIVE
 	state_changed.emit(previous, next)
 
 

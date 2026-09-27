@@ -15,6 +15,14 @@
   "length": 2.4,
   "loop": false
  },
+ "guard_hit": {
+  "length": 0.5,
+  "loop": false
+ },
+ "guard_idle": {
+  "length": 2.5,
+  "loop": true
+ },
  "hurt_b": {
   "length": 0.4333,
   "loop": false
@@ -50,6 +58,11 @@
  "stagger": {
   "length": 0.7,
   "loop": false
+ },
+ "strafe_b": {
+  "length": 0.4,
+  "loop": true,
+  "speed": 2.75
  },
  "strafe_l": {
   "length": 0.4,

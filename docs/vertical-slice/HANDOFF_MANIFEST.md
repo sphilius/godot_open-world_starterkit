@@ -188,6 +188,8 @@ class_name DamageReactionComponent extends Node   # node name "DamageReaction"
   var is_staggered: bool; var stagger_type: StringName
   func react(type: StringName, duration: float) -> void   # a held knockdown / guard_break / parried with more time left isn't cut short
   func play_parried(broke_posture := false) -> void; func play_evaded() -> void   # evaded: a perfect dodge's opening (held)
+  @export flinch_limit := 0 (enemies 3); flinch_window := 2.0; flinch_immunity := 2.0; var flinch_resistant: bool   # Phase B anti-spam
+  func is_flinch_immune() -> bool             # light flinches shrugged off (committed strike, or the flinch limit)
   func clear() -> void; func classify(hit: HitInfo) -> Array   # [type, duration]
   # A hit that breaks posture knocks down for max(knockdown_time, stagger_time, posture.break_duration).
   static func direction_of(facing: Vector3, to_attacker: Vector3) -> StringName; static func find_on(node: Node) -> DamageReactionComponent
@@ -210,8 +212,12 @@ class_name EnemyCombo extends Resource         # strikes: Array[AttackData], pla
 class_name EnemyCombatController extends CharacterBody3D   # group "enemies"; target = first node in group "player"
   signal telegraph_glint(position: Vector3, is_unblockable: bool); signal defeated; signal executed(by: Node3D)
   signal state_changed(previous: State, current: State)
-  enum State { IDLE, APPROACH, FLANKING, ATTACK_WINDUP, ATTACK_ACTIVE, RECOVER, STAGGERED, DEAD }
+  enum State { IDLE, APPROACH, FLANKING, ATTACK_WINDUP, ATTACK_ACTIVE, RECOVER, STAGGERED, DEAD, GUARD, EVADE }
   @export attacks: Array[AttackData]; combos: Array[EnemyCombo]; director: CombatDirector
+  @export evade_speed := 6.0; evade_time := 0.35; evade_iframes := 0.3   # Phase B
+  var guard: GuardComponent (child "GuardComponent"); var defense: EnemyDefense (child "Defense")   # both optional
+  func can_defend() -> bool; func start_guard(hold: float) -> void; func extend_guard(hold: float) -> void
+  func start_evade(perfect: bool) -> void; func counter_attack() -> void   # a perfect evade counters at its end
   @export walk_speed, run_speed, approach_distance := 2.0, aggro_radius := 14.0, telegraph_lead := 0.4, attack_cooldown, recovery_scale := 1.0
   @export strafe_clip_speed := 2.75   # flanking plays strafe_l/r at speed / this (AnimationPlayer.speed_scale)
   @export strike_reach := 3.2         # a strike opening within this of where the player started a dodge offers a perfect dodge
@@ -326,6 +332,9 @@ class_name InkSplats extends Node3D           # in main.tscn; pooled ground quad
   @export max_splats := 24, lifetime := 25.0, fade_time := 3.0, size_range, kill_scale := 1.7, color, ground_mask := 1, lift := 0.06
   func splat(at: Vector3, size_scale := 1.0) -> MeshInstance3D   # null without ground within max_drop; var splats; func visible_count() -> int
   static func make_mask(size: int, seed_value: int) -> Image
+EnemyDefense: @export enemy; guard: GuardComponent; parry: ParrySystem (elites); block_chance, dodge_chance, parry_chance, perfect_dodge_chance
+  @export reaction_time := Vector2(0.12, 0.25); defend_range := 3.6; defend_arc_degrees := 120.0; guard_hold := 0.9; counter_after_blocks := 2; cooldown := 0.8
+  var rng: RandomNumberGenerator   # reacts to CombatStateMachine.attack_started and the katana hitbox's swing_started
 Afterimage: static func spawn(parent, source, color, fade_time) -> Afterimage; static func trail(parent, source, count := 3, interval := 0.06)
 FeedbackDirector: @export perfect_dodge_time_scale := 0.35; perfect_dodge_slow_time := 0.35   # perfect_dodged → afterimages, slow motion, sound, shake
 FeedbackDirector: @export ink: InkSplats                # HIT and KILLED lay ink (kills × kill_scale)

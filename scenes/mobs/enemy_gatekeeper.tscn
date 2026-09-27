@@ -13,6 +13,9 @@
 [ext_resource type="Resource" path="res://resources/combat/enemies/brute_thrust.tres" id="11_thrust"]
 [ext_resource type="Resource" path="res://resources/combat/enemies/gatekeeper_red_combo.tres" id="12_red"]
 [ext_resource type="Script" path="res://scripts/ai/enemy_combo.gd" id="13_combo"]
+[ext_resource type="Script" path="res://scripts/combat/defense/guard_component.gd" id="40_guard"]
+[ext_resource type="Script" path="res://scripts/combat/defense/parry_system.gd" id="41_parry"]
+[ext_resource type="Script" path="res://scripts/ai/enemy_defense.gd" id="42_defense"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.6
@@ -68,11 +71,13 @@ posture = NodePath("../PostureComponent")
 position = Vector3(0, 1.25, 0)
 shape = SubResource("BoxShape3D_hurtbox")
 
-[node name="DamageReaction" type="Node" parent="." node_paths=PackedStringArray("body", "hurtbox", "posture")]
+[node name="DamageReaction" type="Node" parent="." node_paths=PackedStringArray("body", "hurtbox", "posture", "guard")]
 script = ExtResource("6_reaction")
 body = NodePath("..")
 hurtbox = NodePath("../Hurtbox")
 posture = NodePath("../PostureComponent")
+guard = NodePath("../GuardComponent")
+flinch_limit = 3
 poise_threshold = 60.0
 knockdown_threshold = 120.0
 knockdown_time = 2.0
@@ -95,3 +100,28 @@ target_desired_distance = 0.8
 path_max_distance = 3.0
 height = 2.5
 radius = 0.6
+
+[node name="GuardComponent" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "posture", "body")]
+script = ExtResource("40_guard")
+hurtbox = NodePath("../Hurtbox")
+posture = NodePath("../PostureComponent")
+body = NodePath("..")
+guard_break_stagger = 2.0
+
+[node name="ParrySystem" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "guard")]
+script = ExtResource("41_parry")
+hurtbox = NodePath("../Hurtbox")
+guard = NodePath("../GuardComponent")
+parry_window = 0.25
+spam_lockout = 0.0
+
+[node name="Defense" type="Node" parent="." node_paths=PackedStringArray("enemy", "guard", "parry")]
+script = ExtResource("42_defense")
+enemy = NodePath("..")
+guard = NodePath("../GuardComponent")
+parry = NodePath("../ParrySystem")
+block_chance = 0.45
+dodge_chance = 0.15
+parry_chance = 0.35
+perfect_dodge_chance = 0.3
+counter_after_blocks = 1
