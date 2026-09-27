@@ -6,9 +6,9 @@ duelist,sprint,UAL1,Sprint_Loop,loop; contract clip not played yet
 duelist,jump_start,UAL1,Jump_Start,contract clip not played yet
 duelist,jump_loop,UAL1,Jump_Loop,loop; contract clip not played yet
 duelist,jump_land,UAL1,Jump_Land,contract clip not played yet
-duelist,strafe_l,keyed,side-step,"keyed under the sword-ready stance (leg IK, baked); played while locked on (at half walk speed); 1.75 m/s at normal speed, playback scales with actual speed"
-duelist,strafe_r,keyed,side-step,"keyed under the sword-ready stance (leg IK, baked); played while locked on (at half walk speed); 1.75 m/s at normal speed, playback scales with actual speed"
-duelist,strafe_b,keyed,backpedal,"keyed under the sword-ready stance (leg IK, baked); played while locked on (at half walk speed); 1.75 m/s at normal speed, playback scales with actual speed"
+duelist,strafe_l,keyed,side-step,"keyed under the sword-ready stance (leg IK, baked); played while locked on (at 75% walk speed); 2.75 m/s at normal speed, playback scales with actual speed"
+duelist,strafe_r,keyed,side-step,"keyed under the sword-ready stance (leg IK, baked); played while locked on (at 75% walk speed); 2.75 m/s at normal speed, playback scales with actual speed"
+duelist,strafe_b,keyed,backpedal,"keyed under the sword-ready stance (leg IK, baked); played while locked on (at 75% walk speed); 2.75 m/s at normal speed, playback scales with actual speed"
 duelist,attack_1,UAL2,Sword_Regular_A+Sword_Regular_A_Rec,"joined (1.40 s); the combo cancel window opens where A_Rec starts (0.43 s); retimed: impact to the middle of the AttackData active window, length = duration"
 duelist,attack_2,UAL2,Sword_Regular_B+Sword_Regular_B_Rec,"joined (1.56 s); cancel window from 0.53 s; retimed: impact to the middle of the AttackData active window, length = duration"
 duelist,attack_3,UAL2,Sword_Regular_C,"combo finisher (2.00 s); retimed: impact to the middle of the AttackData active window, length = duration"
@@ -38,8 +38,8 @@ duelist,sheathe,-,-,GAP: see draw
 enemy,idle,UAL1,Sword_Idle,loop
 enemy,walk,UAL1,Walk_Loop,loop
 enemy,run,UAL1,Jog_Fwd_Loop,loop
-enemy,strafe_l,keyed,side-step,"keyed step-together cycle under the sword-ready stance (leg IK, baked); 1.75 m/s at normal speed, playback scales with actual speed"
-enemy,strafe_r,keyed,side-step,"keyed step-together cycle under the sword-ready stance (leg IK, baked); 1.75 m/s at normal speed, playback scales with actual speed"
+enemy,strafe_l,keyed,side-step,"keyed step-together cycle under the sword-ready stance (leg IK, baked); 2.75 m/s at normal speed, playback scales with actual speed"
+enemy,strafe_r,keyed,side-step,"keyed step-together cycle under the sword-ready stance (leg IK, baked); 2.75 m/s at normal speed, playback scales with actual speed"
 enemy,attack_1,UAL2,Sword_Regular_A+Sword_Regular_A_Rec,"grunt cut; joined (1.40 s); retimed: impact to the middle of the AttackData active window, length = duration"
 enemy,attack_2,UAL2,Sword_Regular_B+Sword_Regular_B_Rec,"grunt slash; joined (1.56 s); retimed: impact to the middle of the AttackData active window, length = duration"
 enemy,hurt_f,UAL1,Hit_Chest,
