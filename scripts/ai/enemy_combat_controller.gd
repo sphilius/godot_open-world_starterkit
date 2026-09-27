@@ -32,7 +32,7 @@ enum State { IDLE, APPROACH, FLANKING, ATTACK_WINDUP, ATTACK_ACTIVE, RECOVER, ST
 const STAGGER_CLIPS := {
 	&"front": &"hurt_f", &"left": &"hurt_f", &"right": &"hurt_f", &"back": &"hurt_b",
 	&"heavy": &"stagger", &"guard_break": &"stagger", &"knockdown": &"posture_break",
-	&"parried": &"parried", &"roar": &"roar",
+	&"parried": &"parried", &"evaded": &"stagger", &"roar": &"roar",
 }
 const GLINT_SCENE := preload("res://scenes/vfx/telegraph_glint.tscn")
 
@@ -51,6 +51,8 @@ const GLINT_SCENE := preload("res://scenes/vfx/telegraph_glint.tscn")
 ## Ground speed (m/s) the strafe clips match at normal playback; flanking plays them faster or
 ## slower with the actual speed (tools/art/build_animations.py STEP_STRIDE / STEP_CYCLE).
 @export var strafe_clip_speed := 2.75
+## A strike opening within this distance of a dodging player (m) counts toward a perfect dodge.
+@export var strike_reach := 3.2
 ## Stops this far from the player (m) before striking.
 @export var approach_distance := 2.0
 @export var aggro_radius := 14.0
@@ -255,6 +257,10 @@ func _tick_attack(delta: float) -> void:
 	else:
 		_brake(delta)
 	var active := _attack_time >= attack.active_start and _attack_time < attack.active_end
+	if active and state == State.ATTACK_WINDUP:
+		_offer_perfect_dodge()
+		if state != State.ATTACK_WINDUP:
+			return                                   # evaded: the stagger aborted the strike
 	weapon_hitbox.set_active(active)
 	if active:
 		_set_state(State.ATTACK_ACTIVE)
@@ -269,6 +275,16 @@ func _tick_attack(delta: float) -> void:
 
 
 # --- Attacks -----------------------------------------------------------------------------
+
+## As the strike opens, a player who started a dodge within `strike_reach` and is early in it
+## perfect-dodges it, even when the dash has already carried them clear of the blade.
+func _offer_perfect_dodge() -> void:
+	if not _target_valid():
+		return
+	var combat := CombatStateMachine.find_on(target)
+	if combat and _flat(combat.dodge_origin() - global_position).length() <= strike_reach:
+		combat.try_perfect_dodge(self)
+
 
 func _start_attack() -> void:
 	var pool: Array = []

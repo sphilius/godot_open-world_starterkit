@@ -64,7 +64,7 @@ hurtbox = NodePath("../Hurtbox")
 posture = NodePath("../PostureComponent")
 heavy_time = 0.6
 knockdown_time = 1.4
-parried_time = 1.2
+parried_time = 1.4
 
 [node name="BiteHitbox" type="Area3D" parent="."]
 collision_layer = 32

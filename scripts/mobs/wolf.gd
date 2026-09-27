@@ -33,6 +33,8 @@ enum State { WANDER, CHASE, BITE, STAGGER, DEAD }
 @export var bite_range_slack := 0.3
 ## Random pause between bites (s).
 @export var bite_cooldown := Vector2(1.4, 2.2)
+## A bite opening within this distance of where the player started a dodge offers a perfect dodge.
+@export var strike_reach := 3.0
 
 @export_group("Motion")
 @export var acceleration := 14.0
@@ -61,6 +63,7 @@ var _home := Vector3.ZERO
 var _target: Node3D
 var _target_health: HealthComponent
 var _bite_time := 0.0
+var _bite_offered := false                       # this bite already offered its perfect dodge
 var _bite_cooldown_left := 0.0
 var _wander_timer := 0.0
 var _repath_timer := 0.0
@@ -134,6 +137,7 @@ func _tick_chase(delta: float) -> void:
 func _start_bite() -> void:
 	state = State.BITE
 	_bite_time = 0.0
+	_bite_offered = false
 	bite_hitbox.begin(bite)
 	anim.speed_scale = 1.0
 	anim.play(bite.animation, 0.08)
@@ -156,10 +160,30 @@ func _tick_bite(delta: float) -> void:
 		velocity.z = forward.z * bite.lunge_speed
 	else:
 		_steer(0.0, delta)
-	bite_hitbox.set_active(t >= bite.active_start and t < bite.active_end)
+	var active := t >= bite.active_start and t < bite.active_end
+	if active and not bite_hitbox.is_active() and not _bite_offered:
+		_bite_offered = true
+		_offer_perfect_dodge()
+		if state != State.BITE:
+			return                                   # evaded: the stagger ended the bite
+	bite_hitbox.set_active(active)
 	if t >= bite.duration:
 		_end_bite()
 		state = State.CHASE
+
+
+## As the bite opens, a player who started a dodge within `strike_reach` and is early in it
+## perfect-dodges it (like EnemyCombatController), even when the dash already carried them clear.
+func _offer_perfect_dodge() -> void:
+	if not is_instance_valid(_target):
+		return
+	var combat := CombatStateMachine.find_on(_target)
+	if combat == null:
+		return
+	var gap := combat.dodge_origin() - global_position
+	gap.y = 0.0
+	if gap.length() <= strike_reach:
+		combat.try_perfect_dodge(self)
 
 
 func _end_bite() -> void:

@@ -221,6 +221,19 @@ Recommendations are marked ⭐. Nothing past M0 should start until D1–D5 are a
 | D4 | **Keep web and touch at parity, best effort.** Every new player action gets a touch button (heavy, dodge, guard, lock-on, interact) in the milestone that adds it, and `?quality=low` web builds must stay playable. Web-only fallbacks (no SDFGI or volumetric fog) are acceptable |
 | D15 | **Hero: a generic warrior with a straight one-handed sword** (approved 2026-09-25), not a katana samurai and not sword-and-shield. Stock Mixamo and Quaternius sword sets fit without retargeting to a katana grip. The quick-draw opener (`draw_attack`) stays as a fast draw-cut from the hip sheath. Code names (`Katana`, `assets/characters/samurai/`) are renamed when the M2 character lands |
 
+### 5.2 Combat depth decisions (playtest 1, approved 2026-09-27)
+
+After the first full playtest (Victory, 36 min, 4 deaths, 2 parries) Sasha asked for Wukong/God of
+War-style defence: perfect dodges, parry counters, blocking that wears equipment down, and enemies
+that defend themselves. Built in three phases, one PR each, A → B → C (D19).
+
+| # | Decision |
+|---|---|
+| D16 | **Stamina**: a new stamina bar spent by attacks, dodges and blocks (a perfect dodge is free). Posture stays as the "defensive posture": when it cracks the fighter is heavily staggered and can't dodge, block or attack until stamina is back above 30% |
+| D17 | **Equipment cracking, slice-sized**: weapon and armour crack meters absorb blocked damage; each cracked item halves blocking. Checkpoint shrines repair them. A blacksmith and crafting come after the slice |
+| D18 | **Stay sword-only** (D15 stands): no shield; weapon and armour are the absorbers |
+| D19 | **Order**: A (perfect dodge, parry counters, criticals, dodge out of wind-ups, 40% guard walk) → B (enemy block, dodge; elites and bosses parry and perfect-dodge; no free light-attack interrupts) → C (stamina, cracking, defensive posture) |
+
 Consequences:
 - **Sword animation risk is lower after D15.** The generic warrior uses Mixamo and Quaternius
   sword sets as they are, retimed through `AttackData`. Only the quick-draw, parry and

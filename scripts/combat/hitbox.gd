@@ -9,7 +9,8 @@ extends Area3D
 ## The hit goes through the target's Hurtbox (receive_hit), so its defenders (guard, parry)
 ## can claim it. That happens even when the body is touched first. Only targets without a
 ## Hurtbox take the damage directly. A landed hit applies damage, knockback and stagger, and
-## triggers hit-stop.
+## triggers hit-stop. `damage_scale` (reset by begin) scales damage and poise damage; above 1
+## the hit is a critical.
 
 signal hit_landed(target: HealthComponent, hit: HitInfo)
 ## The active window opened (swing sounds, M9b).
@@ -17,6 +18,8 @@ signal swing_started(attack: AttackData)
 
 ## The attacker: knockback pushes away from it, and it never hits itself.
 var source: Node3D
+## Multiplies the armed strike's damage and poise damage (a critical when above 1).
+var damage_scale := 1.0
 var _attack: AttackData
 var _active := false
 var _hit_this_swing := {}   # HealthComponent -> true
@@ -31,6 +34,7 @@ func _ready() -> void:
 ## Arms the hitbox for a new strike (clears the one-hit-per-target memory).
 func begin(attack: AttackData) -> void:
 	_attack = attack
+	damage_scale = 1.0
 	_hit_this_swing.clear()
 
 
@@ -57,9 +61,10 @@ func _on_struck(node: Node3D) -> void:
 		return
 	_hit_this_swing[health] = true
 
-	var hit := HitInfo.new(_attack.damage, source, _knockback_direction(node) * _attack.knockback, _attack.stagger_time)
+	var hit := HitInfo.new(_attack.damage * damage_scale, source, _knockback_direction(node) * _attack.knockback, _attack.stagger_time)
 	hit.attack = _attack
-	hit.poise_damage = _attack.poise_damage
+	hit.poise_damage = _attack.poise_damage * damage_scale
+	hit.critical = damage_scale > 1.0
 	hit.damage_type = _attack.damage_type
 	hit.unblockable = _attack.unblockable
 	hit.can_be_parried = _attack.can_be_parried

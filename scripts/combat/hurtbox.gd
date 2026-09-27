@@ -3,7 +3,9 @@ extends Area3D
 ## Passive damage receiver (physics layer "hurtbox"). It never scans; hitboxes detect it
 ## through `area_entered` and deliver hits with receive_hit().
 ##
-## A hit runs through the defenders first, in the order they were added (parry, then guard).
+## An `evader` (CombatStateMachine, during a dodge's perfect window) gets the first look: if it
+## evades the hit, nothing else happens, invulnerable or not. Then the hit runs through the
+## defenders, in the order they were added (parry, then guard).
 ## The first defender that returns anything other than IGNORED decides the outcome. If no
 ## defender claims the hit, health takes the damage, and posture (optional) takes the poise
 ## damage.
@@ -15,6 +17,8 @@ signal hit_received(hit: HitInfo, result: HitInfo.Result)
 ## add_posture(amount: float) -> bool (PostureComponent).
 @export var posture: Node
 
+## Optional: any object with evade(hit: HitInfo) -> bool, asked before anything else.
+var evader: Object
 var _defenders: Array[Object] = []
 
 
@@ -38,7 +42,11 @@ func remove_defender(defender: Object) -> void:
 
 
 func receive_hit(hit: HitInfo) -> HitInfo.Result:
-	if health == null or health.is_dead or health.is_invulnerable():
+	if health == null or health.is_dead:
+		return HitInfo.Result.IGNORED
+	if evader and is_instance_valid(evader) and evader.call(&"evade", hit):
+		return HitInfo.Result.IGNORED
+	if health.is_invulnerable():
 		return HitInfo.Result.IGNORED
 	for defender in _defenders:
 		var claimed: HitInfo.Result = defender.call(&"intercept", hit)

@@ -11,9 +11,18 @@ extends Node
 ## • Chaining: a buffered press chains at max(combo_window_open, active_end), so a press during
 ##   the wind-up is never lost and swings are never cut short. AttackData.cancel_open /
 ##   cancel_into allow earlier cancels (a dodge out of a heavy wind-up, for example), and a
-##   dodge may always cancel a strike's recovery (after active_end).
+##   dodge may always cancel a strike's wind-up (before active_start) and its recovery (after
+##   active_end): only the active frames commit.
 ## • Active frames (active_start → active_end) switch the weapon hitbox and trail on.
 ## • MotionWarping plans each lunge toward the lock-on target or a nearby enemy.
+## • Perfect dodge: a strike that would land, or an enemy strike that opens within reach (the
+##   enemy calls try_perfect_dodge), in the first `perfect_dodge_window` seconds of a dodge is
+##   evaded outright: the attacker staggers briefly (DamageReactionComponent.play_evaded) and
+##   the next strike started within the opening is a critical. perfect_dodged fires (afterimages
+##   and slow motion come from FeedbackDirector).
+## • Parry counter: a parry arms a critical for as long as the attacker's parried stagger (the
+##   posture break's, when the parry also broke it).
+##   Criticals scale the strike's damage and poise damage by `critical_multiplier`.
 ## • Dodge: a dash with invulnerability frames. With a lock-on target it keeps facing the
 ##   target and plays the directional clip; otherwise it turns into the dash (dodge_f), or
 ##   backsteps (dodge_b) when there's no movement input.
@@ -33,6 +42,10 @@ extends Node
 signal state_changed(previous: State, current: State)
 signal attack_started(attack: AttackData)
 signal dodge_started(direction: Vector3)
+## A dodge evaded `attacker`'s strike in the perfect window.
+signal perfect_dodged(attacker: Node3D)
+## A critical was armed (perfect dodge or parry) for `seconds`; a strike started in time uses it.
+signal critical_armed(seconds: float)
 
 enum State { IDLE, RUN, ATTACK, DODGE, HURT, DEAD, GUARD }
 
@@ -67,6 +80,9 @@ const SIDE_STEPS := {
 @export var guard: GuardComponent
 @export var parry: ParrySystem
 @export var reaction: DamageReactionComponent
+## The player's Hurtbox: the dodge's perfect window evades hits through it. Defaults to the
+## guard's.
+@export var hurtbox: Hurtbox
 ## Reset on respawn.
 @export var posture: PostureComponent
 ## The deathblow strike (resources/combat/execution.tres).
@@ -80,7 +96,7 @@ const SIDE_STEPS := {
 @export var run_threshold := 0.6
 @export var respawn_delay := 2.5
 ## Walk speed multiplier while guarding.
-@export var guard_move_scale := 0.45
+@export var guard_move_scale := 0.4
 ## Ground speed (m/s) the side-step clips (strafe_l/r/b) match at normal playback: while locked
 ## on they play faster or slower with the actual speed, so the feet don't slide
 ## (tools/art/build_animations.py STEP_STRIDE / STEP_CYCLE).
@@ -99,6 +115,14 @@ const SIDE_STEPS := {
 @export var dodge_iframes := Vector2(0.08, 0.3)
 ## From this time on, strikes may cancel the dodge's recovery.
 @export var dodge_cancel_time := 0.3
+## A strike that would land in the first this-many seconds of a dodge is a perfect dodge.
+@export var perfect_dodge_window := 0.2
+
+@export_group("Critical")
+## Damage and poise damage multiplier of a critical strike.
+@export var critical_multiplier := 2.0
+## Extra seconds the critical stays armed past the attacker's opening (to start the swing).
+@export var critical_grace := 0.3
 
 var state := State.IDLE
 ## The strike playing in ATTACK (null otherwise).
@@ -113,6 +137,12 @@ var _guard_held := false
 var _parries := 0
 var _execution_target: Node3D
 var _executed := false
+## A perfect dodge already happened in this dodge.
+var _perfect_this_dodge := false
+## Where the current (or last) dodge started.
+var _dodge_origin := Vector3.ZERO
+## Seconds a critical stays armed (0 = none).
+var _critical_left := 0.0
 
 
 func _ready() -> void:
@@ -124,6 +154,10 @@ func _ready() -> void:
 	reaction.stagger_ended.connect(_on_stagger_ended)
 	guard.blocked.connect(_on_blocked)
 	parry.parry_successful.connect(_on_parried)
+	if hurtbox == null and guard:
+		hurtbox = guard.hurtbox
+	if hurtbox:
+		hurtbox.evader = self
 	_playback.travel(&"idle")
 
 
@@ -153,6 +187,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	_state_time += delta
+	_critical_left = maxf(_critical_left - delta, 0.0)
 	match state:
 		State.ATTACK:
 			_tick_attack()
@@ -170,6 +205,54 @@ func _physics_process(delta: float) -> void:
 
 func is_attacking() -> bool:
 	return state == State.ATTACK
+
+
+## True while the next strike started would be a critical.
+func is_critical_armed() -> bool:
+	return _critical_left > 0.0
+
+
+## Hurtbox evader: a strike landing in the dodge's perfect window is evaded (perfect dodge).
+func evade(hit: HitInfo) -> bool:
+	return try_perfect_dodge(hit.source if is_instance_valid(hit.source) else null)
+
+
+## Called when `attacker`'s strike lands or opens within reach of the player. In the first
+## `perfect_dodge_window` seconds of a dodge it's a perfect dodge (once per dodge; later calls
+## in the same dodge still return true so the strike is evaded). Returns true if evaded.
+func try_perfect_dodge(attacker: Node3D) -> bool:
+	if state != State.DODGE or _state_time > perfect_dodge_window:
+		return false
+	if _perfect_this_dodge:
+		return true
+	_perfect_this_dodge = true
+	var opening := 0.0
+	var attacker_reaction := DamageReactionComponent.find_on(attacker)
+	if attacker_reaction:
+		attacker_reaction.play_evaded()
+		opening = attacker_reaction.time_left()   # a longer held stagger it was already in counts
+	arm_critical(opening + critical_grace)
+	perfect_dodged.emit(attacker)
+	return true
+
+
+## Where the player stood when the current dodge started (enemies measure reach from there, so
+## dashing clear of the blade still counts).
+func dodge_origin() -> Vector3:
+	return _dodge_origin if state == State.DODGE else body.global_position
+
+
+## Arms a critical for the next strike started within `seconds`.
+func arm_critical(seconds: float) -> void:
+	_critical_left = maxf(_critical_left, seconds)
+	critical_armed.emit(seconds)
+
+
+## The CombatStateMachine of a player body (its "Combat" child), or null.
+static func find_on(node: Node) -> CombatStateMachine:
+	if node == null or not is_instance_valid(node):
+		return null
+	return node.get_node_or_null(^"Combat") as CombatStateMachine
 
 
 ## Guard pressed (held from now on). Opens a parry window and raises the guard if the current
@@ -234,8 +317,9 @@ func _tick_attack() -> void:
 	else:
 		if attack.cancel_open >= 0.0 and _state_time >= attack.cancel_open:
 			allowed.append_array(attack.cancel_into)
-		if _state_time >= attack.active_end and not allowed.has(DODGE):
-			allowed.append(DODGE)                    # recovery can always be dodged out of
+		var committed := _state_time >= attack.active_start and _state_time < attack.active_end
+		if not committed and not allowed.has(DODGE):
+			allowed.append(DODGE)                    # wind-up and recovery can always be dodged out of
 	if _take_action(allowed):
 		return
 	if _guard_held and _state_time >= attack.active_end:
@@ -394,6 +478,9 @@ func _start_attack(attack: AttackData) -> void:
 	body.begin_attack(motion.direction, motion.speed, motion.duration, motion.delay)
 	warping.notify_started(motion.target, motion.delay + motion.duration)
 	katana.begin_swing(attack)
+	if _critical_left > 0.0 and attack != execution:
+		katana.hitbox.damage_scale = critical_multiplier    # used up by this strike
+		_critical_left = 0.0
 	current_attack = attack
 	_time_since_attack = 0.0
 	_change_state(State.ATTACK, attack.animation)
@@ -426,6 +513,8 @@ func _start_dodge() -> void:
 		body.begin_dodge(direction, dodge_distance / dodge_move_time, dodge_move_time, true)
 	current_attack = null
 	_iframes_granted = false
+	_perfect_this_dodge = false
+	_dodge_origin = body.global_position
 	_change_state(State.DODGE, clip)
 	dodge_started.emit(direction)
 
@@ -468,8 +557,12 @@ func _on_blocked(_hit: HitInfo) -> void:
 		_replay(&"guard_hit")
 
 
-func _on_parried(_attacker: Node3D, _point: Vector3) -> void:
+func _on_parried(attacker: Node3D, _point: Vector3) -> void:
 	_parries += 1
+	var attacker_reaction := DamageReactionComponent.find_on(attacker)
+	if attacker_reaction:
+		# The real opening: a parry that also broke the posture holds for the whole break.
+		arm_critical(attacker_reaction.time_left() + critical_grace)
 	if state == State.GUARD:
 		_replay(&"parry_1" if _parries % 2 == 1 else &"parry_2")
 

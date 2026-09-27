@@ -10,11 +10,14 @@ extends Node
 ##   Hitbox.swing_started    whoosh_light / whoosh_heavy (poise damage from `heavy_poise`)
 ##   EnemyCombatController   telegraph_glint → glint_gold / glint_red; executed → shake;
 ##                           Gatekeeper.roared(trauma) → roar + shake
+##   CombatStateMachine      perfect_dodged → afterimages (Afterimage.trail), a brief slow motion,
+##                           whoosh + chime and a light shake
 ##   CheckpointShrine        activated → shrine_ignite
 ##   LevelGate               moving → gate
 ## Screen shake (CameraTrauma) only follows hits the player deals or takes: a landed strike
 ## shakes by its AttackData.trauma, and being hit, parrying, posture breaks, executions and
-## death use the CameraTrauma presets. Hits on the locked target flare the lock-on highlight.
+## death use the CameraTrauma presets. Critical strikes (HitInfo.critical) sound and shake heavy.
+## Hits on the locked target flare the lock-on highlight.
 
 @export var sfx: SfxPool
 @export var player: PlayerController
@@ -24,6 +27,9 @@ extends Node
 @export var effects_parent: Node3D
 ## Strikes with at least this much poise damage count as heavy (sound and weight).
 @export var heavy_poise := 30.0
+## Time scale during a perfect dodge's slow motion, and how long it lasts (real seconds).
+@export var perfect_dodge_time_scale := 0.35
+@export var perfect_dodge_slow_time := 0.35
 
 var _trauma: CameraTrauma
 var _player_health: HealthComponent
@@ -37,6 +43,9 @@ func _ready() -> void:
 		_player_health = HealthComponent.resolve(player)
 		if _player_health:
 			_player_health.died.connect(func(_hit: HitInfo) -> void: _shake(CameraTrauma.DEATH))
+		var combat := CombatStateMachine.find_on(player)
+		if combat:
+			combat.perfect_dodged.connect(_on_perfect_dodge)
 	get_tree().node_added.connect(watch)
 	for node in get_tree().root.find_children("*", "", true, false):
 		watch(node)
@@ -66,7 +75,7 @@ func _connect(node: Node, signal_name: StringName, callable: Callable) -> void:
 
 func _on_hit(hit: HitInfo, result: HitInfo.Result, hurtbox: Hurtbox) -> void:
 	var at := hit.hit_position if hit.hit_position != Vector3.ZERO else hurtbox.global_position + Vector3.UP
-	var heavy := hit.poise_damage >= heavy_poise or hit.broke_posture
+	var heavy := hit.poise_damage >= heavy_poise or hit.broke_posture or hit.critical
 	match result:
 		HitInfo.Result.HIT:
 			_play(&"hit_heavy" if heavy else &"hit", at)
@@ -86,7 +95,7 @@ func _on_hit(hit: HitInfo, result: HitInfo.Result, hurtbox: Hurtbox) -> void:
 		_:
 			return
 	if effects_parent and effects_parent.is_inside_tree():
-		HitVfx.spawn(effects_parent, at, result, hit.broke_posture)
+		HitVfx.spawn(effects_parent, at, result, hit.broke_posture or hit.critical)
 
 	var player_hit := _player_health != null and hurtbox.health == _player_health
 	var player_struck := player != null and hit.source == player
@@ -104,10 +113,24 @@ func _on_hit(hit: HitInfo, result: HitInfo.Result, hurtbox: Hurtbox) -> void:
 		var amount := hit.attack.trauma if hit.attack else CameraTrauma.LIGHT
 		if hit.broke_posture or result == HitInfo.Result.GUARD_BROKEN:
 			amount = maxf(amount, CameraTrauma.POSTURE_BREAK)
+		elif hit.critical:
+			amount = maxf(amount, CameraTrauma.HEAVY)
 		_shake(amount)
 		_pulse_reticle(hurtbox)
 	if player_hit and result == HitInfo.Result.PARRIED and hit.source:
 		_pulse_reticle(hit.source)
+
+
+func _on_perfect_dodge(_attacker: Node3D) -> void:
+	var visual := player.get_node_or_null(^"Visual") as Node3D
+	if visual and effects_parent:
+		Afterimage.trail(effects_parent, visual)
+	_play(&"whoosh_heavy", player.global_position + Vector3.UP)
+	_play(&"glint_gold", player.global_position + Vector3.UP, -6.0)
+	_shake(CameraTrauma.LIGHT)
+	TimeScale.push(&"perfect_dodge", perfect_dodge_time_scale)
+	await get_tree().create_timer(perfect_dodge_slow_time, true, false, true).timeout
+	TimeScale.pop(&"perfect_dodge")
 
 
 func _on_swing(attack: AttackData, hitbox: Hitbox) -> void:
