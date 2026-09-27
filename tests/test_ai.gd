@@ -179,6 +179,20 @@ func test_without_a_token_enemies_flank_on_the_ring() -> void:
 		check(absf(gap - director.ring_radius) < 1.6, "a flanker circles near the ring (%.1f m)" % gap)
 
 
+func test_flankers_side_step_at_their_ground_speed() -> void:
+	await _stage_player()
+	var grunt := _enemy(GRUNT, Vector3(0, 0, -6), null)
+	await physics_frames(2)
+	grunt._set_state(S.FLANKING)
+	grunt.velocity = grunt._forward().cross(Vector3.UP) * 2.2      # sideways, to its right
+	grunt._update_locomotion_clip()
+	check_eq(grunt.anim.current_animation, &"strafe_r", "flanking to the right")
+	check_near(grunt.anim.speed_scale, 2.2 / grunt.strafe_clip_speed, 0.01, "the strafe plays at the ground speed")
+	grunt.velocity = -grunt._forward() * 2.0                       # backing off: a walk
+	grunt._update_locomotion_clip()
+	check_eq(grunt.anim.current_animation, &"walk", "walking")
+	check_eq(grunt.anim.speed_scale, 1.0, "other clips play at normal speed")
+
 func test_a_parried_grunt_recoils_and_loses_its_token() -> void:
 	var player := await _stage_player()
 	var director := _director()

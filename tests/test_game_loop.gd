@@ -140,3 +140,10 @@ func _button(menus: GameMenus, text: String) -> Button:
 		if (button as Button).text == text:
 			return button
 	return null
+
+
+func test_the_game_starts_on_low_quality() -> void:
+	await load_world()
+	var hud := world.get_node("DevHUD") as DevHUD
+	check_eq(hud.quality_name(), "LOW", "start-up quality preset")
+	check(not world.get_node("WorldEnvironment").environment.sdfgi_enabled, "LOW leaves SDFGI off")

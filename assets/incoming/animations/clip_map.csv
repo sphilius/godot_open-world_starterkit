@@ -1,0 +1,55 @@
+character,target_clip,source_file,source_clip,notes
+duelist,idle,UAL1,Sword_Idle,loop; sword-ready stance (decided)
+duelist,run,UAL1,Jog_Fwd_Loop,loop
+duelist,walk,UAL1,Walk_Loop,loop; contract clip not played yet
+duelist,sprint,UAL1,Sprint_Loop,loop; contract clip not played yet
+duelist,jump_start,UAL1,Jump_Start,contract clip not played yet
+duelist,jump_loop,UAL1,Jump_Loop,loop; contract clip not played yet
+duelist,jump_land,UAL1,Jump_Land,contract clip not played yet
+duelist,strafe_l,keyed,side-step,"keyed under the sword-ready stance (leg IK, baked); played while locked on (at half walk speed); 1.75 m/s at normal speed, playback scales with actual speed"
+duelist,strafe_r,keyed,side-step,"keyed under the sword-ready stance (leg IK, baked); played while locked on (at half walk speed); 1.75 m/s at normal speed, playback scales with actual speed"
+duelist,strafe_b,keyed,backpedal,"keyed under the sword-ready stance (leg IK, baked); played while locked on (at half walk speed); 1.75 m/s at normal speed, playback scales with actual speed"
+duelist,attack_1,UAL2,Sword_Regular_A+Sword_Regular_A_Rec,"joined (1.40 s); the combo cancel window opens where A_Rec starts (0.43 s); retimed: impact to the middle of the AttackData active window, length = duration"
+duelist,attack_2,UAL2,Sword_Regular_B+Sword_Regular_B_Rec,"joined (1.56 s); cancel window from 0.53 s; retimed: impact to the middle of the AttackData active window, length = duration"
+duelist,attack_3,UAL2,Sword_Regular_C,"combo finisher (2.00 s); retimed: impact to the middle of the AttackData active window, length = duration"
+duelist,heavy_1,UAL2,Sword_Heavy_Combo[0-0.85s],one swing each (hand_r speed peaks at 0.45/1.17/1.84/2.57 s); retimed to its AttackData
+duelist,heavy_2,UAL2,Sword_Heavy_Combo[0.85-1.5s],one swing each (hand_r speed peaks at 0.45/1.17/1.84/2.57 s); retimed to its AttackData
+duelist,heavy_finisher,UAL2,Sword_Heavy_Combo[2.2-3.6s],one swing each (hand_r speed peaks at 0.45/1.17/1.84/2.57 s); retimed to its AttackData
+duelist,draw_attack,UAL2,Sword_Dash,"quick-draw lunge opener (1.57 s); retimed: impact to the middle of the AttackData active window, length = duration"
+duelist,execution,UAL1,Sword_Attack,"big overhead finisher (1.53 s); retimed: impact to the middle of the AttackData active window, length = duration"
+duelist,guard_idle,UAL2,Idle_Shield_Loop,loop; guard held across the chest
+duelist,guard_hit,UAL2,Sword_Block,block reaction (1.23 s)
+duelist,guard_break,UAL2,Idle_Shield_Break,guard knocked open (1.07 s)
+duelist,parry_1,UAL2,Sword_Block,first 0.6 s at 1.6x speed (a sharp deflect)
+duelist,parry_2,UAL2,Shield_OneShot,1.3x speed; a bash-deflect for the alternating parry
+duelist,dodge_f,UAL1,Roll,forward roll (1.47 s)
+duelist,dodge_b,UAL1,Roll,GAP: no side/back rolls in the free tier; the model turns to face the dodge direction during the roll (small code change)
+duelist,dodge_l,UAL1,Roll,see dodge_b
+duelist,dodge_r,UAL1,Roll,see dodge_b
+duelist,hurt_f,UAL1,Hit_Chest,GAP: hits aren't directional in the free tier; front/back/left/right share two clips
+duelist,hurt_b,UAL1,Hit_Head,see hurt_f
+duelist,hurt_l,UAL1,Hit_Head,see hurt_f
+duelist,hurt_r,UAL1,Hit_Chest,see hurt_f
+duelist,hurt_heavy,UAL2,Idle_Shield_Break,heavy stagger (also used when the player's attack is parried)
+duelist,knockdown,UAL2,Hit_Knockback+LayToIdle,joined (2.36 s); includes the get-up
+duelist,death,UAL1,Death01,2.40 s
+duelist,draw,-,-,GAP: not played yet; hand-key later if the holster tween isn't enough
+duelist,sheathe,-,-,GAP: see draw
+enemy,idle,UAL1,Sword_Idle,loop
+enemy,walk,UAL1,Walk_Loop,loop
+enemy,run,UAL1,Jog_Fwd_Loop,loop
+enemy,strafe_l,keyed,side-step,"keyed step-together cycle under the sword-ready stance (leg IK, baked); 1.75 m/s at normal speed, playback scales with actual speed"
+enemy,strafe_r,keyed,side-step,"keyed step-together cycle under the sword-ready stance (leg IK, baked); 1.75 m/s at normal speed, playback scales with actual speed"
+enemy,attack_1,UAL2,Sword_Regular_A+Sword_Regular_A_Rec,"grunt cut; joined (1.40 s); retimed: impact to the middle of the AttackData active window, length = duration"
+enemy,attack_2,UAL2,Sword_Regular_B+Sword_Regular_B_Rec,"grunt slash; joined (1.56 s); retimed: impact to the middle of the AttackData active window, length = duration"
+enemy,hurt_f,UAL1,Hit_Chest,
+enemy,hurt_b,UAL1,Hit_Head,
+enemy,parried,UAL2,Idle_Shield_Break,recoil after being parried
+enemy,stagger,UAL1,Hit_Head,0.6x speed so it reads as a stagger
+enemy,death,UAL1,Death01,
+enemy,slam,UAL1,Sword_Attack,"brute/gatekeeper overhead slam; retimed: impact to the middle of the AttackData active window, length = duration"
+enemy,sweep,UAL2,Sword_Regular_C,"wide swing; retimed: impact to the middle of the AttackData active window, length = duration"
+enemy,thrust_unblockable,UAL2,Sword_Dash,"lunging thrust (red glint); retimed: impact to the middle of the AttackData active window, length = duration"
+enemy,posture_break,UAL1,Fixing_Kneeling[0-1.6s],drops to one knee and holds: the execution window
+enemy,executed,UAL1,Death01,
+enemy,roar,UAL2,Idle_Rail_Call,shout with hands raised (Gatekeeper phase 2)

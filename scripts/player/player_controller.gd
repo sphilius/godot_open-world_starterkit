@@ -6,7 +6,8 @@ extends CharacterBody3D
 ##            the gamepad right stick all feed it through add_look_input().
 ## Movement : camera-relative, with separate acceleration and deceleration rates and
 ##            reduced air control. The model turns toward its travel direction, or, while
-##            locked on (TargetingSystem), keeps facing the target and strafes.
+##            locked on (TargetingSystem), keeps facing the target and strafes at
+##            `lock_on_speed_scale` (CombatStateMachine plays the side-steps).
 ## Snapping : floor_snap_length keeps the body glued to the terrain when running downhill
 ##            or over crests, instead of launching off every bump.
 ## Also publishes its feet position to the `player_position` global shader uniform (grass push).
@@ -28,6 +29,9 @@ extends CharacterBody3D
 @export var jump_velocity := 5.2
 ## How quickly the body turns to face its travel direction.
 @export var turn_speed := 10.0
+## Walk speed multiplier while locked on (TargetingSystem): circling a target is a guarded
+## side-step, not a jog (the side-step clips play at about 1.75 m/s). Sprinting ignores it.
+@export_range(0.1, 1.0) var lock_on_speed_scale := 0.5
 
 @export_group("Ground Snapping")
 ## How far below the feet the body searches for ground to stick to while grounded.
@@ -252,8 +256,11 @@ func _physics_process(delta: float) -> void:
 	_move_direction = wish.normalized()
 	if _controls_locked:
 		wish = Vector3.ZERO           # strikes and flinches commit: no steering, just brake
-	var top_speed := sprint_speed if Input.is_action_pressed(&"sprint") and move_speed_scale >= 1.0 else walk_speed
+	var sprinting := Input.is_action_pressed(&"sprint") and move_speed_scale >= 1.0
+	var top_speed := sprint_speed if sprinting else walk_speed
 	top_speed *= move_speed_scale
+	if not sprinting and targeting and targeting.is_locked():
+		top_speed *= lock_on_speed_scale
 
 	# Acceleration / deceleration: steer horizontal velocity toward the target at a capped rate.
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)

@@ -1,6 +1,6 @@
 extends "res://tests/test_case.gd"
 ## Data consistency, no world needed. Attack timings must be sane, and the generated animation
-## clips must match them (a stale rig build fails here: re-run tools/build_placeholder_rigs.gd).
+## clips must match them (a stale rig build fails here: re-run tools/art/build_animations.py and tools/build_character_scenes.gd).
 
 const COMBO := [
 	"res://resources/combat/attack_1.tres",
@@ -21,7 +21,7 @@ const ENEMY_ATTACKS := [
 	"res://resources/combat/enemies/brute_thrust.tres",
 	"res://resources/combat/enemies/gatekeeper_red_sweep.tres",
 ]
-const ENEMY_CLIPS := "res://assets/characters/enemy/enemy_animations.tres"
+const ENEMY_CLIPS := "res://assets/characters/enemy/enemy_animations.res"
 const ENEMY_SCENES := ["res://scenes/mobs/enemy_grunt.tscn", "res://scenes/mobs/enemy_brute.tscn",
 		"res://scenes/mobs/enemy_gatekeeper.tscn"]
 const DODGES := ["dodge_f", "dodge_b", "dodge_l", "dodge_r"]
@@ -31,7 +31,7 @@ const DEFENSE_CLIPS := ["guard_idle", "guard_hit", "parry_1", "parry_2",
 const PLAYER_SCENE := "res://scenes/player/player.tscn"
 const SWORD_COMBO := "res://resources/combat/sword_combo.tres"
 const WOLF_BITE := "res://resources/combat/wolf_bite.tres"
-const SAMURAI_CLIPS := "res://assets/characters/samurai/samurai_animations.tres"
+const SAMURAI_CLIPS := "res://assets/characters/samurai/samurai_animations.res"
 const WOLF_CLIPS := "res://assets/characters/wolf/wolf_animations.tres"
 const SAMURAI_STATE_MACHINE := "res://assets/characters/samurai/samurai_state_machine.tres"
 
@@ -126,3 +126,25 @@ func test_enemy_clips_match_their_attacks_and_reactions() -> void:
 		for attack in enemy.attacks:
 			check(clips.has_animation(attack.animation), "%s: no clip for '%s'" % [path.get_file(), attack.animation])
 		enemy.free()
+
+
+## The humanoids face -Z in their game scenes (the glTF models face +Z: the model scenes turn the
+## armature, so the scale the enemy scenes give their Model can't undo it), and each carries its
+## sockets.
+func test_characters_face_forward_and_carry_their_sockets() -> void:
+	var player := (load(PLAYER_SCENE) as PackedScene).instantiate() as Node3D
+	var scenes: Array[Node3D] = [player]
+	for path: String in ENEMY_SCENES:
+		scenes.append((load(path) as PackedScene).instantiate() as Node3D)
+	for scene in scenes:
+		add_to_stage(scene)
+	await physics_frames(2)
+	for scene in scenes:
+		var skeleton := scene.find_child("Skeleton3D", true, false) as Skeleton3D
+		var foot := skeleton.global_transform * skeleton.get_bone_global_pose(skeleton.find_bone("foot_r"))
+		var toe := skeleton.global_transform * skeleton.get_bone_global_pose(skeleton.find_bone("ball_r"))
+		var forward := scene.global_basis.inverse() * (toe.origin - foot.origin)
+		check(forward.z < -0.03, "%s: the toes point %s, not forward (-Z)" % [scene.name, forward.snappedf(0.01)])
+		var sockets := ["HandSocket", "SheathSocket"] if scene == player else ["WeaponSocket", "Socket_Telegraph_Glint"]
+		for socket: String in sockets:
+			check(scene.find_child(socket, true, false) != null, "%s has no %s" % [scene.name, socket])

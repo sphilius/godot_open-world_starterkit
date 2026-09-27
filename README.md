@@ -124,7 +124,7 @@ Pull requests into `vertical-slice-prototype` run the same suite (`.github/workf
 Headless mode doesn't dispatch input to the GUI, so feed UI events straight into `_gui_input()`
 (see `test_touch.gd`).
 
-URL options: `?touch` forces the touch UI, and `?quality=low|medium|high` picks a preset (web defaults to LOW).
+URL options: `?touch` forces the touch UI, and `?quality=low|medium|high` picks a preset (every build starts on LOW).
 The overlay shows FPS, the quality preset and the samurai's combat state (IDLE, ATTACK attack_2, DODGE, HURT…),
 which helps confirm that taps register while playtesting.
 
@@ -155,13 +155,14 @@ On the first D3D12 launch, expect a short hitch while shaders compile and are ca
 
 | Preset | FPS | What's on |
 |---|---|---|
-| LOW | ~40 | 2-split PCF shadows, 35% grass, FSR 0.6. SDFGI and volumetric fog off |
-| **MEDIUM** (auto on integrated GPUs) | ~18–19 | SDFGI (half-res, 3 cascades), volumetric fog (48×32 froxels), 50% grass, FSR 0.67 |
-| HIGH (default on discrete GPUs) | discrete GPU | PCSS soft shadows, 4 splits at 4096, full-res SDFGI, 128×96 froxels, 100% grass |
+| **LOW** (default: F2 steps up) | ~40 | 2-split PCF shadows, 35% grass, FSR 0.6. SDFGI and volumetric fog off |
+| MEDIUM | ~18–19 | SDFGI (half-res, 3 cascades), volumetric fog (48×32 froxels), 50% grass, FSR 0.67 |
+| HIGH (aimed at discrete GPUs) | discrete GPU | PCSS soft shadows, 4 splits at 4096, full-res SDFGI, 128×96 froxels, 100% grass |
 
 On this chip SDFGI has a fixed cost of about 18 ms. The presets are a data table in
-`scripts/debug/dev_hud.gd` (`PRESETS`). Integrated-GPU detection lives in
-`scripts/core/gpu_info.gd`, because D3D12 reports Intel iGPUs as discrete.
+`scripts/debug/dev_hud.gd` (`PRESETS`); `default_quality` there picks the start-up preset, and
+`--quality=low|medium|high` overrides it. Integrated-GPU detection (used for the sword trail)
+lives in `scripts/core/gpu_info.gd`, because D3D12 reports Intel iGPUs as discrete.
 
 ## Architecture
 
@@ -191,13 +192,13 @@ Main (main.gd: stands the shrines on the ground, drops the player at the path st
 └─ PlaytestLogger      per-beat time, deaths, parries, attempts and frame hitches → user://playtest.csv
 
 Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hooks)
-├─ Visual/SamuraiModel  generated rig: Skeleton3D + skinned mesh + HandSocket/SheathSocket (BoneAttachment3D)
+├─ Visual/SamuraiModel  the Duelist (inherits duelist.glb): Armature/Skeleton3D, HandBone/HandSocket, SheathBone/SheathSocket
 ├─ Katana               katana.tscn: blade, Area3D Hitbox, Trail (GPUParticles3D), MeshTrail
 ├─ PostureComponent     posture meter: filled by poise damage and blocks, breaks when full, recovers after a delay
 ├─ GuardComponent       Hurtbox defender: blocks frontal hits into posture; breaks when posture fills
 ├─ ParrySystem          Hurtbox defender (runs first): 0.15 s window per guard press, reflects 3x poise
 ├─ DamageReaction       picks the stagger (directional flinch, heavy, knockdown, guard break) and knockback
-├─ AnimationTree        StateMachine root: idle, run, every strike, dodge_f/b/l/r, guard/parry, hurt_f/b/l/r, hurt_heavy, knockdown, guard_break, death
+├─ AnimationTree        StateMachine root: idle, run, strafe_l/r/b, every strike, dodge_f/b/l/r, guard/parry, hurt_f/b/l/r, hurt_heavy, knockdown, guard_break, death
 ├─ WeaponHolster        tweens the katana between the hand and back sockets
 ├─ Combat               CombatStateMachine: IDLE/RUN/ATTACK/DODGE/GUARD/HURT/DEAD, active frames, sheathing
 │  ├─ ComboManager      FIFO input buffer + combo graph (resources/combat/sword_combo.tres)
@@ -243,7 +244,7 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 | Health | `scripts/combat/health_component.gd`, `hurtbox.gd`, `hit_info.gd` | Reusable node with `damaged` / `died` / `health_changed` signals and `grant_invulnerability()` for i-frames. `Hurtbox.receive_hit()` runs registered defenders (guard, parry) before health and posture, and returns a `HitInfo.Result` (HIT, BLOCKED, PARRIED…). `HealthComponent.resolve()` accepts a Hurtbox, a HealthComponent, or a body with one as a child |
 | Time scale | `scripts/core/time_scale.gd` | The only writer of `Engine.time_scale`: named requests, and the slowest one wins, so a hit-stop ending mid slow-motion can't snap time back to 1.0 |
 | Hit-stop | `scripts/combat/hit_stop.gd` | Static utility (not an autoload): a `TimeScale` request at 0.03 for the strike's duration. Overlapping requests extend; the timer ignores time scale |
-| Sheathing | `scripts/combat/weapon_holster.gd` | After **3.0 s** without attacking or guarding, the katana reparents (keeping its world pose) and tweens position plus quaternion (slerp) from the `weapon_r` hand bone to the `scabbard` bone on the left hip. Drawing takes 0.12 s, before the first active frame. `snap_weapon_to_hand()` / `snap_weapon_to_sheath()` are there for animation method tracks |
+| Sheathing | `scripts/combat/weapon_holster.gd` | After **3.0 s** without attacking or guarding, the katana reparents (keeping its world pose) and tweens position plus quaternion (slerp) from the right hand's grip to the sheath on the left hip. Drawing takes 0.12 s, before the first active frame. `snap_weapon_to_hand()` / `snap_weapon_to_sheath()` are there for animation method tracks |
 | Sword trail | `katana.gd` → `TrailRenderer` | **GPU_PARTICLES**: one particle glued to the blade by `shaders/sword_trail_particles.gdshader`, with a `RibbonTrailMesh` skinned along its path. **MESH**: `sword_trail_mesh.gd` stitches blade base and tip samples. AUTO picks MESH on Intel iGPUs (see below) |
 | Hitbox | `scripts/combat/hitbox.gd` | Shared by the katana and the wolf's jaws: arm it with an `AttackData`, open or close the active window, and it hits each target once per activation. Hits go through the target's `Hurtbox` even when the body is touched first, so defenders can't be bypassed |
 | Wolf AI | `scripts/mobs/wolf.gd`, `scenes/mobs/wolf.tscn` | **WANDER**: a random navmesh point within 15 m of home every 4 s. **CHASE**: the 10 m detection `Area3D`, repath every 0.25 s, arrival braking (v = √(2·a·d)). **BITE**: telegraphed 0.34 s wind-up that tracks you, then a lunge with an active jaw window (`wolf_bite.tres`, 12 dmg) and a 1.4–2.2 s cooldown; striking the wolf during the wind-up cancels it. **STAGGER**: knockback, flinch, white flash. **DEAD**: death animation, collision disabled (deferred), sink, `queue_free` |
@@ -254,18 +255,27 @@ Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hook
 Physics layers: 1 world · 2 player · 3 mobs · 4 player_hitbox · 5 mob_hurtbox · 6 mob_hitbox · 7 player_hurtbox.
 The katana hitbox masks 3 and 5; the wolf's bite hitbox masks 7.
 
-## Placeholder art pipeline
+## Character art pipeline
+
+The four humanoids (the Duelist, Grunt, Brute and Gatekeeper) are built from Quaternius CC0
+packs in `assets/incoming/` (M2). Headless Blender assembles the characters and fits the clips,
+then Godot writes the scenes:
 
 ```
-godot --headless --path . --script res://tools/build_placeholder_rigs.gd
+"$BLENDER" -b --factory-startup --python tools/art/build_characters.py
+"$BLENDER" -b --factory-startup --python tools/art/build_animations.py
+godot --headless --path . --import
+godot --headless --path . --script res://tools/build_character_scenes.gd
 ```
 
-Re-run after changing bones, poses or any strike's AttackData timings (`tests/test_data.gd` fails
-on a stale build). To swap in real characters (Mixamo, Blender), keep the clip names listed in
-`docs/vertical-slice/HANDOFF_MANIFEST.md` (every strike's `AttackData.animation`, `dodge_f/b/l/r`,
-`idle`, `run`, the guard, parry and hurt clips, `death`; wolf: `idle`, `walk`, `run`, `bite`, `hurt`, `death`) and the socket
-bones (`weapon_r`, `scabbard`). Or point the sockets and state machine at the new names, then set
-the AttackData timings to match the clips.
+Re-run the last three after changing any strike's AttackData timings (`tests/test_data.gd` fails
+on a stale build): strikes are retimed so the swing lands in the active window and the clip
+lasts `duration`. The model scenes inherit the GLBs and add the sockets (`HandSocket`,
+`SheathSocket`; the enemies' `WeaponSocket` and `Socket_Telegraph_Glint`), so a re-exported GLB
+flows through. Clip names are listed in `docs/vertical-slice/HANDOFF_MANIFEST.md`.
+
+The wolf is still a placeholder: `godot --headless --path . --script res://tools/build_placeholder_rigs.gd`
+(then `git checkout assets/characters/wolf/wolf_model.tscn` if only the export order changed).
 
 ## Differences from the original spec
 

@@ -40,14 +40,21 @@ xvfb-run -a "$GODOT" --rendering-method gl_compatibility --rendering-driver open
   7 player_hurtbox.
 - `TimeScale` is the only writer of `Engine.time_scale` (push/pop named requests).
 - No autoloads. `GameManager` (M9a) is a node in `main.tscn` (`GameManager.find(tree)`).
-- Placeholder rigs and clips come from `tools/build_placeholder_rigs.gd`; rebuild with
-  `"$GODOT" --headless --path . --script res://tools/build_placeholder_rigs.gd`, then
-  `git checkout assets/characters/wolf/` to drop the wolf's re-export noise.
+- Character art (M2): `tools/art/build_characters.py` and `tools/art/build_animations.py`
+  (headless Blender, `"$BLENDER" -b --factory-startup --python <script>`), then
+  `"$GODOT" --headless --path . --import` and
+  `"$GODOT" --headless --path . --script res://tools/build_character_scenes.gd`. Re-run after
+  changing AttackData timings. Scenes inherit the GLBs; don't hand-edit the generated ones.
+- The wolf is still a placeholder from `tools/build_placeholder_rigs.gd`; rebuild with
+  `"$GODOT" --headless --path . --script res://tools/build_placeholder_rigs.gd`. Its scene
+  re-exports in a new order even when nothing changed: `git checkout` it if so.
 - New behaviour gets a test in `tests/test_<topic>.gd` (`extends "res://tests/test_case.gd"`;
   `await load_world()` for the real world, `add_to_stage()` for a bare stage). Check that the
   test fails without the change.
 - Art and audio: every sourced file under `assets/` gets a line in `assets/LICENSES.md` (create
-  it with the first one). Raw drops go to `assets/incoming/`.
+  it with the first one). Raw drops go to `assets/incoming/`,
+  which has a `.gdignore`: Godot never imports them (a `.blend` there broke headless imports);
+  scripts convert them into `assets/characters/` and friends.
 
 ## Git
 
