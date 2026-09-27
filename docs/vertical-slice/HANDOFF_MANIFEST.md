@@ -62,13 +62,13 @@ class_name CombatStateMachine extends Node    # player "Combat" node (runbook: C
   const ALL_ACTIONS := [ComboManager.LIGHT, ComboManager.HEAVY, ComboManager.DODGE]
   @export combo: ComboManager; @export warping: MotionWarping; @export targeting: Node   # targeting optional (M7)
   @export dodge_duration := 0.45; dodge_distance := 3.2; dodge_move_time := 0.32; dodge_iframes := Vector2(0.08, 0.3); dodge_cancel_time := 0.3
-  @export side_step_speed := 1.75   # m/s the strafe_l/r/b clips match; locked-on RUN plays them, time-scaled to the ground speed
+  @export side_step_speed := 2.75   # m/s the strafe_l/r/b clips match; locked-on RUN plays them, time-scaled to the ground speed; side_step_hysteresis := 0.15
   const SIDE_STEPS := { &"strafe_l": &"parameters/strafe_l/speed/scale", ... }   # AnimationTree side-step states → their TimeScale
   var state: State; var current_attack: AttackData   # null outside ATTACK
   func is_attacking() -> bool; static func dodge_clip(facing: Vector3, direction: Vector3) -> StringName
 
 class_name PlayerController extends CharacterBody3D
-  @export lock_on_speed_scale := 0.5   # walk speed multiplier while locked on (not sprinting)
+  @export lock_on_speed_scale := 0.75   # walk speed multiplier while locked on (not sprinting)
   func spawn_at(pos: Vector3, yaw: float) -> void; func respawn() -> void
   func begin_attack(direction: Vector3, lunge_speed: float, lunge_duration: float, lunge_delay := 0.0) -> void   # lunge_speed = average; eases out
   func begin_dodge(direction: Vector3, speed: float, duration: float, turn := true) -> void; func face(direction: Vector3) -> void
@@ -202,7 +202,7 @@ class_name EnemyCombatController extends CharacterBody3D   # group "enemies"; ta
   enum State { IDLE, APPROACH, FLANKING, ATTACK_WINDUP, ATTACK_ACTIVE, RECOVER, STAGGERED, DEAD }
   @export attacks: Array[AttackData]; combos: Array[EnemyCombo]; director: CombatDirector
   @export walk_speed, run_speed, approach_distance := 2.0, aggro_radius := 14.0, telegraph_lead := 0.4, attack_cooldown, recovery_scale := 1.0
-  @export strafe_clip_speed := 1.75   # flanking plays strafe_l/r at speed / this (AnimationPlayer.speed_scale)
+  @export strafe_clip_speed := 2.75   # flanking plays strafe_l/r at speed / this (AnimationPlayer.speed_scale)
   @export execution_damage_ratio := 1.0 (grunt; brute 0.6, gatekeeper 0.4); free_on_death := true
   const STAGGER_CLIPS                         # DamageReaction type → enemy clip
   var state; var target: Node3D; var current_attack: AttackData; var glint: TelegraphGlint
