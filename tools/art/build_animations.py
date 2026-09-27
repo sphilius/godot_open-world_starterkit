@@ -103,12 +103,15 @@ ENEMY = {
     "posture_break": ([seg("UAL1", "Fixing_Kneeling", 0.0, 1.6)], None, False),
     "executed": ([seg("UAL1", "Death01")], None, False),
     "roar": ([seg("UAL2", "Idle_Rail_Call", 0.2, 2.0)], ("length", ROAR), False),
+    # Phase B defence: the held guard, a blocked hit, and (keyed below) the backstep strafe_b.
+    "guard_idle": ([seg("UAL2", "Idle_Shield_Loop")], None, True),
+    "guard_hit": ([seg("UAL2", "Sword_Block")], ("length", 0.5), False),
     "death": ([seg("UAL1", "Death01")], None, False),
 }
 # Keyed side-steps: name -> (direction in the rig's space, lead foot). The rig faces -Y, so its
 # right is -X and backwards is +Y.
 STEPS_DUELIST = {"strafe_r": (Vector((-1, 0, 0)), "r"), "strafe_l": (Vector((1, 0, 0)), "l"), "strafe_b": (Vector((0, 1, 0)), None)}
-STEPS_ENEMY = {"strafe_r": (Vector((-1, 0, 0)), "r"), "strafe_l": (Vector((1, 0, 0)), "l")}
+STEPS_ENEMY = {"strafe_r": (Vector((-1, 0, 0)), "r"), "strafe_l": (Vector((1, 0, 0)), "l"), "strafe_b": (Vector((0, 1, 0)), None)}
 STEP_CYCLE = 0.4        # seconds per step-together cycle (two steps)
 STEP_STRIDE = 1.1       # metres covered per cycle: 2.75 m/s at normal speed. The clips are in place;
 STEP_LIFT = 0.1         # the controllers move the body and scale playback to their actual speed

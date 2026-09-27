@@ -53,3 +53,6 @@ enemy,thrust_unblockable,UAL2,Sword_Dash,"lunging thrust (red glint); retimed: i
 enemy,posture_break,UAL1,Fixing_Kneeling[0-1.6s],drops to one knee and holds: the execution window
 enemy,executed,UAL1,Death01,
 enemy,roar,UAL2,Idle_Rail_Call,shout with hands raised (Gatekeeper phase 2)
+enemy,guard_idle,UAL2,Idle_Shield_Loop,loop; guard held across the chest (Phase B enemy blocks)
+enemy,guard_hit,UAL2,Sword_Block,block reaction fitted to 0.5 s
+enemy,strafe_b,keyed,backpedal,"keyed under the sword-ready stance (leg IK, baked); the evade backstep, played fast"
