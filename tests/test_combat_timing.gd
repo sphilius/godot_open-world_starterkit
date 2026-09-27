@@ -74,6 +74,36 @@ func test_a_parry_opens_a_longer_window_and_arms_a_critical() -> void:
 	check(fsm.is_critical_armed(), "the counter-attack is a critical")
 
 
+func test_a_parry_that_breaks_posture_keeps_the_critical_for_the_whole_break() -> void:
+	var player := await _stage_player()
+	var fsm := _fsm(player)
+	var grunt := _grunt(Vector3(0, 0, -2))
+	await physics_frames(2)
+	grunt.posture.add_posture(grunt.posture.max_posture - 5.0)
+	fsm.guard_pressed()
+	check_eq(_hurtbox(player).receive_hit(CombatFixtures.make_hit(grunt, 20.0, 15.0)), R.PARRIED, "the strike")
+	check(grunt.posture.is_broken, "the reflected poise broke its posture")
+	check(fsm._critical_left >= grunt.posture.break_duration, "armed for the whole break (%.2f s, break %.2f s)"
+			% [fsm._critical_left, grunt.posture.break_duration])
+
+
+func test_a_wolf_bite_opening_on_a_dodging_player_is_a_perfect_dodge() -> void:
+	var player := await _stage_player()
+	var fsm := _fsm(player)
+	var wolf: Wolf = CombatFixtures.WOLF_SCENE.instantiate()
+	wolf.position = Vector3(0, 0.05, -1.9)
+	wolf.rotation.y = PI                                      # faces +Z, toward the player
+	add_to_stage(wolf)
+	var dodged: Array = []
+	fsm.perfect_dodged.connect(func(attacker: Node3D) -> void: dodged.append(attacker))
+	check(await wait_until(func() -> bool:
+		return wolf.state == Wolf.State.BITE and wolf._bite_time >= wolf.bite.active_start - 0.1, 5.0), "the wolf never bit")
+	fsm.combo.push_input(ComboManager.DODGE)
+	check(await wait_until(func() -> bool: return not dodged.is_empty(), 0.6), "no perfect dodge on the bite")
+	if not dodged.is_empty():
+		check(dodged[0] == wolf, "the wolf is the attacker")
+	check_eq(wolf.state, Wolf.State.STAGGER, "the wolf staggers")
+
 func test_a_critical_doubles_the_next_strike_only() -> void:
 	_add_floor()
 	var player: PlayerController = CombatFixtures.PLAYER_SCENE.instantiate()
