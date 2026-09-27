@@ -47,6 +47,13 @@ const STAGGER_CLIPS := {
 	&"guard_break": &"guard_break",
 }
 
+## Side-step states and the AnimationTree parameter that sets each one's playback speed.
+const SIDE_STEPS := {
+	&"strafe_l": &"parameters/strafe_l/speed/scale",
+	&"strafe_r": &"parameters/strafe_r/speed/scale",
+	&"strafe_b": &"parameters/strafe_b/speed/scale",
+}
+
 @export var body: PlayerController
 @export var animation_tree: AnimationTree
 @export var katana: Katana
@@ -74,9 +81,13 @@ const STAGGER_CLIPS := {
 @export var respawn_delay := 2.5
 ## Walk speed multiplier while guarding.
 @export var guard_move_scale := 0.45
+## Ground speed (m/s) the side-step clips (strafe_l/r/b) match at normal playback: while locked
+## on they play faster or slower with the actual speed, so the feet don't slide
+## (tools/art/build_animations.py STEP_STRIDE / STEP_CYCLE).
+@export var side_step_speed := 1.75
 
 @export_group("Dodge")
-## Must match the dodge clips' length (tools/build_placeholder_rigs.gd DODGE_LENGTH).
+## Must match the dodge clips' length (tools/art/build_animations.py DODGE).
 @export var dodge_duration := 0.45
 ## Distance covered (m); the dash eases out over `dodge_move_time`.
 @export var dodge_distance := 3.2
@@ -91,6 +102,8 @@ var state := State.IDLE
 var current_attack: AttackData
 var _state_time := 0.0
 var _time_since_attack := 0.0
+## The locomotion clip travelled to last (idle, run or a side-step).
+var _locomotion_clip := &"idle"
 var _playback: AnimationNodeStateMachinePlayback
 var _iframes_granted := false
 var _guard_held := false
@@ -195,8 +208,14 @@ func _tick_locomotion(delta: float) -> void:
 	if _time_since_attack >= sheathe_delay and holster.is_drawn():
 		holster.sheathe()
 	var next := _locomotion_state()
+	var clip := _locomotion_clip_for(next)
 	if next != state:
-		_change_state(next, &"run" if next == State.RUN else &"idle")
+		_change_state(next, clip)
+	elif clip != _locomotion_clip:
+		_locomotion_clip = clip
+		_playback.travel(clip)
+	if clip in SIDE_STEPS:
+		animation_tree.set(SIDE_STEPS[clip], clampf(body.get_planar_speed() / side_step_speed, 0.5, 2.0))
 
 
 func _tick_attack() -> void:
@@ -472,17 +491,35 @@ func _on_died(_hit: HitInfo) -> void:
 func _enter_locomotion() -> void:
 	current_attack = null
 	var next := _locomotion_state()
-	_change_state(next, &"run" if next == State.RUN else &"idle")
+	_change_state(next, _locomotion_clip_for(next))
 
 
 func _locomotion_state() -> State:
 	return State.RUN if body.get_planar_speed() > run_threshold else State.IDLE
 
 
+## The clip for a locomotion state: while locked on, moving sideways or backward side-steps
+## (the body keeps facing the target); otherwise idle or run.
+func _locomotion_clip_for(next: State) -> StringName:
+	if next != State.RUN:
+		return &"idle"
+	if _lock_target() == null:
+		return &"run"
+	var travel := Vector3(body.velocity.x, 0.0, body.velocity.z).normalized()
+	var facing := body.get_facing()
+	var ahead := travel.dot(facing)
+	if ahead > 0.5:
+		return &"run"
+	if ahead < -0.5:
+		return &"strafe_b"
+	return &"strafe_r" if travel.dot(facing.cross(Vector3.UP)) > 0.0 else &"strafe_l"
+
+
 func _change_state(next: State, clip: StringName) -> void:
 	var previous := state
 	state = next
 	_state_time = 0.0
+	_locomotion_clip = clip if next == State.IDLE or next == State.RUN else &""
 	if next == State.ATTACK or next == State.DODGE or next == State.HURT:
 		_replay(clip)
 	else:

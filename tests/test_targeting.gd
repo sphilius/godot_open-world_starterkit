@@ -140,6 +140,34 @@ func test_player_strafes_while_facing_the_target() -> void:
 	check(player.get_facing().dot(Vector3.FORWARD) > 0.95, "kept facing the target while strafing")
 
 
+func test_locked_on_movement_side_steps_at_the_clips_pace() -> void:
+	var player := await _setup()
+	var fsm := player.get_node("Combat") as CombatStateMachine
+	var playback := fsm.animation_tree.get(&"parameters/playback") as AnimationNodeStateMachinePlayback
+	player.targeting.set_target(_wolf(Vector3(0, 0, -8)))
+	await seconds(0.3)                                         # settle facing
+	for step: Array in [[&"move_right", &"strafe_r"], [&"move_left", &"strafe_l"], [&"move_back", &"strafe_b"]]:
+		Input.action_press(step[0])
+		await seconds(0.5)
+		check_eq(playback.get_current_node(), step[1], "clip for %s" % step[0])
+		var speed := player.get_planar_speed()
+		check_near(speed, player.walk_speed * player.lock_on_speed_scale, 0.15, "locked-on speed for %s" % step[0])
+		check_near(fsm.animation_tree.get(CombatStateMachine.SIDE_STEPS[step[1]]), speed / fsm.side_step_speed, 0.05,
+				"%s plays at the ground speed" % step[1])
+		Input.action_release(step[0])
+		await seconds(0.3)
+	# Toward the target is a run; without a lock, so is any direction.
+	Input.action_press(&"move_forward")
+	await seconds(0.4)
+	check_eq(playback.get_current_node(), &"run", "clip toward the target")
+	Input.action_release(&"move_forward")
+	player.targeting.set_target(null)
+	Input.action_press(&"move_right")
+	await seconds(0.5)
+	Input.action_release(&"move_right")
+	check_eq(playback.get_current_node(), &"run", "clip without a lock")
+	check(player.get_planar_speed() > player.walk_speed * 0.9, "full walk speed without a lock")
+
 func test_locked_dodge_goes_sideways_and_keeps_facing() -> void:
 	var player := await _setup()
 	var fsm := player.get_node("Combat") as CombatStateMachine

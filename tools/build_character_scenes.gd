@@ -251,7 +251,17 @@ func _state_machine() -> AnimationNodeStateMachine:
 	for i in states.size():
 		var node := AnimationNodeAnimation.new()
 		node.animation = StringName(states[i])
-		machine.add_node(StringName(states[i]), node, Vector2(300 + 220 * (i % 4), 100 + 160 * (i / 4)))
+		var state: AnimationRootNode = node
+		if states[i] in SIDE_STEPS:
+			# Clip -> TimeScale "speed" -> output: CombatStateMachine matches the playback to the
+			# ground speed through parameters/<step>/speed/scale.
+			var tree := AnimationNodeBlendTree.new()
+			tree.add_node(&"clip", node, Vector2(0, 0))
+			tree.add_node(&"speed", AnimationNodeTimeScale.new(), Vector2(200, 0))
+			tree.connect_node(&"speed", 0, &"clip")
+			tree.connect_node(&"output", 0, &"speed")
+			state = tree
+		machine.add_node(StringName(states[i]), state, Vector2(300 + 220 * (i % 4), 100 + 160 * (i / 4)))
 	_link(machine, "Start", "idle", 0.0, true)
 	for move in moving:
 		_link(machine, "idle", move, 0.15)

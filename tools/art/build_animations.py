@@ -109,8 +109,8 @@ ENEMY = {
 # right is -X and backwards is +Y.
 STEPS_DUELIST = {"strafe_r": (Vector((-1, 0, 0)), "r"), "strafe_l": (Vector((1, 0, 0)), "l"), "strafe_b": (Vector((0, 1, 0)), None)}
 STEPS_ENEMY = {"strafe_r": (Vector((-1, 0, 0)), "r"), "strafe_l": (Vector((1, 0, 0)), "l")}
-STEP_CYCLE = 0.5        # seconds per step-together cycle (two steps)
-STEP_STRIDE = 0.6       # metres covered per cycle: 1.2 m/s at normal speed. The clips are in place;
+STEP_CYCLE = 0.4        # seconds per step-together cycle (two steps)
+STEP_STRIDE = 0.7       # metres covered per cycle: 1.75 m/s at normal speed. The clips are in place;
 STEP_LIFT = 0.08        # the controllers move the body and scale playback to their actual speed
 STEP_WIDEN = 0.07       # extra stance width per foot for side-steps
 

@@ -48,6 +48,9 @@ const GLINT_SCENE := preload("res://scenes/vfx/telegraph_glint.tscn")
 @export var run_speed := 4.5
 @export var acceleration := 14.0
 @export var turn_speed := 8.0
+## Ground speed (m/s) the strafe clips match at normal playback; flanking plays them faster or
+## slower with the actual speed (tools/art/build_animations.py STEP_STRIDE / STEP_CYCLE).
+@export var strafe_clip_speed := 1.75
 ## Stops this far from the player (m) before striking.
 @export var approach_distance := 2.0
 @export var aggro_radius := 14.0
@@ -410,12 +413,15 @@ func _update_locomotion_clip() -> void:
 	var planar := Vector3(velocity.x, 0.0, velocity.z)
 	var speed := planar.length()
 	var clip := &"idle"
+	var playback_speed := 1.0
 	if speed > 0.3:
 		var side := planar.normalized().dot(_forward().cross(Vector3.UP))
 		if state == State.FLANKING and absf(side) > 0.6:
 			clip = &"strafe_r" if side > 0.0 else &"strafe_l"
+			playback_speed = clampf(speed / strafe_clip_speed, 0.5, 2.0)   # the feet keep pace
 		else:
 			clip = &"run" if speed > walk_speed + 0.5 else &"walk"
+	anim.speed_scale = playback_speed
 	if anim.current_animation != clip:
 		anim.play(clip, 0.2)
 

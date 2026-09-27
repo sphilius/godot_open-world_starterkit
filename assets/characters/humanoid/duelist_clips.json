@@ -120,19 +120,19 @@
   "loop": true
  },
  "strafe_b": {
-  "length": 0.5,
+  "length": 0.4,
   "loop": true,
-  "speed": 1.2
+  "speed": 1.75
  },
  "strafe_l": {
-  "length": 0.5,
+  "length": 0.4,
   "loop": true,
-  "speed": 1.2
+  "speed": 1.75
  },
  "strafe_r": {
-  "length": 0.5,
+  "length": 0.4,
   "loop": true,
-  "speed": 1.2
+  "speed": 1.75
  },
  "walk": {
   "length": 1.3333,
