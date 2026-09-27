@@ -63,7 +63,7 @@ class_name CombatStateMachine extends Node    # player "Combat" node (runbook: C
   const ALL_ACTIONS := [ComboManager.LIGHT, ComboManager.HEAVY, ComboManager.DODGE]
   @export combo: ComboManager; @export warping: MotionWarping; @export targeting: Node   # targeting optional (M7)
   @export dodge_duration := 0.45; dodge_distance := 3.2; dodge_move_time := 0.32; dodge_iframes := Vector2(0.08, 0.3); dodge_cancel_time := 0.3
-  @export side_step_speed := 2.75   # m/s the strafe_l/r/b clips match; locked-on RUN plays them, time-scaled to the ground speed
+  @export side_step_speed := 2.75   # m/s the strafe_l/r/b clips match; locked-on RUN plays them, time-scaled to the ground speed; side_step_hysteresis := 0.15
   @export hurtbox: Hurtbox (defaults to guard.hurtbox; becomes its evader); guard_move_scale := 0.4; perfect_dodge_window := 0.2
   @export critical_multiplier := 2.0; critical_grace := 0.3   # Phase A
   @export stamina: StaminaComponent; equipment: EquipmentDurability   # Phase C, optional
@@ -72,13 +72,13 @@ class_name CombatStateMachine extends Node    # player "Combat" node (runbook: C
   func evade(hit: HitInfo) -> bool; func try_perfect_dodge(attacker: Node3D) -> bool   # the dodge's perfect window (once per dodge)
   func arm_critical(seconds: float) -> void; func is_critical_armed() -> bool; func dodge_origin() -> Vector3
   static func find_on(node: Node) -> CombatStateMachine   # a player body's "Combat" child
-  # A dodge cancels a strike's wind-up and recovery (only the active frames commit). A parry arms a critical for the attacker's parried_time + grace.
+  # A dodge cancels a strike's wind-up and recovery (only the active frames commit). A parry arms a critical for the attacker's real opening (DamageReactionComponent.time_left(): the posture break when it broke) + grace.
   const SIDE_STEPS := { &"strafe_l": &"parameters/strafe_l/speed/scale", ... }   # AnimationTree side-step states → their TimeScale
   var state: State; var current_attack: AttackData   # null outside ATTACK
   func is_attacking() -> bool; static func dodge_clip(facing: Vector3, direction: Vector3) -> StringName
 
 class_name PlayerController extends CharacterBody3D
-  @export lock_on_speed_scale := 0.5   # walk speed multiplier while locked on (not sprinting)
+  @export lock_on_speed_scale := 0.75   # walk speed multiplier while locked on (not sprinting)
   func spawn_at(pos: Vector3, yaw: float) -> void; func respawn() -> void
   func begin_attack(direction: Vector3, lunge_speed: float, lunge_duration: float, lunge_delay := 0.0) -> void   # lunge_speed = average; eases out
   func begin_dodge(direction: Vector3, speed: float, duration: float, turn := true) -> void; func face(direction: Vector3) -> void
@@ -189,7 +189,7 @@ class_name DamageReactionComponent extends Node   # node name "DamageReaction"
   @export flinch_time := 0.3; heavy_time := 0.7; knockdown_time := 1.8; parried_time := 1.0 (humanoids and wolf 1.4); evaded_time := 0.8; blocked_push := 0.35
   var is_staggered: bool; var stagger_type: StringName
   func react(type: StringName, duration: float) -> void   # a held knockdown / guard_break / parried with more time left isn't cut short
-  func play_parried(broke_posture := false) -> void; func play_evaded() -> void   # evaded: a perfect dodge's opening (held)
+  func play_parried(broke_posture := false) -> void; func play_evaded() -> void   # evaded: a perfect dodge's opening (held); func time_left() -> float
   @export flinch_limit := 0 (enemies 3); flinch_window := 2.0; flinch_immunity := 2.0; var flinch_resistant: bool   # Phase B anti-spam
   func is_flinch_immune() -> bool             # light flinches shrugged off (committed strike, or the flinch limit)
   func clear() -> void; func classify(hit: HitInfo) -> Array   # [type, duration]

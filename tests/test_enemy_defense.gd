@@ -94,6 +94,50 @@ func test_a_boss_perfect_dodges_the_blade_and_counters() -> void:
 	check_eq(boss.health.current_health, boss.health.max_health, "the strike missed")
 
 
+## Review fix: a defence begun holding the director's token keeps it, so the counter isn't
+## swallowed by the director's reissue cooldown.
+func test_a_counter_from_recovery_keeps_the_directors_token() -> void:
+	var player := await _stage_player()
+	var director := CombatDirector.new()
+	add_to_stage(director)
+	var grunt := _enemy(GRUNT, Vector3(0, 0, -1.6), {block = 1.0, dodge = 0.0})
+	grunt.director = director
+	grunt._cooldown_left = 0.0
+	(grunt.get_node("Defense") as EnemyDefense).counter_after_blocks = 1
+	check(await wait_until(func() -> bool: return grunt.state == S.RECOVER, 5.0), "the grunt never reached its recovery")
+	check(director.has_attack_token(grunt), "it holds the token through its recovery")
+	_fsm(player).combo.push_input(ComboManager.LIGHT)
+	check(await wait_until(func() -> bool: return grunt.state == S.GUARD, 0.5), "it never guarded from its recovery")
+	check(director.has_attack_token(grunt), "the guard keeps the token")
+	check(await wait_until(func() -> bool: return grunt.state == S.ATTACK_WINDUP, 1.0), "the counter never came")
+
+
+func test_the_defence_cooldown_runs_from_the_end_of_the_defence() -> void:
+	var player := await _stage_player()
+	var grunt := _enemy(GRUNT, Vector3(0, 0, -2.4), {block = 1.0, dodge = 0.0})
+	var defense := grunt.get_node("Defense") as EnemyDefense
+	defense.guard_hold = 1.2
+	defense.counter_after_blocks = 99
+	await seconds(0.6)                                    # it turns to face the player
+	_fsm(player).combo.push_input(ComboManager.LIGHT)
+	check(await wait_until(func() -> bool: return grunt.state == S.GUARD, 0.5), "no guard")
+	check(await wait_until(func() -> bool: return grunt.state != S.GUARD, 3.0), "the guard never dropped")
+	check(defense._cooldown_left > defense.cooldown - 0.05, "the cooldown starts when the guard drops (%.2f s left)" % defense._cooldown_left)
+
+
+## Review fix: something reacting to swing_started that turns the blade straight off again (the
+## boss's perfect dodge staggering the player) must not leave the mesh trail running.
+func test_the_sword_trail_follows_the_blade_turned_off_during_its_activation() -> void:
+	var katana: Katana = load("res://scenes/weapons/katana.tscn").instantiate()
+	katana.trail_renderer = Katana.TrailRenderer.MESH
+	add_to_stage(katana)
+	await physics_frames(1)
+	katana.begin_swing(CombatFixtures.make_attack())
+	katana.hitbox.swing_started.connect(func(_attack: AttackData) -> void: katana.set_active(false), CONNECT_ONE_SHOT)
+	katana.set_active(true)
+	check(not katana.hitbox.is_active(), "the blade is off")
+	check(not katana._mesh_trail.emitting, "and so is its trail")
+
 func _stage_player() -> PlayerController:
 	var floor_body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()

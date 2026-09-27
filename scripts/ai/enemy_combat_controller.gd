@@ -217,7 +217,7 @@ func can_defend() -> bool:
 func start_guard(hold: float) -> void:
 	if guard == null:
 		return
-	_abort_attack()
+	_stop_strike()                                       # a held token stays for the counter
 	_guard_left = hold
 	guard.set_guarding(true)
 	_set_state(State.GUARD)
@@ -233,7 +233,7 @@ func extend_guard(hold: float) -> void:
 ## Backsteps away from the player with i-frames. `perfect` (a timed evade of the player's
 ## blade) counter-attacks at the end.
 func start_evade(perfect: bool) -> void:
-	_abort_attack()
+	_stop_strike()                                       # a held token stays for the counter
 	if stamina and not perfect:
 		stamina.spend(evade_stamina)
 	_evade_left = evade_time
@@ -246,7 +246,9 @@ func start_evade(perfect: bool) -> void:
 	anim.play(&"strafe_b" if anim.has_animation(&"strafe_b") else &"walk", 0.05)
 
 
-## Strikes back at once if the player is in reach and a token is free; otherwise decides again.
+## Strikes back at once if the player is in reach and it holds (or gets) a token; otherwise hands
+## any token back and decides again. A token held when the defence began is kept for this, so
+## the director's reissue cooldown doesn't swallow the counter.
 func counter_attack() -> void:
 	if state == State.GUARD:
 		_set_state(State.FLANKING)                  # lowers the guard
@@ -257,6 +259,7 @@ func counter_attack() -> void:
 		_cooldown_left = 0.0
 		_start_attack()
 	else:
+		_release_token()
 		_decide()
 
 
@@ -372,6 +375,7 @@ func _tick_guard(delta: float) -> void:
 		_face(_flat(target.global_position - global_position), delta)
 	_guard_left -= delta
 	if _guard_left <= 0.0:
+		_release_token()                                  # no counter came of it
 		_decide()                                        # leaving GUARD lowers the guard
 
 
@@ -388,6 +392,7 @@ func _tick_evade(delta: float) -> void:
 			_counter_after_evade = false
 			counter_attack()
 		else:
+			_release_token()
 			_decide()
 
 
@@ -451,9 +456,18 @@ func _finish_attack() -> void:
 
 ## Stops any strike and hands the token back.
 func _abort_attack() -> void:
+	_stop_strike()
+	_release_token()
+
+
+## Stops any strike but keeps a held token (a defence that may end in a counter).
+func _stop_strike() -> void:
 	weapon_hitbox.set_active(false)
 	current_attack = null
 	_strikes.clear()
+
+
+func _release_token() -> void:
 	if _director():
 		_director().release_attack_token(self)
 

@@ -54,6 +54,9 @@ func set_active(on: bool) -> void:
 	if on == hitbox.is_active():
 		return
 	hitbox.set_active(on)
+	# swing_started (inside hitbox.set_active) can turn the blade straight off again (a perfect
+	# dodge's stagger): follow the hitbox's final state, not `on`.
+	on = hitbox.is_active()
 	if _mesh_trail:
 		_mesh_trail.emitting = on
 	elif _gpu_trail and on and _attack:

@@ -20,7 +20,8 @@ extends Node
 ##   evaded outright: the attacker staggers briefly (DamageReactionComponent.play_evaded) and
 ##   the next strike started within the opening is a critical. perfect_dodged fires (afterimages
 ##   and slow motion come from FeedbackDirector).
-## • Parry counter: a parry arms a critical for as long as the attacker's parried stagger.
+## • Parry counter: a parry arms a critical for as long as the attacker's parried stagger (the
+##   posture break's, when the parry also broke it).
 ##   Criticals scale the strike's damage and poise damage by `critical_multiplier`.
 ## • Stamina (Phase C): strikes cost `strike_stamina_base` + `strike_stamina_per_poise` × poise
 ##   damage, dodges `dodge_stamina` (refunded by a perfect dodge); guarding slows the refill.
@@ -247,7 +248,7 @@ func try_perfect_dodge(attacker: Node3D) -> bool:
 	var attacker_reaction := DamageReactionComponent.find_on(attacker)
 	if attacker_reaction:
 		attacker_reaction.play_evaded()
-		opening = attacker_reaction.evaded_time
+		opening = attacker_reaction.time_left()   # a longer held stagger it was already in counts
 	arm_critical(opening + critical_grace)
 	perfect_dodged.emit(attacker)
 	return true
@@ -593,7 +594,8 @@ func _on_parried(attacker: Node3D, _point: Vector3) -> void:
 	_parries += 1
 	var attacker_reaction := DamageReactionComponent.find_on(attacker)
 	if attacker_reaction:
-		arm_critical(attacker_reaction.parried_time + critical_grace)
+		# The real opening: a parry that also broke the posture holds for the whole break.
+		arm_critical(attacker_reaction.time_left() + critical_grace)
 	if state == State.GUARD:
 		_replay(&"parry_1" if _parries % 2 == 1 else &"parry_2")
 
