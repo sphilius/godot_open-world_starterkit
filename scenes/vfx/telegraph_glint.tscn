@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vfx/telegraph_glint.gd" id="1_glint"]
+
+[node name="TelegraphGlint" type="Node3D"]
+script = ExtResource("1_glint")

@@ -25,7 +25,7 @@ func _ready() -> void:
 
 ## Returns true if the hit was applied (false when dead or invulnerable).
 func take_damage(hit: HitInfo) -> bool:
-	if is_dead or Time.get_ticks_msec() < _invulnerable_until_msec:
+	if is_dead or is_invulnerable():
 		return false
 	current_health = maxf(current_health - hit.damage, 0.0)
 	_invulnerable_until_msec = Time.get_ticks_msec() + int(invulnerability_time * 1000.0)
@@ -36,6 +36,25 @@ func take_damage(hit: HitInfo) -> bool:
 	if lethal:
 		died.emit(hit)
 	return true
+
+
+## Immune to damage for `seconds` of real time from now (dodge i-frames, a boss roar).
+## Extends the current window, but never shortens it.
+func grant_invulnerability(seconds: float) -> void:
+	_invulnerable_until_msec = maxi(_invulnerable_until_msec, Time.get_ticks_msec() + int(seconds * 1000.0))
+
+
+func is_invulnerable() -> bool:
+	return Time.get_ticks_msec() < _invulnerable_until_msec
+
+
+## Guard chip damage: lowers health without a hit (no `damaged`, no reaction), and never
+## below 1, so it can't kill.
+func chip(amount: float) -> void:
+	if is_dead or amount <= 0.0:
+		return
+	current_health = maxf(current_health - amount, minf(current_health, 1.0))
+	health_changed.emit(current_health, max_health)
 
 
 func heal(amount: float) -> void:

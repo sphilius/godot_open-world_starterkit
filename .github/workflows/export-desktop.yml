@@ -1,0 +1,68 @@
+# Desktop builds for playtesters (M10): runs the headless tests, then exports the "Windows
+# Desktop" and "Linux" presets (x86_64, the game data embedded in the executable) and uploads
+# each as a workflow artifact (Actions ▸ this run ▸ Artifacts).
+#   manual run            → Actions ▸ Export desktop builds ▸ Run workflow (pick the branch)
+#   push to vertical-slice-prototype or main, or a v* tag (a manual run needs the file on main)
+name: Export desktop builds
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, vertical-slice-prototype]
+    tags: ["v*"]
+    paths-ignore: ["**.md", ".gitignore", ".gitattributes"]
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: "4.7.1"
+  GODOT_RELEASE: "4.7.1-stable"
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-godot
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          release: ${{ env.GODOT_RELEASE }}
+      - name: Run headless tests
+        run: ~/godot/godot --headless --path . --script res://tests/run_tests.gd
+
+      # setup-godot keeps only the web templates; the desktop ones are cached separately.
+      - name: Cache desktop export templates
+        id: templates
+        uses: actions/cache@v6
+        with:
+          path: ~/desktop-templates
+          key: godot-${{ env.GODOT_RELEASE }}-desktop-x86_64
+      - name: Download desktop export templates (cache miss only)
+        if: steps.templates.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o /tmp/templates.tpz \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+          mkdir -p ~/desktop-templates
+          unzip -q -j /tmp/templates.tpz 'templates/linux_*.x86_64' 'templates/windows_*_x86_64*.exe' -d ~/desktop-templates
+          rm /tmp/templates.tpz
+      - name: Install desktop export templates
+        run: cp ~/desktop-templates/* ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
+
+      - name: Export Windows and Linux
+        run: |
+          mkdir -p build/windows build/linux
+          ~/godot/godot --headless --path . --export-release "Windows Desktop" build/windows/VerticalSlice.exe
+          ~/godot/godot --headless --path . --export-release "Linux" build/linux/VerticalSlice.x86_64
+          test -s build/windows/VerticalSlice.exe && test -s build/linux/VerticalSlice.x86_64   # fail loudly on a silent export error
+          for dir in build/windows build/linux; do cp README.md assets/LICENSES.md "$dir/"; done   # credits ship with the game
+          ls -lh build/windows build/linux
+      - uses: actions/upload-artifact@v7
+        with:
+          name: VerticalSlice-windows-x86_64
+          path: build/windows
+      - uses: actions/upload-artifact@v7
+        with:
+          name: VerticalSlice-linux-x86_64
+          path: build/linux

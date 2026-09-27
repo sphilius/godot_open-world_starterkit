@@ -1,6 +1,7 @@
 extends Node3D
-## Scene bootstrap: once the procedural world exists, drop the player at the start of the
-## scenic path, facing along it (toward the sunset).
+## Scene bootstrap: once the procedural world exists, stand every node in the "ground_snap"
+## group (checkpoint shrines and their respawn points) on the terrain, then drop the player at
+## the start of the scenic path, facing along it (toward the sunset).
 ##
 ## Command line (after `--`):  --spawn-offset=<metres along the path>
 
@@ -13,6 +14,11 @@ extends Node3D
 
 func _ready() -> void:
 	terrain.ensure_generated()
+	for node in get_tree().get_nodes_in_group(&"ground_snap"):
+		if not is_ancestor_of(node):
+			continue
+		var spot := (node as Node3D).global_position
+		(node as Node3D).global_position.y = terrain.height_at(spot.x, spot.z)
 	var offset := spawn_offset
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--spawn-offset="):

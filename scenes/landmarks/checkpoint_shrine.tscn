@@ -1,0 +1,28 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/game/checkpoint_shrine.gd" id="1_shrine"]
+[ext_resource type="PackedScene" path="res://scenes/landmarks/stone_lantern.tscn" id="2_lantern"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_rest"]
+radius = 2.4
+
+[node name="CheckpointShrine" type="Area3D" groups=["ground_snap"]]
+script = ExtResource("1_shrine")
+
+[node name="RestZone" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+shape = SubResource("SphereShape3D_rest")
+
+[node name="Lantern" parent="." instance=ExtResource("2_lantern")]
+transform = Transform3D(1.25, 0, 0, 0, 1.25, 0, 0, 0, 1.25, 0, 0, 0)
+
+[node name="Flame" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.75, 0)
+light_color = Color(1, 0.55, 0.25, 1)
+light_energy = 0.0
+light_bake_mode = 0
+shadow_enabled = true
+omni_range = 9.0
+
+[node name="RespawnPoint" type="Marker3D" parent="." groups=["ground_snap"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.8, 0, 0)

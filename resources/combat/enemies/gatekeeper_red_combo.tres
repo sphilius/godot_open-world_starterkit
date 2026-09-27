@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="EnemyCombo" format=3]
+
+[ext_resource type="Script" path="res://scripts/ai/enemy_combo.gd" id="1_combo"]
+[ext_resource type="Script" path="res://scripts/combat/attack_data.gd" id="2_attack"]
+[ext_resource type="Resource" path="res://resources/combat/enemies/brute_thrust.tres" id="3_thrust"]
+[ext_resource type="Resource" path="res://resources/combat/enemies/gatekeeper_red_sweep.tres" id="4_sweep"]
+
+[resource]
+script = ExtResource("1_combo")
+strikes = Array[ExtResource("2_attack")]([ExtResource("3_thrust"), ExtResource("4_sweep")])

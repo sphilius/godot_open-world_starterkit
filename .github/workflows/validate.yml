@@ -1,0 +1,26 @@
+# Headless tests for the vertical-slice integration branch and the milestone PRs into it.
+# Pull requests into main are covered by deploy-web.yml (same tests, then export and deploy).
+name: Validate
+
+on:
+  push:
+    branches: [vertical-slice-prototype]
+  pull_request:
+    branches-ignore: [main]
+
+env:
+  GODOT_VERSION: "4.7.1"
+  GODOT_RELEASE: "4.7.1-stable"
+
+jobs:
+  godot-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-godot
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          release: ${{ env.GODOT_RELEASE }}
+      - name: Run headless tests
+        run: ~/godot/godot --headless --path . --script res://tests/run_tests.gd

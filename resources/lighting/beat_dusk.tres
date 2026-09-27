@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="BeatLighting" format=3]
+
+[ext_resource type="Script" path="res://scripts/game/beat_lighting.gd" id="1_beat"]
+
+[resource]
+script = ExtResource("1_beat")
+sun_color = Color(1, 0.48, 0.3, 1)
+sun_energy = 1.5
+sun_rotation = Vector3(-0.05, 3.7, 0)
+ambient_color = Color(0.62, 0.44, 0.5, 1)
+fog_color = Color(0.72, 0.44, 0.42, 1)
+fog_density = 0.002
+volumetric_fog_albedo = Color(0.92, 0.66, 0.62, 1)
+volumetric_fog_density = 0.006
+exposure = 0.92
+sky_energy = 0.75
+sky_mie_color = Color(0.96, 0.44, 0.28, 1)
+sky_rayleigh_color = Color(0.2, 0.24, 0.46, 1)

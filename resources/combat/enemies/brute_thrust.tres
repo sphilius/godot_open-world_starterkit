@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="AttackData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_data.gd" id="1_attack"]
+
+[resource]
+script = ExtResource("1_attack")
+animation = &"thrust_unblockable"
+damage = 28.0
+poise_damage = 40.0
+damage_type = 2
+duration = 1.5
+active_start = 0.8
+active_end = 0.95
+combo_window_open = 1.5
+lunge_speed = 7.0
+lunge_duration = 0.2
+lunge_delay = 0.72
+hitstop = 0.08
+stagger_time = 0.5
+knockback = 5.0
+trauma = 0.4
+unblockable = true
+can_be_parried = false
