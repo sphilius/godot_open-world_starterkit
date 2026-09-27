@@ -37,8 +37,9 @@ func absorb(damage: float) -> void:
 	var amount := damage * wear_scale
 	if amount <= 0.0:
 		return
-	var weapon_part := amount * weapon_share if weapon > 0.0 else 0.0
-	var armor_part := amount - weapon_part if armor > 0.0 else 0.0
+	# Each item wears by its own configured share; a cracked item's share isn't passed on.
+	var weapon_part := amount * weapon_share
+	var armor_part := amount * (1.0 - weapon_share)
 	if weapon > 0.0:
 		weapon = maxf(weapon - weapon_part, 0.0)
 		if weapon <= 0.0:

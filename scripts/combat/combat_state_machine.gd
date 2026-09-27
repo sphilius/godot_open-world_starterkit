@@ -155,6 +155,8 @@ var _execution_target: Node3D
 var _executed := false
 ## A perfect dodge already happened in this dodge.
 var _perfect_this_dodge := false
+## Stamina the current dodge actually took (refunded by a perfect dodge).
+var _dodge_paid := 0.0
 ## Where the current (or last) dodge started.
 var _dodge_origin := Vector3.ZERO
 ## Seconds a critical stays armed (0 = none).
@@ -243,7 +245,7 @@ func try_perfect_dodge(attacker: Node3D) -> bool:
 		return true
 	_perfect_this_dodge = true
 	if stamina:
-		stamina.refund(dodge_stamina)                # a perfect dodge is free
+		stamina.refund(_dodge_paid)                  # a perfect dodge is free: what it cost comes back
 	var opening := 0.0
 	var attacker_reaction := DamageReactionComponent.find_on(attacker)
 	if attacker_reaction:
@@ -305,7 +307,7 @@ func _can_guard_now() -> bool:
 func _tick_locomotion(delta: float) -> void:
 	if _take_action(ALL_ACTIONS):
 		return
-	if _guard_held:
+	if _guard_held and _has_stamina():          # empty or exhausted: the held button waits
 		_start_guard()
 		return
 	_time_since_attack += delta
@@ -340,7 +342,7 @@ func _tick_attack() -> void:
 			allowed.append(DODGE)                    # wind-up and recovery can always be dodged out of
 	if _take_action(allowed):
 		return
-	if _guard_held and _state_time >= attack.active_end:
+	if _guard_held and _has_stamina() and _state_time >= attack.active_end:
 		_start_guard()
 		return
 	if _state_time >= attack.duration:
@@ -357,7 +359,7 @@ func _tick_dodge() -> void:
 		health.grant_invulnerability(dodge_iframes.y - dodge_iframes.x)
 	if _state_time >= dodge_cancel_time and _take_action([LIGHT, HEAVY] as Array[StringName]):
 		return
-	if _guard_held and _state_time >= dodge_cancel_time:
+	if _guard_held and _has_stamina() and _state_time >= dodge_cancel_time:
 		_start_guard()
 		return
 	if _state_time >= dodge_duration:
@@ -543,6 +545,7 @@ func _start_dodge() -> void:
 	else:
 		body.begin_dodge(direction, dodge_distance / dodge_move_time, dodge_move_time, true)
 	if stamina:
+		_dodge_paid = minf(stamina.current, dodge_stamina)   # spend() stops at 0
 		stamina.spend(dodge_stamina)
 	current_attack = null
 	_iframes_granted = false

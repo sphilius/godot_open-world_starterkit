@@ -44,6 +44,40 @@ func test_nothing_starts_without_stamina() -> void:
 	check(not fsm.guard.is_guarding, "no guard on empty")
 
 
+## Review fix: a guard button held on empty doesn't raise the guard on a later tick either.
+func test_a_held_guard_waits_for_stamina() -> void:
+	var player := await _stage_player()
+	var fsm := _fsm(player)
+	fsm.stamina.drain(1000.0)
+	fsm.stamina.regen_rate = 0.0
+	fsm.guard_pressed()
+	await physics_frames(4)
+	check(fsm.state != CS.GUARD and not fsm.guard.is_guarding, "no guard from locomotion while empty")
+	fsm.stamina.regen_rate = 1000.0
+	check(await wait_until(func() -> bool: return fsm.guard.is_guarding, 1.5), "the held guard rises once stamina is back")
+
+
+## Review fix: a perfect dodge gives back what the dodge actually took, not the full cost.
+func test_a_perfect_dodge_refunds_only_what_it_cost() -> void:
+	var player := await _stage_player()
+	var fsm := _fsm(player)
+	fsm.stamina.drain(fsm.stamina.max_stamina - 5.0)      # 5 left, less than a dodge costs
+	fsm.combo.push_input(ComboManager.DODGE)
+	await physics_frames(2)
+	check_eq(fsm.state, CS.DODGE, "a dodge on 5 stamina")
+	_hurtbox(player).receive_hit(CombatFixtures.make_hit(_grunt(Vector3(0, 0, -2)), 10.0, 10.0))
+	check_near(fsm.stamina.current, 5.0, 0.01, "back to where it started, not more")
+
+
+## Review fix: each item keeps its own share of the wear, cracked partner or not.
+func test_gear_wears_by_its_own_share() -> void:
+	var gear := EquipmentDurability.new()
+	add_to_stage(gear)
+	gear.weapon = 0.0                                     # the weapon is already cracked
+	var before := gear.armor
+	gear.absorb(40.0)
+	check_near(before - gear.armor, 40.0 * (1.0 - gear.weapon_share), 0.01, "the armour takes its share, not the whole hit")
+
 func test_blocking_wears_the_gear_until_it_cracks_and_blocks_weaken() -> void:
 	var player := await _stage_player()
 	var fsm := _fsm(player)
