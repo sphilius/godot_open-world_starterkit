@@ -157,7 +157,7 @@ func show_toast(text: String) -> void:
 ## m:ss.
 static func format_time(seconds: float) -> String:
 	var total := int(seconds)
-	return "%d:%02d" % [total / 60, total % 60]
+	return "%d:%02d" % [floori(total / 60.0), total % 60]
 
 
 func _on_begin() -> void:

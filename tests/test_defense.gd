@@ -266,7 +266,7 @@ func test_player_guard_blocks_and_each_press_opens_a_parry_window() -> void:
 	check(fsm.guard.is_guarding, "the guard is up")
 	check(fsm.parry.is_window_open(), "the press opened a parry window")
 	check(player.move_speed_scale < 1.0 and player.hold_facing, "guarding walks slowly and holds the facing")
-	await seconds(0.2)
+	await seconds(0.4)                                   # the player's parry window is 0.3 s
 	var health := player.get_node("HealthComponent") as HealthComponent
 	check_eq(_hurtbox(player).receive_hit(CombatFixtures.make_hit(_attacker(Vector3(0, 0, -2)), 15.0, 10.0)), R.BLOCKED,
 			"a frontal hit after the window")
@@ -275,6 +275,17 @@ func test_player_guard_blocks_and_each_press_opens_a_parry_window() -> void:
 	await physics_frames(2)
 	check_eq(fsm.state, CombatStateMachine.State.IDLE, "state after releasing guard")
 	check(not fsm.guard.is_guarding and player.move_speed_scale == 1.0 and not player.hold_facing, "guard fully lowered")
+
+
+## Playtest 1: 0.15 s was too tight to learn. The player's window is 0.3 s: a press a quarter of
+## a second before the hit still parries.
+func test_the_players_parry_window_forgives_an_early_press() -> void:
+	var player := await _stage_player()
+	var fsm := player.get_node("Combat") as CombatStateMachine
+	fsm.guard_pressed()
+	await seconds(0.25)
+	check_eq(_hurtbox(player).receive_hit(CombatFixtures.make_hit(_attacker(Vector3(0, 0, -2)), 15.0, 10.0)), R.PARRIED,
+			"a hit 0.25 s after the press")
 
 
 func test_player_parries_a_wolf_bite_and_the_wolf_staggers() -> void:
@@ -312,7 +323,7 @@ func test_a_broken_guard_staggers_the_player() -> void:
 	var fsm := player.get_node("Combat") as CombatStateMachine
 	fsm.posture.add_posture(95.0)
 	fsm.guard_pressed()
-	await seconds(0.2)                                # past the parry window
+	await seconds(0.4)                                # past the 0.3 s parry window
 	check_eq(_hurtbox(player).receive_hit(CombatFixtures.make_hit(_attacker(Vector3(0, 0, -2)), 10.0, 10.0)), R.GUARD_BROKEN,
 			"a block that fills posture")
 	check_eq(fsm.state, CombatStateMachine.State.HURT, "state after a guard break")

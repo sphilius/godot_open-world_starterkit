@@ -14,7 +14,7 @@ extends Node
 ##   LevelGate               moving → gate
 ## Screen shake (CameraTrauma) only follows hits the player deals or takes: a landed strike
 ## shakes by its AttackData.trauma, and being hit, parrying, posture breaks, executions and
-## death use the CameraTrauma presets. Hits on the locked target pulse the lock-on reticle.
+## death use the CameraTrauma presets. Hits on the locked target flare the lock-on highlight.
 
 @export var sfx: SfxPool
 @export var player: PlayerController
@@ -150,7 +150,7 @@ func _shake(amount: float) -> void:
 		_trauma.add_trauma(amount)
 
 
-## Pops the lock-on reticle when `node` (or the body that owns it) is the locked target.
+## Flares the lock-on highlight when `node` (or the body that owns it) is the locked target.
 func _pulse_reticle(node: Node) -> void:
 	var targeting := player.targeting if player else null
 	if targeting == null or not targeting.is_locked():

@@ -2,33 +2,36 @@ class_name TargetingSystem
 extends Node
 ## Hard lock-on.
 ##
-## lock_on (MMB / Q / right-stick click / LOCK) toggles. Locking picks the enemy (group
-## "enemies") closest to the centre of view, within `radius` and a `cone_degrees` cone around
-## the camera's forward direction, with a clear line of sight (world layer). While locked:
+## lock_on (MMB / Q / right-stick click / LOCK) toggles. Any enemy (group "enemies") within
+## `radius` can be locked, whichever way the player faces and whatever stands between them:
+## the one closest to the centre of view inside the `cone_degrees` cone around the camera's
+## forward direction, or else the nearest one. While locked:
 ## • target_next / target_prev (mouse wheel, NEXT button) or a right-stick flick switch to the
-##   nearest visible enemy to the right or left of the current one on screen;
+##   nearest enemy to the right or left of the current one on screen;
 ## • if the target dies (leaves the group), is freed or gets farther than `break_distance`, the
-##   lock moves to the next best enemy, or releases when there is none;
-## • losing sight of the target for `lost_sight_time` seconds releases the lock.
-## A small reticle floats over the locked target; pulse() pops it on a hit or parry. The camera,
-## dodges and lunges read `current_target`.
+##   lock moves straight to the nearest enemy in reach, or releases when there is none.
+## The target glows with a faint pulsing red rim (shaders/lock_on_outline.gdshader, as a
+## material_overlay on its meshes); pulse() flares it on a hit or parry. The camera, dodges
+## and lunges read `current_target`.
 
 signal target_changed(target: Node3D)
 
+## Meta flag on the meshes wearing the lock-on highlight.
+const HIGHLIGHT_META := &"lock_on_highlight"
+
 @export var body: PlayerController
 @export var camera: CombatCamera
-## Farthest an enemy can be to get locked (m).
+## Combat range: the farthest an enemy can be to get locked (m).
 @export var radius := 18.0
-## Full angle of the lock-on cone around the camera's forward direction.
+## Full angle of the cone around the camera's forward direction where the most centred enemy
+## wins. Outside it, the nearest enemy in range is locked instead.
 @export_range(1.0, 360.0) var cone_degrees := 70.0
 ## A lock releases (or moves on) past this distance (m).
 @export var break_distance := 24.0
-## Seconds without line of sight before the lock releases.
-@export var lost_sight_time := 1.5
-## Physics layers that block line of sight (1 = world).
-@export_flags_3d_physics var sight_mask := 1
-## Height above a target's origin for the reticle and sight checks (m).
+## Height above a target's origin used to place it on screen when cycling (m).
 @export var aim_height := 0.7
+## The lock-on highlight drawn over the target's meshes.
+@export var highlight: ShaderMaterial = preload("res://resources/materials/lock_on_outline.tres")
 ## Enemies whose angles off the view centre differ by less than this count as equally
 ## centred, and the nearer one wins.
 @export var tie_degrees := 2.0
@@ -36,25 +39,10 @@ signal target_changed(target: Node3D)
 @export var flick_thresholds := Vector2(0.7, 0.3)
 
 var current_target: Node3D
-var _unseen_time := 0.0
 var _flick_ready := true
-var _reticle: Label3D
-
-
-func _ready() -> void:
-	_reticle = Label3D.new()
-	_reticle.name = "Reticle"
-	_reticle.text = "◆"
-	_reticle.font_size = 48
-	_reticle.pixel_size = 0.004
-	_reticle.modulate = Color(1.0, 0.85, 0.55, 0.95)
-	_reticle.outline_modulate = Color(0.1, 0.05, 0.0, 0.9)
-	_reticle.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_reticle.no_depth_test = true
-	_reticle.fixed_size = true
-	_reticle.top_level = true
-	_reticle.visible = false
-	add_child(_reticle)
+## The meshes carrying the highlight (the current target's).
+var _highlighted: Array = []
+var _flare: Tween
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -66,13 +54,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		cycle(-1)
 
 
-## Pops the reticle (1.0 → 1.35 → 1.0 over 0.18 s) to confirm a hit or parry on the target.
+## Flares the highlight (boost 0 → 1.2 → 0 over 0.25 s) to confirm a hit or parry on the target.
 func pulse() -> void:
-	if not is_locked():
+	if not is_locked() or highlight == null:
 		return
-	var tween := _reticle.create_tween()
-	tween.tween_property(_reticle, ^"scale", Vector3.ONE * 1.35, 0.06)
-	tween.tween_property(_reticle, ^"scale", Vector3.ONE, 0.12)
+	if _flare:
+		_flare.kill()
+	_flare = create_tween()
+	_flare.tween_property(highlight, ^"shader_parameter/boost", 1.2, 0.05)
+	_flare.tween_property(highlight, ^"shader_parameter/boost", 0.0, 0.2)
+
+
+## The meshes wearing the lock-on highlight (empty when unlocked).
+func highlighted_meshes() -> Array[GeometryInstance3D]:
+	var meshes: Array[GeometryInstance3D] = []
+	for mesh: Variant in _highlighted:                     # Variant: some may have been freed
+		if is_instance_valid(mesh):
+			meshes.append(mesh)
+	return meshes
 
 
 func is_locked() -> bool:
@@ -87,14 +86,15 @@ func toggle_lock() -> void:
 
 
 func set_target(target: Node3D) -> void:
-	if target == current_target:
+	if is_same(target, current_target):          # is_same: a freed target equals null under ==
 		return
-	current_target = target
-	_unseen_time = 0.0
-	target_changed.emit(target)
+	current_target = target if is_instance_valid(target) else null
+	_set_highlight(current_target)
+	target_changed.emit(current_target)
 
 
-## The enemy nearest the centre of view inside the cone, within reach and in sight, or null.
+## The enemy nearest the centre of view inside the cone, else the nearest one, within `radius`;
+## null when there's nobody in range.
 func find_best_target(exclude: Node3D = null) -> Node3D:
 	var forward := _view_forward()
 	var min_dot := cos(deg_to_rad(cone_degrees * 0.5))
@@ -113,6 +113,18 @@ func find_best_target(exclude: Node3D = null) -> Node3D:
 		if angle < best_angle - tie or (absf(angle - best_angle) <= tie and distance < best_distance):
 			best = enemy
 			best_angle = angle
+			best_distance = distance
+	return best if best else find_nearest_target(exclude)
+
+
+## The nearest enemy within `radius`, in any direction, or null.
+func find_nearest_target(exclude: Node3D = null) -> Node3D:
+	var best: Node3D
+	var best_distance := INF
+	for enemy in _candidates(exclude):
+		var distance := _flat(enemy.global_position - body.global_position).length()
+		if distance < best_distance:
+			best = enemy
 			best_distance = distance
 	return best
 
@@ -141,21 +153,15 @@ func cycle(direction: int) -> void:
 func _process(_delta: float) -> void:
 	if is_locked():
 		_poll_stick_flick()
-	_update_reticle()
 
 
-func _physics_process(delta: float) -> void:
-	if current_target == null:
+func _physics_process(_delta: float) -> void:
+	if is_same(current_target, null):
 		return
-	if not _still_valid(current_target):
-		set_target(find_best_target(current_target))
-		return
-	if _in_sight(current_target):
-		_unseen_time = 0.0
-	else:
-		_unseen_time += delta
-		if _unseen_time >= lost_sight_time:
-			set_target(null)
+	if not is_instance_valid(current_target):              # freed (a fight reset): typed calls would fail
+		set_target(find_nearest_target())
+	elif not _still_valid(current_target):
+		set_target(find_nearest_target(current_target))    # the target fell: straight to the next
 
 
 func _poll_stick_flick() -> void:
@@ -169,22 +175,41 @@ func _poll_stick_flick() -> void:
 		_flick_ready = true
 
 
-func _update_reticle() -> void:
-	_reticle.visible = is_locked()
-	if _reticle.visible:
-		_reticle.global_position = _aim_point(current_target) + Vector3.UP * 0.45
+## Moves the highlight overlay to `target`'s meshes (skipping the telegraph glint's). Each
+## highlighted mesh carries the HIGHLIGHT_META flag, so a hit flash that swaps the overlay out
+## for a moment (Wolf) only puts the highlight back while the lock still owns it.
+func _set_highlight(target: Node3D) -> void:
+	for mesh in highlighted_meshes():
+		mesh.remove_meta(HIGHLIGHT_META)
+		if mesh.material_overlay == highlight:
+			mesh.material_overlay = null
+	_highlighted.clear()
+	if target == null or highlight == null:
+		return
+	for node in target.find_children("*", "GeometryInstance3D", true, false):
+		var mesh := node as GeometryInstance3D
+		if mesh is MeshInstance3D and not _is_glint(mesh) and mesh.material_overlay == null:
+			mesh.material_overlay = highlight
+			mesh.set_meta(HIGHLIGHT_META, true)
+			_highlighted.append(mesh)
 
 
-## Live enemies within `radius` and in sight.
+static func _is_glint(node: Node) -> bool:
+	while node:
+		if node is TelegraphGlint:
+			return true
+		node = node.get_parent()
+	return false
+
+
+## Live enemies within `radius`.
 func _candidates(exclude: Node3D) -> Array[Node3D]:
 	var found: Array[Node3D] = []
 	for node in body.get_tree().get_nodes_in_group(&"enemies"):
 		var enemy := node as Node3D
-		if enemy == null or enemy == exclude or not is_instance_valid(enemy):
+		if enemy == null or not is_instance_valid(enemy) or is_same(enemy, exclude):
 			continue
-		if _flat(enemy.global_position - body.global_position).length() > radius:
-			continue
-		if _in_sight(enemy):
+		if _flat(enemy.global_position - body.global_position).length() <= radius:
 			found.append(enemy)
 	return found
 
@@ -192,12 +217,6 @@ func _candidates(exclude: Node3D) -> Array[Node3D]:
 func _still_valid(target: Node3D) -> bool:
 	return is_instance_valid(target) and target.is_inside_tree() and target.is_in_group(&"enemies") \
 			and _flat(target.global_position - body.global_position).length() <= break_distance
-
-
-func _in_sight(target: Node3D) -> bool:
-	var from := body.global_position + Vector3.UP * 1.4
-	var query := PhysicsRayQueryParameters3D.create(from, _aim_point(target), sight_mask, [body.get_rid()])
-	return body.get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 
 func _aim_point(target: Node3D) -> Vector3:

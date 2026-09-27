@@ -114,7 +114,7 @@ class_name Hurtbox                            # v2
   func receive_hit(hit: HitInfo) -> HitInfo.Result   # runs defenders in order, then health and posture
   func add_defender(d: Object, first := false) -> void   # anything with intercept(hit: HitInfo) -> HitInfo.Result (IGNORED = pass through); first = ahead of the rest (ParrySystem)
   func remove_defender(d: Object) -> void
-  static func find_for(node: Node, health: HealthComponent) -> Hurtbox   # a body's hurtbox, so body contacts can't bypass defenders
+  static func find_for(node: Node, target_health: HealthComponent) -> Hurtbox   # a body's hurtbox, so body contacts can't bypass defenders
   # Returns IGNORED while health.is_invulnerable(), before any defender runs.
   # Hitbox routes every hit through the target's Hurtbox (found with find_for() when it touched the
   # body). Only targets without a Hurtbox take damage directly. Hit-stop and hit_landed fire only
@@ -223,7 +223,8 @@ PlayerHUD: combat (execution prompt); group "boss_hud": set_boss(enemy), showing
 class_name TargetingSystem extends Node       # player child "TargetingSystem"
   signal target_changed(target: Node3D)       # null = unlocked
   @export body: PlayerController; camera: CombatCamera
-  @export radius := 18.0; cone_degrees := 70.0 (full angle); break_distance := 24.0; lost_sight_time := 1.5; sight_mask := 1; aim_height := 0.7
+  @export radius := 18.0 (combat range: any enemy inside it, whatever the facing or cover); cone_degrees := 70.0 (full angle: most centred wins, else nearest); break_distance := 24.0; aim_height := 0.7; highlight: ShaderMaterial
+  const HIGHLIGHT_META := &"lock_on_highlight"; func find_best_target(exclude) -> Node3D; func find_nearest_target(exclude) -> Node3D; func highlighted_meshes() -> Array[GeometryInstance3D]
   var current_target: Node3D
   func is_locked() -> bool; func toggle_lock() -> void; func set_target(t: Node3D) -> void
   func cycle(direction: int) -> void          # +1 = next to the right on screen, -1 = left
@@ -299,7 +300,7 @@ class_name FeedbackDirector extends Node      # watches the tree: Hurtbox.hit_re
   # telegraph_glint / executed / roared, CheckpointShrine.activated, LevelGate.moving → SfxPool, HitVfx, CameraTrauma
 Hitbox: signal swing_started(attack: AttackData)      # the active window opened
 LevelGate: signal moving(opening: bool)               # a tweened move began (not instant)
-TargetingSystem: func pulse() -> void                 # reticle pop on a hit or parry
+TargetingSystem: func pulse() -> void                 # highlight flare on a hit or parry
 PlayerHUD: @export targeting; func gauge_target() -> Node3D   # the lock-on gauge
 GameMenus: func quit_game() -> void                   # frees the world, then quits (also the window's close button)
 
@@ -311,7 +312,7 @@ class_name PlaytestLogger extends Node        # in main.tscn; @export game, dev_
   # one row per beat plus a total, appended on victory, Quit to title or quitting; tools/playtest/summarize.py reads it
 class_name InkSplats extends Node3D           # in main.tscn; pooled ground quads (not Decals: they need Forward+/Mobile)
   @export max_splats := 24, lifetime := 25.0, fade_time := 3.0, size_range, kill_scale := 1.7, color, ground_mask := 1, lift := 0.06
-  func splat(at: Vector3, scale := 1.0) -> MeshInstance3D   # null without ground within max_drop; var splats; func visible_count() -> int
+  func splat(at: Vector3, size_scale := 1.0) -> MeshInstance3D   # null without ground within max_drop; var splats; func visible_count() -> int
   static func make_mask(size: int, seed_value: int) -> Image
 FeedbackDirector: @export ink: InkSplats                # HIT and KILLED lay ink (kills × kill_scale)
 DevHUD: func quality_name() -> String                 # "LOW", "MEDIUM" or "HIGH"

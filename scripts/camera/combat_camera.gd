@@ -8,8 +8,9 @@ extends Node3D
 ##             (sphere shape) pulls the camera in when terrain or props get between it and the
 ##             player.
 ## Locked on : while the TargetingSystem holds a target, the rig turns to look past the player
-##             at it, biases its anchor toward the target so both stay in frame, pitches down a
-##             little, and lengthens the arm as the two spread apart. Look input is ignored.
+##             at it, biases its anchor toward the target (at most `lock_focus_max` m, so the
+##             player stays in frame however far the target is), pitches down a little, and
+##             lengthens the arm as the two spread apart. Look input is ignored.
 ##             Unlocking leaves the view where it is: no snap back.
 
 ## The body being followed (the player).
@@ -37,6 +38,9 @@ extends Node3D
 @export var lock_separation := Vector2(2.0, 12.0)
 ## How far the framing anchor slides from the player toward the target (0 = none, 0.5 = midpoint).
 @export_range(0.0, 0.5) var lock_focus_bias := 0.3
+## The anchor never moves more than this toward the target (m): far targets would otherwise pull
+## the camera up to the player and drop the model out of frame.
+@export var lock_focus_max := 1.2
 ## Exponential-decay rate for arm length changes.
 @export_range(0.5, 20.0) var arm_smoothing := 4.0
 
@@ -94,7 +98,7 @@ func _process(delta: float) -> void:
 		if separation > 0.01:
 			# Keep yaw continuous: aim at the shortest turn from where the camera is now.
 			target_yaw = yaw + wrapf(atan2(-to_target.x, -to_target.z) - yaw, -PI, PI)
-			anchor += to_target * lock_focus_bias
+			anchor += (to_target * lock_focus_bias).limit_length(lock_focus_max)
 		target_pitch = deg_to_rad(lock_pitch_degrees)
 		var t := clampf(inverse_lerp(lock_separation.x, lock_separation.y, separation), 0.0, 1.0)
 		arm = lerpf(lock_arm_length.x, lock_arm_length.y, t)

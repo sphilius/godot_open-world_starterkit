@@ -84,8 +84,8 @@ func generate() -> void:
 
 
 ## Uniformly thin the field at runtime (quality presets). 1.0 = everything that was generated.
-func set_density_scale(scale: float) -> void:
-	_density_scale = clampf(scale, 0.0, 1.0)
+func set_density_scale(density: float) -> void:
+	_density_scale = clampf(density, 0.0, 1.0)
 	for chunk in _chunks:
 		var mm := chunk.multimesh
 		mm.visible_instance_count = -1 if _density_scale >= 0.999 else int(mm.instance_count * _density_scale)
@@ -134,22 +134,22 @@ func _build_chunk(chunk_min: Vector2, density: float, blade: Mesh, clump_noise: 
 		var width := rng.randf_range(0.8, 1.25)
 		var lean_angle := rng.randf() * TAU
 		var lean_axis := Vector3(cos(lean_angle), 0.0, sin(lean_angle))
-		var basis := Basis(lean_axis, rng.randf() * max_lean) * Basis(Vector3.UP, rng.randf() * TAU)
-		basis = basis * Basis.from_scale(Vector3(width, height, width))
+		var blade_basis := Basis(lean_axis, rng.randf() * max_lean) * Basis(Vector3.UP, rng.randf() * TAU)
+		blade_basis = blade_basis * Basis.from_scale(Vector3(width, height, width))
 		var origin := Vector3(wx - centre.x, ground_y - base_y, wz - centre.y)
 
 		var k := count * _FLOATS_PER_BLADE
-		buffer[k] = basis.x.x
-		buffer[k + 1] = basis.y.x
-		buffer[k + 2] = basis.z.x
+		buffer[k] = blade_basis.x.x
+		buffer[k + 1] = blade_basis.y.x
+		buffer[k + 2] = blade_basis.z.x
 		buffer[k + 3] = origin.x
-		buffer[k + 4] = basis.x.y
-		buffer[k + 5] = basis.y.y
-		buffer[k + 6] = basis.z.y
+		buffer[k + 4] = blade_basis.x.y
+		buffer[k + 5] = blade_basis.y.y
+		buffer[k + 6] = blade_basis.z.y
 		buffer[k + 7] = origin.y
-		buffer[k + 8] = basis.x.z
-		buffer[k + 9] = basis.y.z
-		buffer[k + 10] = basis.z.z
+		buffer[k + 8] = blade_basis.x.z
+		buffer[k + 9] = blade_basis.y.z
+		buffer[k + 10] = blade_basis.z.z
 		buffer[k + 11] = origin.z
 		buffer[k + 12] = rng.randf()   # dryness → tip colour
 		buffer[k + 13] = rng.randf()   # flutter phase

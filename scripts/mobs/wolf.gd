@@ -295,9 +295,15 @@ func _flash() -> void:
 		_flash_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		_flash_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		_flash_material.albedo_color = Color(1.0, 0.95, 0.9, 0.75)
+	var previous: Array[Material] = []                     # e.g. the lock-on highlight
 	for mesh: MeshInstance3D in _meshes:
+		previous.append(mesh.material_overlay if mesh.material_overlay != _flash_material else null)
 		mesh.material_overlay = _flash_material
 	await get_tree().create_timer(_FLASH_TIME, true, false, true).timeout
-	for mesh: MeshInstance3D in _meshes:
-		if is_instance_valid(mesh):
-			mesh.material_overlay = null
+	for i in _meshes.size():
+		var mesh := _meshes[i] as GeometryInstance3D
+		if not is_instance_valid(_meshes[i]) or mesh.material_overlay != _flash_material:
+			continue
+		# The lock-on highlight comes back only if the lock hasn't moved on during the flash.
+		var lock_moved_on: bool = previous[i] != null and not mesh.has_meta(TargetingSystem.HIGHLIGHT_META)
+		mesh.material_overlay = null if lock_moved_on else previous[i]

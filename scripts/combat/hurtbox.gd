@@ -54,10 +54,10 @@ func receive_hit(hit: HitInfo) -> HitInfo.Result:
 	return result
 
 
-## The Hurtbox that guards `health` among `node`'s direct children, or null. Lets a hitbox
+## The Hurtbox that guards `target_health` among `node`'s direct children, or null. Lets a hitbox
 ## that touched a body route the hit through that body's defenders.
-static func find_for(node: Node, health: HealthComponent) -> Hurtbox:
+static func find_for(node: Node, target_health: HealthComponent) -> Hurtbox:
 	for child in node.get_children():
-		if child is Hurtbox and (child as Hurtbox).health == health:
+		if child is Hurtbox and (child as Hurtbox).health == target_health:
 			return child
 	return null
