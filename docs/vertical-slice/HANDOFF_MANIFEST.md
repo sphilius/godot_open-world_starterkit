@@ -70,7 +70,7 @@ class_name CombatStateMachine extends Node    # player "Combat" node (runbook: C
   func evade(hit: HitInfo) -> bool; func try_perfect_dodge(attacker: Node3D) -> bool   # the dodge's perfect window (once per dodge)
   func arm_critical(seconds: float) -> void; func is_critical_armed() -> bool; func dodge_origin() -> Vector3
   static func find_on(node: Node) -> CombatStateMachine   # a player body's "Combat" child
-  # A dodge cancels a strike's wind-up and recovery (only the active frames commit). A parry arms a critical for the attacker's parried_time + grace.
+  # A dodge cancels a strike's wind-up and recovery (only the active frames commit). A parry arms a critical for the attacker's real opening (DamageReactionComponent.time_left(): the posture break when it broke) + grace.
   const SIDE_STEPS := { &"strafe_l": &"parameters/strafe_l/speed/scale", ... }   # AnimationTree side-step states → their TimeScale
   var state: State; var current_attack: AttackData   # null outside ATTACK
   func is_attacking() -> bool; static func dodge_clip(facing: Vector3, direction: Vector3) -> StringName
@@ -187,7 +187,7 @@ class_name DamageReactionComponent extends Node   # node name "DamageReaction"
   @export flinch_time := 0.3; heavy_time := 0.7; knockdown_time := 1.8; parried_time := 1.0 (humanoids and wolf 1.4); evaded_time := 0.8; blocked_push := 0.35
   var is_staggered: bool; var stagger_type: StringName
   func react(type: StringName, duration: float) -> void   # a held knockdown / guard_break / parried with more time left isn't cut short
-  func play_parried(broke_posture := false) -> void; func play_evaded() -> void   # evaded: a perfect dodge's opening (held)
+  func play_parried(broke_posture := false) -> void; func play_evaded() -> void   # evaded: a perfect dodge's opening (held); func time_left() -> float
   func clear() -> void; func classify(hit: HitInfo) -> Array   # [type, duration]
   # A hit that breaks posture knocks down for max(knockdown_time, stagger_time, posture.break_duration).
   static func direction_of(facing: Vector3, to_attacker: Vector3) -> StringName; static func find_on(node: Node) -> DamageReactionComponent

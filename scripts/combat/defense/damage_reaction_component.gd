@@ -84,6 +84,12 @@ func play_evaded() -> void:
 	react(&"evaded", evaded_time)
 
 
+## Seconds the current stagger has left (0 when not staggered): the real opening, a held
+## posture break included.
+func time_left() -> float:
+	return _time_left if is_staggered else 0.0
+
+
 ## Ends a stagger early (respawn, death).
 func clear() -> void:
 	if not is_staggered:
