@@ -8,6 +8,20 @@ through wind-rippled grass, lit by a physical sky, SDFGI and volumetric fog. Wol
 meadow and bite back, and a 3-hit katana combo deals with them. It plays on desktop and in the
 browser, with on-screen touch controls for tablets and phones.
 
+## The vertical slice (about 10 minutes)
+
+| Beat | What happens |
+|---|---|
+| Title | Begin fades in on the path start at golden hour |
+| Approach | Wolves on the valley path; the first shrine (checkpoint) before the courtyard |
+| Courtyard ambush | The gates shut at dusk: three waves of grunts and brutes |
+| Breather | The sanctum gate unlocks; the second shrine on the causeway |
+| Sanctum | The two-phase Gatekeeper at night; execute it when its posture breaks |
+| Victory | Time, parries and deaths, then back to the title |
+
+Art and audio are placeholders until M2 and the sourced audio land (see
+`docs/vertical-slice/PLAN.md`); every sourced file's licence is listed in `assets/LICENSES.md`.
+
 ## Quick start
 
 1. Open `project.godot` in **Godot 4.7** and press **F5**. Or run from the command line:
@@ -57,6 +71,21 @@ It installs Godot 4.7.1 and the web templates on a Linux runner (cached after th
 headless test suite, and only if every test passes, exports the Web preset and publishes it to
 https://sphilius.github.io/godot_open-world_starterkit/. Pull requests run the tests only.
 Docs-only pushes are skipped. To redeploy by hand, use **Actions ▸ Test & deploy web build ▸ Run workflow**.
+
+## Desktop builds (Windows, Linux)
+
+Presets **Windows Desktop** and **Linux** (x86_64) embed the game data in one executable:
+```
+godot --headless --path . --export-release "Windows Desktop" build/windows/VerticalSlice.exe
+godot --headless --path . --export-release "Linux" build/linux/VerticalSlice.x86_64
+```
+They need the Godot 4.7.1 export templates (Editor ▸ Manage Export Templates). CI builds both on
+every push to `vertical-slice-prototype` and `main` (`.github/workflows/export-desktop.yml`); the
+builds are that run's artifacts (on Linux, `chmod +x` the binary after unzipping).
+
+**Playtests:** every run appends per-beat time, deaths, parries and frame hitches to
+`user://playtest.csv`. `docs/vertical-slice/PLAYTEST.md` has the protocol and
+`tools/playtest/summarize.py` checks the logs against the acceptance criteria.
 
 ## Tests (the deploy gate)
 
@@ -157,7 +186,9 @@ Main (main.gd: stands the shrines on the ground, drops the player at the path st
 ├─ GameMenus           title, pause and victory screens; checkpoint toast; fades; clean quit
 ├─ SfxPool             8 positional voices (SFX bus) + a UI voice; plays resources/audio/sound_bank.tres events
 ├─ MusicDirector       music cue per game state (cross-fades), wind ambience, sanctum reverb
-└─ FeedbackDirector    watches hurtboxes, swings, glints, shrines, gates → sounds, sparks, screen shake
+├─ InkSplats          pooled ink splats laid on the ground under bloody hits (fade after a while)
+├─ FeedbackDirector    watches hurtboxes, swings, glints, shrines, gates → sounds, sparks, ink, screen shake
+└─ PlaytestLogger      per-beat time, deaths, parries, attempts and frame hitches → user://playtest.csv
 
 Player (CharacterBody3D, player_controller.gd: movement, camera, lunge/lock hooks)
 ├─ Visual/SamuraiModel  generated rig: Skeleton3D + skinned mesh + HandSocket/SheathSocket (BoneAttachment3D)
@@ -265,6 +296,8 @@ the AttackData timings to match the clips.
 | Stagger tiers | DamageReaction (player and `wolf.tscn`) → `poise_threshold`, `knockdown_threshold`, `flinch_time`, `heavy_time`, `knockdown_time`, `parried_time`, `blocked_push` |
 | Game loop | GameManager → `beat_blend_time`, `death_slow_motion_scale`, `death_slow_motion_time`, `victory_delay`; beat looks in `resources/lighting/beat_*.tres`; shrines → `lit_energy`, RestZone radius, RespawnPoint |
 | Sound and shake | `resources/audio/sound_bank.tres` (event → sounds); MusicDirector → cues, `crossfade_time`, `music_db`, `ambience_db`; SfxPool → `voices`, `unit_size`, `max_distance`; FeedbackDirector → `heavy_poise`; CameraTrauma → `decay`, `max_offset`, `max_angle_degrees` and the preset constants; strikes → AttackData `trauma`; SurfaceFoley → strides; the SFX bus's Reverb effect in `default_bus_layout.tres` |
+| Ink splats | InkSplats → `size_range`, `kill_scale`, `lifetime`, `fade_time`, `color`, `max_splats` |
+| Playtest log | PlaytestLogger → `hitch_ms`, `warmup_time` |
 | Touch layout / feel | `scripts/ui/touch/touch_controls.gd` (button rects, joystick size); TouchLookPad `sensitivity` |
 | Lock-on range, cone, camera framing | Player ▸ TargetingSystem → `radius`, `cone_degrees`, `break_distance`; Player ▸ CameraRig → `lock_*` |
 | Wind / grass | `grass_material.tres` → `wind_*`, `push_*`; GrassField density |
@@ -279,3 +312,10 @@ godot --path . -- --spawn-offset=62             # start 62 m along the path
 godot --path . -- --skip-menu                   # straight into play, no title screen
 godot --path . -- --capture=C:/tmp/shot.png     # render ~6 s, save one frame, quit
 ```
+
+## Credits
+
+Code and placeholder assets: this repository (CC0 placeholders generated by `tools/`).
+Every sourced art and audio file, with its author, source and licence, is listed in
+[`assets/LICENSES.md`](assets/LICENSES.md); CC-BY works are credited there as their licences ask.
+Free audio picks for the slice: `docs/vertical-slice/AUDIO_SOURCING.md`.

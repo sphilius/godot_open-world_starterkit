@@ -91,6 +91,11 @@ func _process(_delta: float) -> void:
 			Engine.get_frames_per_second(), QUALITY_NAMES[_quality], state]
 
 
+## The quality preset in use: "LOW", "MEDIUM" or "HIGH".
+func quality_name() -> String:
+	return QUALITY_NAMES[_quality]
+
+
 ## LOW → MEDIUM → HIGH → LOW (F2, or the touch "Q" button).
 func cycle_quality() -> void:
 	_quality = ((_quality + 1) % Quality.size()) as Quality

@@ -4,7 +4,8 @@ extends Node
 ## action gets audio and VFX feedback. It watches the scene tree (including enemies that spawn
 ## later) and connects to:
 ##   Hurtbox.hit_received    HIT/KILLED → hit (hit_heavy on kills, heavy strikes and posture
-##                           breaks) + sparks; BLOCKED → block; PARRIED → parry + flash;
+##                           breaks) + sparks + an ink splat on the ground (bigger for kills,
+##                           M10); BLOCKED → block; PARRIED → parry + flash;
 ##                           GUARD_BROKEN or a posture break → posture_break + burst
 ##   Hitbox.swing_started    whoosh_light / whoosh_heavy (poise damage from `heavy_poise`)
 ##   EnemyCombatController   telegraph_glint → glint_gold / glint_red; executed → shake;
@@ -17,6 +18,8 @@ extends Node
 
 @export var sfx: SfxPool
 @export var player: PlayerController
+## Optional: lays ink on the ground under hits that draw blood.
+@export var ink: InkSplats
 ## Where hit effects are added (a Node3D in the world). Defaults to this node's parent.
 @export var effects_parent: Node3D
 ## Strikes with at least this much poise damage count as heavy (sound and weight).
@@ -69,8 +72,10 @@ func _on_hit(hit: HitInfo, result: HitInfo.Result, hurtbox: Hurtbox) -> void:
 			_play(&"hit_heavy" if heavy else &"hit", at)
 			if hit.broke_posture:
 				_play(&"posture_break", at, -2.0)
+			_splat(at, 1.0)
 		HitInfo.Result.KILLED:
 			_play(&"hit_heavy", at)
+			_splat(at, ink.kill_scale if ink else 1.0)
 		HitInfo.Result.BLOCKED:
 			_play(&"block", at)
 		HitInfo.Result.PARRIED:
@@ -133,6 +138,11 @@ func _on_gate(_opening: bool, gate: LevelGate) -> void:
 func _play(event: StringName, at: Vector3, volume_db := 0.0) -> void:
 	if sfx:
 		sfx.play(event, at, volume_db)
+
+
+func _splat(at: Vector3, scale: float) -> void:
+	if ink:
+		ink.splat(at, scale)
 
 
 func _shake(amount: float) -> void:

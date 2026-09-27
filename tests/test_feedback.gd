@@ -156,3 +156,59 @@ func test_the_lock_on_gauge_floats_over_the_target_in_view() -> void:
 	await tree.process_frame
 	await tree.process_frame
 	check(hud.gauge_target() == null, "no gauge for a target behind the camera")
+
+
+func test_ink_splats_lie_on_the_ground_recycle_and_fade() -> void:
+	var slope := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(20, 1, 20)
+	shape.shape = box
+	shape.position.y = -0.5
+	slope.add_child(shape)
+	slope.rotation.x = deg_to_rad(20.0)
+	add_to_stage(slope)
+	var ink := InkSplats.new()
+	ink.max_splats = 3
+	ink.grow_time = 0.05
+	add_to_stage(ink)
+	await physics_frames(2)
+	var first := ink.splat(Vector3(0, 1, 0))
+	check(first != null, "a hit above the ground leaves a splat")
+	if first == null:
+		return
+	var up := slope.global_basis.y
+	check(first.global_basis.y.normalized().dot(up) > 0.99, "the splat lies along the slope")
+	check_near((first.global_position - slope.global_position).dot(up), ink.lift, 0.01, "just above the ground")
+	await seconds(0.1)
+	check(first.scale.x >= ink.size_range.x - 0.01, "it grew to full size (%.2f m)" % first.scale.x)
+	check(ink.splat(Vector3(0, 50, 0)) == null, "no ground within reach, no splat")
+	for i in 3:
+		ink.splat(Vector3(i, 1, 0))
+	check_eq(ink.splats.size(), 3, "the pool stops at max_splats")
+	check(ink.splats[0] == first and first.global_position.x > 1.5, "the oldest splat was reused for the newest hit")
+	ink.lifetime = 0.05
+	ink.fade_time = 0.05
+	ink.splat(Vector3(0, 1, 0))
+	check(await wait_until(func() -> bool: return ink.visible_count() == 2, 1.0), "a splat fades away after its lifetime")
+	var mask := InkSplats.make_mask(32, 1)
+	check(mask.get_pixel(16, 16).a > 0.99 and mask.get_pixel(0, 0).a < 0.01, "the mask is solid in the middle and clear in the corner")
+
+
+func test_hits_and_kills_leave_ink_on_the_terrain() -> void:
+	await load_world()
+	var ink := world.get_node("InkSplats") as InkSplats
+	var target := wolf("Wolf1")
+	check(await wait_until(target.is_on_floor, 5.0), "the wolf never landed")   # wolves drop in from their spawn height
+	place_player_near(target, 2.0)
+	await physics_frames(3)
+	var hit := CombatFixtures.make_hit(player(), 5.0, 0.0)
+	hit.hit_position = target.global_position + Vector3.UP
+	(target.get_node("Hurtbox") as Hurtbox).receive_hit(hit)
+	check_eq(ink.visible_count(), 1, "the hit left ink under the wolf")
+	var terrain := world.get_node("Terrain") as HeightmapTerrain
+	var splat := ink.splats[0]
+	check_near(splat.global_position.y, terrain.height_at(splat.global_position.x, splat.global_position.z), 0.1, "on the terrain")
+	(target.get_node("Hurtbox") as Hurtbox).receive_hit(CombatFixtures.make_hit(player(), 9999.0, 0.0))
+	check_eq(ink.visible_count(), 2, "the kill left more")
+	check(ink.splats[1].scale.x > 0.0, "the kill's splat is growing")

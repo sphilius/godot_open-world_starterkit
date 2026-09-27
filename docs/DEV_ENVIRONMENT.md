@@ -62,11 +62,14 @@ One-time setup:
    (`winget install astral-sh.uv`) and **Claude Code**.
 2. `git clone https://github.com/sphilius/godot_open-world_starterkit` and check out
    `vertical-slice-prototype` (or the milestone branch).
-3. **Blender MCP**: install the Blender add-on from the blender-mcp project
-   (`addon.py` → Blender ▸ Edit ▸ Preferences ▸ Add-ons ▸ Install), enable it, and click
-   **Connect** in the 3D view's sidebar (N ▸ BlenderMCP). Register the server with Claude Code:
-   `claude mcp add blender -- uvx blender-mcp`. Check the project's README for current steps;
-   its Hyper3D Rodin and Poly Haven toggles live in the same sidebar panel.
+3. **Blender MCP** (the project is now published as `mcp-for-blender`): run
+   `uvx mcp-for-blender install-addon`, then enable **Interface: MCP for Blender** in Blender ▸
+   Edit ▸ Preferences ▸ Add-ons. Register the server with Claude Code:
+   `claude mcp add blender uvx mcp-for-blender`. In Blender, open the **MCP for Blender** tab in
+   the 3D view's sidebar (N) and click **Connect to Claude**. If a GUI client can't find `uvx`,
+   use `cmd /c uvx mcp-for-blender` as the command. Check the project's README
+   (github.com/ahujasid/blender-mcp) for current steps; its Poly Haven, Sketchfab, Hyper3D and
+   Hunyuan3D toggles live in the same panel.
 4. Optional: a Godot MCP server, so Claude can run the editor and read its errors; and Context7
    for current Godot docs (`claude mcp add context7 ...` per its README).
 5. Tests on Windows: `"C:\path\to\Godot_v4.7.1-stable_win64_console.exe" --headless --path . --script res://tests/run_tests.gd`,

@@ -80,6 +80,9 @@ returning BLOCKED stops the health damage; all smoke tests still pass.
 
 ## M2: Art (Blender MCP runs on your machine, not in cloud sessions)
 
+The step-by-step for the Windows PC (setup, the free route, prompts, hand-off) is in
+`M2_GUIDE.md`.
+
 ### 2A. Characters: import and prep, not modelling (HIGH)
 The character modelling prompt is replaced because of decision D3. Use this prompt once the
 source meshes are in `assets/incoming/`:
@@ -127,10 +130,12 @@ The runbook prompt is kept, with these additions:
 You are a 3D environment and prop artist using Blender Python (bpy). EFFORT: HIGH.
 Visual target: weathered dark-fantasy temple, warm stone, lacquer and brass accents; matches
 the existing torii and stone lanterns in scenes/landmarks/.
-1. Weapons: Duelist_Blade (curved katana profile, leather-wrapped grip, circular tsuba; pivot at
-   grip centre; blade along -Y); Duelist_Scabbard (lacquered wood, brass fittings; pivot at the
-   mouth); Brute_Maul (iron head, wrapped haft; pivot at the grip). Add an empty named
-   Blade_Tip at the blade tip and Blade_Base at the tsuba (these drive the sword trail markers).
+1. Weapons: Duelist_Blade (a straight one-handed arming sword per D15: ~80 cm double-edged
+   blade with a fuller, cross-guard, leather-wrapped grip, pommel; pivot at grip centre; blade
+   along -Y); Duelist_Scabbard (leather over wood, brass chape and locket; pivot at the mouth;
+   worn hip-left per D6); Brute_Maul (iron head, wrapped haft; pivot at the grip). Add an empty
+   named Blade_Tip at the blade tip and Blade_Base at the guard (these drive the sword trail
+   markers).
 2. Courtyard kit (all 4 m grid, pivot at bottom-centre, 0,0,0): Floor_Flagstone_4x4 (beveled,
    2 variants), Wall_Stone_Section (4 m x 2.5 m, coping), Wall_Stone_Broken, Pillar_Temple
    (octagonal, capital), Stairs_4x2, Gate_Courtyard (a separate animated leaf mesh),
@@ -431,13 +436,14 @@ slow-motion doesn't restore 1.0 early; quitting mid-fade also pops &"death"; the
 latest checkpoint.
 ```
 
-## M10: Playtest and tuning (MEDIUM)
+## M10: Playtest and tuning (MEDIUM) (prep ✅: the log, the summary tool, `PLAYTEST.md`, desktop exports; the prompt below is for after the playtests)
 
 ```text
-Run the capture tooling (dev_hud --capture) at each beat. Log time-per-beat, deaths and parries
-to user://playtest.csv from GameManager. Summarise 3 playtests against PLAN.md §6.2 and propose
-AttackData and director tuning diffs. Update the README (controls, beats, credits) and
-assets/LICENSES.md.
+READ: docs/vertical-slice/PLAYTEST.md, the playtesters' playtest.csv files and notes in <folder>.
+Run python3 tools/playtest/summarize.py on the CSVs. For each beat and §6.2 criterion that
+misses, propose AttackData, director and encounter tuning diffs (with the numbers you expect
+them to move), apply the agreed ones with tests, capture each beat with dev_hud --capture, and
+update the README and assets/LICENSES.md.
 ```
 
 ---

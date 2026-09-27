@@ -255,6 +255,7 @@ scenes/levels/sanctum.tscn (causeway, SanctumGate, the Gatekeeper on its dais; 1
 class_name GameManager extends Node           # one in main.tscn, group "game_manager"; GameManager.find(tree)
   enum GameState { START_MENU, EXPLORATION, COURTYARD_AMBUSH, SANCTUM_GATEKEEPER, VICTORY_SCREEN }
   signal state_changed(previous: GameState, current: GameState); signal checkpoint_reached(shrine); signal victory
+  signal returning_to_title                    # M10: Quit to title, just before the reload (closes the playtest run)
   static var skip_start_menu := false          # tests and --skip-menu
   @export player, combat, courtyard: Encounter, sanctum: Encounter, sanctum_locks: Array[LevelGate], world_environment, sun
   @export beat_lighting: Array[BeatLighting]   # [golden hour, dusk, night]; beat_blend_time := 4.0
@@ -297,6 +298,20 @@ LevelGate: signal moving(opening: bool)               # a tweened move began (no
 TargetingSystem: func pulse() -> void                 # reticle pop on a hit or parry
 PlayerHUD: @export targeting; func gauge_target() -> Node3D   # the lock-on gauge
 GameMenus: func quit_game() -> void                   # frees the world, then quits (also the window's close button)
+
+# M10: playtest and polish
+class_name PlaytestLogger extends Node        # in main.tscn; @export game, dev_hud, hitch_ms := 50.0, warmup_time := 2.0
+  const BEATS [approach, courtyard, breather, sanctum]; const HEADER (the CSV columns)
+  static var log_path := "user://playtest.csv"  # "" turns logging off (test_case.load_world does)
+  var beat (-1 before Begin); var written; func rows() -> Array[Dictionary]; func finish(outcome: StringName) -> void
+  # one row per beat plus a total, appended on victory, Quit to title or quitting; tools/playtest/summarize.py reads it
+class_name InkSplats extends Node3D           # in main.tscn; pooled ground quads (not Decals: they need Forward+/Mobile)
+  @export max_splats := 24, lifetime := 25.0, fade_time := 3.0, size_range, kill_scale := 1.7, color, ground_mask := 1, lift := 0.06
+  func splat(at: Vector3, scale := 1.0) -> MeshInstance3D   # null without ground within max_drop; var splats; func visible_count() -> int
+  static func make_mask(size: int, seed_value: int) -> Image
+FeedbackDirector: @export ink: InkSplats                # HIT and KILLED lay ink (kills × kill_scale)
+DevHUD: func quality_name() -> String                 # "LOW", "MEDIUM" or "HIGH"
+Export presets: "Web", "Windows Desktop", "Linux" (x86_64, embedded PCK); .github/workflows/export-desktop.yml builds the desktop pair
 ```
 
 ## Animation clip names (the contract for AnimationLibraries, state machines and AttackData.animation)
