@@ -20,6 +20,8 @@
 [ext_resource type="Resource" path="res://resources/combat/execution.tres" id="19_execution"]
 [ext_resource type="Script" path="res://scripts/camera/camera_trauma.gd" id="20_trauma"]
 [ext_resource type="Script" path="res://scripts/audio/surface_foley.gd" id="21_foley"]
+[ext_resource type="Script" path="res://scripts/combat/defense/stamina_component.gd" id="22_stamina"]
+[ext_resource type="Script" path="res://scripts/combat/defense/equipment_durability.gd" id="23_equipment"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.35
@@ -61,11 +63,19 @@ health = NodePath("../HealthComponent")
 guard = NodePath("../GuardComponent")
 body = NodePath("..")
 
-[node name="GuardComponent" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "posture", "body")]
+[node name="StaminaComponent" type="Node" parent="."]
+script = ExtResource("22_stamina")
+
+[node name="Equipment" type="Node" parent="."]
+script = ExtResource("23_equipment")
+
+[node name="GuardComponent" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "posture", "body", "equipment", "stamina")]
 script = ExtResource("16_guard")
 hurtbox = NodePath("../Hurtbox")
 posture = NodePath("../PostureComponent")
 body = NodePath("..")
+equipment = NodePath("../Equipment")
+stamina = NodePath("../StaminaComponent")
 
 [node name="ParrySystem" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "guard")]
 script = ExtResource("17_parry")
@@ -98,7 +108,7 @@ katana = NodePath("../Katana")
 hand_socket = NodePath("../Visual/SamuraiModel/Armature/Skeleton3D/HandBone/HandSocket")
 sheath_socket = NodePath("../Visual/SamuraiModel/Armature/Skeleton3D/SheathBone/SheathSocket")
 
-[node name="Combat" type="Node" parent="." node_paths=PackedStringArray("body", "animation_tree", "katana", "holster", "health", "combo", "warping", "targeting", "guard", "parry", "reaction", "hurtbox", "posture")]
+[node name="Combat" type="Node" parent="." node_paths=PackedStringArray("body", "animation_tree", "katana", "holster", "health", "combo", "warping", "targeting", "guard", "parry", "reaction", "hurtbox", "posture", "stamina", "equipment")]
 script = ExtResource("6_combat")
 body = NodePath("..")
 animation_tree = NodePath("../AnimationTree")
@@ -113,6 +123,8 @@ parry = NodePath("../ParrySystem")
 reaction = NodePath("../DamageReaction")
 hurtbox = NodePath("../Hurtbox")
 posture = NodePath("../PostureComponent")
+stamina = NodePath("../StaminaComponent")
+equipment = NodePath("../Equipment")
 execution = ExtResource("19_execution")
 
 [node name="ComboManager" type="Node" parent="Combat"]

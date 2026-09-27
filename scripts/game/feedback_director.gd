@@ -12,6 +12,7 @@ extends Node
 ##                           Gatekeeper.roared(trauma) → roar + shake
 ##   CombatStateMachine      perfect_dodged → afterimages (Afterimage.trail), a brief slow motion,
 ##                           whoosh + chime and a light shake
+##   EquipmentDurability     (the player's) item_cracked → block + posture_break and a shake
 ##   CheckpointShrine        activated → shrine_ignite
 ##   LevelGate               moving → gate
 ## Screen shake (CameraTrauma) only follows hits the player deals or takes: a landed strike
@@ -46,6 +47,9 @@ func _ready() -> void:
 		var combat := CombatStateMachine.find_on(player)
 		if combat:
 			combat.perfect_dodged.connect(_on_perfect_dodge)
+		var gear := EquipmentDurability.find_on(player)
+		if gear:
+			gear.item_cracked.connect(_on_gear_cracked)
 	get_tree().node_added.connect(watch)
 	for node in get_tree().root.find_children("*", "", true, false):
 		watch(node)
@@ -131,6 +135,13 @@ func _on_perfect_dodge(_attacker: Node3D) -> void:
 	TimeScale.push(&"perfect_dodge", perfect_dodge_time_scale)
 	await get_tree().create_timer(perfect_dodge_slow_time, true, false, true).timeout
 	TimeScale.pop(&"perfect_dodge")
+
+
+func _on_gear_cracked(_item: StringName) -> void:
+	var at := player.global_position + Vector3.UP * 1.2
+	_play(&"block", at)
+	_play(&"posture_break", at, -6.0)
+	_shake(CameraTrauma.HEAVY)
 
 
 func _on_swing(attack: AttackData, hitbox: Hitbox) -> void:

@@ -8,6 +8,8 @@ extends CanvasLayer
 ## attack would execute a posture-broken enemy (CombatStateMachine.execution_target()).
 ## Lock-on gauge (M9b): a small health bar and posture line float over the locked target
 ## (TargetingSystem), unless it's the boss on the boss bar or it's behind the camera.
+## Stamina (Phase C): a green bar under the posture bar, dimmed and pulsing while exhausted, and
+## two short gear bars under it (W weapon, A armour) that turn red once cracked.
 ## Built in code, and every control ignores input, so touches pass through to TouchControls.
 
 @export var health: HealthComponent
@@ -17,6 +19,10 @@ extends CanvasLayer
 @export var combat: CombatStateMachine
 ## Optional: shows the lock-on gauge.
 @export var targeting: TargetingSystem
+## Optional (Phase C): the stamina bar.
+@export var stamina: StaminaComponent
+## Optional (Phase C): the weapon and armour bars.
+@export var equipment: EquipmentDurability
 ## Height above the target's origin where the gauge floats (m).
 @export var gauge_height := 2.4
 @export var gauge_size := Vector2(84, 6)
@@ -28,6 +34,7 @@ extends CanvasLayer
 
 var _bar: Control
 var _posture_bar: Control
+var _stamina_bar: Control
 var _boss: Node3D
 var _boss_panel: Control
 var _boss_label: Label
@@ -64,6 +71,16 @@ func _ready() -> void:
 		add_child(_posture_bar)
 		posture.posture_changed.connect(func(_current: float, _maximum: float) -> void: _posture_bar.queue_redraw())
 		posture.posture_recovered.connect(_posture_bar.queue_redraw)
+
+	if stamina or equipment:
+		_stamina_bar = Control.new()
+		_stamina_bar.position = bar_position + Vector2(0, bar_size.y + 24)
+		_stamina_bar.size = Vector2(bar_size.x, 16)
+		_stamina_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_stamina_bar.draw.connect(_draw_stamina)
+		add_child(_stamina_bar)
+		if equipment:
+			equipment.integrity_changed.connect(_stamina_bar.queue_redraw)
 
 	add_to_group(&"boss_hud")
 	_boss_panel = Control.new()
@@ -138,6 +155,8 @@ func _process(delta: float) -> void:
 			_boss_panel.queue_redraw()
 	_prompt.visible = combat != null and combat.execution_target() != null
 	_update_gauge()
+	if _stamina_bar and stamina:
+		_stamina_bar.queue_redraw()                   # it refills (and pulses when exhausted) every frame
 	if not is_equal_approx(_trail_ratio, _ratio):
 		_trail_ratio = move_toward(_trail_ratio, _ratio, delta * drain_speed)
 		_bar.queue_redraw()
@@ -210,6 +229,30 @@ func _draw_posture() -> void:
 	var width := size.x * ratio
 	var fill := Color(0.9, 0.2, 0.1) if posture.is_broken else Color(0.95, 0.75, 0.3).lerp(Color(1.0, 0.45, 0.15), ratio)
 	_posture_bar.draw_rect(Rect2(Vector2((size.x - width) * 0.5, 0.0), Vector2(width, size.y)), fill)
+
+
+func _draw_stamina() -> void:
+	if stamina:
+		var size := Vector2(_stamina_bar.size.x * 0.8, 5.0)
+		_stamina_bar.draw_rect(Rect2(Vector2.ZERO, size).grow(2.0), Color(0, 0, 0, 0.45))
+		var fill := Color(0.45, 0.82, 0.42)
+		if stamina.is_exhausted:
+			var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 90.0)
+			fill = Color(0.5, 0.5, 0.45).lerp(Color(0.85, 0.3, 0.2), pulse)
+		_stamina_bar.draw_rect(Rect2(Vector2.ZERO, Vector2(size.x * stamina.ratio(), size.y)), fill)
+		# The exhaustion threshold: past this mark the fighter can act again.
+		var mark := size.x * stamina.lockout_ratio
+		_stamina_bar.draw_line(Vector2(mark, -2.0), Vector2(mark, size.y + 2.0), Color(1, 1, 1, 0.35), 1.0)
+	if equipment:
+		var x := 0.0
+		for item: StringName in [EquipmentDurability.WEAPON, EquipmentDurability.ARMOR]:
+			var rect := Rect2(Vector2(x, 11.0), Vector2(56.0, 3.0))
+			var cracked := equipment.is_cracked(item)
+			_stamina_bar.draw_rect(rect.grow(1.5), Color(0.8, 0.12, 0.08, 0.9) if cracked else Color(0, 0, 0, 0.45))
+			var ratio := equipment.ratio(item)
+			_stamina_bar.draw_rect(Rect2(rect.position, Vector2(rect.size.x * ratio, rect.size.y)),
+					Color(0.85, 0.85, 0.8).lerp(Color(0.95, 0.55, 0.2), 1.0 - ratio))
+			x += 66.0
 
 
 func _draw_boss() -> void:
