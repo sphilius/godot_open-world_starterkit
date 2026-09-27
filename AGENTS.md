@@ -47,7 +47,9 @@ xvfb-run -a "$GODOT" --rendering-method gl_compatibility --rendering-driver open
   `await load_world()` for the real world, `add_to_stage()` for a bare stage). Check that the
   test fails without the change.
 - Art and audio: every sourced file under `assets/` gets a line in `assets/LICENSES.md` (create
-  it with the first one). Raw drops go to `assets/incoming/`.
+  it with the first one). Raw drops go to `assets/incoming/`,
+  which has a `.gdignore`: Godot never imports them (a `.blend` there broke headless imports);
+  scripts convert them into `assets/characters/` and friends.
 
 ## Git
 
