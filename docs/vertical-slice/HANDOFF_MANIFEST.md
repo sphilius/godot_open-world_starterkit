@@ -50,7 +50,7 @@ class_name HealthComponent extends Node       # scripts/combat/health_component.
 class_name HitStop extends RefCounted         # static trigger(duration: float); writes Engine.time_scale
 
 class_name WeaponHolster extends Node         # (runbook: WeaponManager) signals drawn, sheathed; draw(); sheathe(); is_drawn()
-  @export hand_socket, sheath_socket: BoneAttachment3D   # sheath = `scabbard` bone on the left hip (D6)
+  @export hand_socket, sheath_socket: Node3D   # grip under the hand_r BoneAttachment3D; sheath under pelvis, left hip (D6)
   func snap_weapon_to_hand() -> void; func snap_weapon_to_sheath() -> void   # AnimationPlayer method-track hooks
 
 class_name Katana extends Node3D              # hitbox: Hitbox; begin_swing(attack); set_active(on)

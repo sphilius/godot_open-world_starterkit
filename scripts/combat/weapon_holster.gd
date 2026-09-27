@@ -1,9 +1,9 @@
 class_name WeaponHolster
 extends Node
-## Moves the weapon between two BoneAttachment3D sockets: the hand bone (drawn) and the
-## scabbard bone on the left hip (sheathed). It reparents while keeping the world transform, then
-## tweens the local position and rotation to the new socket, so the blade travels instead of
-## teleporting. (The runbook calls this WeaponManager.)
+## Moves the weapon between two sockets (Node3Ds under BoneAttachment3Ds): the grip in the right
+## hand (drawn) and the sheath on the left hip (sheathed). It reparents while keeping the world
+## transform, then tweens the local position and rotation to the new socket, so the blade travels
+## instead of teleporting. (The runbook calls this WeaponManager.)
 ## Imported clips with draw and sheathe animations can call snap_weapon_to_hand() and
 ## snap_weapon_to_sheath() from method tracks to move it on the exact frame instead.
 
@@ -11,8 +11,8 @@ signal drawn
 signal sheathed
 
 @export var katana: Node3D
-@export var hand_socket: BoneAttachment3D
-@export var sheath_socket: BoneAttachment3D
+@export var hand_socket: Node3D
+@export var sheath_socket: Node3D
 ## Fast, so the blade is in hand before the first active frame.
 @export var draw_time := 0.12
 @export var sheathe_time := 0.45

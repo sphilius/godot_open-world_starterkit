@@ -1,10 +1,10 @@
 {
  "attack_1": {
-  "length": 0.9333,
+  "length": 0.95,
   "loop": false
  },
  "attack_2": {
-  "length": 1.0667,
+  "length": 1.05,
   "loop": false
  },
  "death": {

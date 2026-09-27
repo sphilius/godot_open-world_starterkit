@@ -1,10 +1,10 @@
 {
  "attack_1": {
-  "length": 0.5333,
+  "length": 0.55,
   "loop": false
  },
  "attack_2": {
-  "length": 0.5333,
+  "length": 0.55,
   "loop": false
  },
  "attack_3": {
@@ -16,19 +16,19 @@
   "loop": false
  },
  "dodge_b": {
-  "length": 0.4667,
+  "length": 0.45,
   "loop": false
  },
  "dodge_f": {
-  "length": 0.4667,
+  "length": 0.45,
   "loop": false
  },
  "dodge_l": {
-  "length": 0.4667,
+  "length": 0.45,
   "loop": false
  },
  "dodge_r": {
-  "length": 0.4667,
+  "length": 0.45,
   "loop": false
  },
  "draw_attack": {
@@ -52,7 +52,7 @@
   "loop": true
  },
  "heavy_1": {
-  "length": 0.8667,
+  "length": 0.85,
   "loop": false
  },
  "heavy_2": {
@@ -104,11 +104,11 @@
   "loop": false
  },
  "parry_1": {
-  "length": 0.3333,
+  "length": 0.35,
   "loop": false
  },
  "parry_2": {
-  "length": 0.4667,
+  "length": 0.45,
   "loop": false
  },
  "run": {

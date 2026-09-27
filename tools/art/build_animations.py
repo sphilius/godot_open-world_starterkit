@@ -194,7 +194,10 @@ def build_clip(sources, rig, name, segments, fit):
             return isrc + (t - idst) / (dur - idst) * (tot - isrc)
         print(f"  {name}: impact {impact_src:.2f}s of {total:.2f}s -> {impact_dst:.2f}s of {duration:.2f}s")
 
-    frames = int(round(out_len * FPS))
+    # Keys run to the first frame at or past out_len; the clip's length is out_len exactly (the
+    # json says so and build_character_scenes.gd sets it), so the last key may sit a little
+    # past the end.
+    frames = math.ceil(out_len * FPS - 1e-6)
     poses = []
     for i in range(frames + 1):
         t = remap(min(i / FPS, out_len))
@@ -204,7 +207,7 @@ def build_clip(sources, rig, name, segments, fit):
                 break
             t -= e - s
     write_action(rig, name, poses)
-    return frames / FPS
+    return out_len
 
 
 def write_action(rig, name, poses):
