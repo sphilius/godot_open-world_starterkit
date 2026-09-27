@@ -2,7 +2,7 @@ class_name DevHUD
 extends CanvasLayer
 ## Dev overlay and graphics quality presets.
 ##
-##   F2  : cycle quality LOW → MEDIUM → HIGH (integrated GPUs start on MEDIUM, web on LOW)
+##   F2  : cycle quality LOW → MEDIUM → HIGH (the game starts on `default_quality`, LOW)
 ##   F12 : save a screenshot to user://screenshots/
 ##   Esc : release the mouse (click to recapture)
 ##
@@ -55,12 +55,15 @@ const PRESETS := {
 ## Used instead of the PhysicalSkyMaterial on the Compatibility (web) renderer, where the
 ## physical sky renders almost black and takes the ambient light down with it.
 @export var compatibility_sky: Material
+## The preset the game starts on, unless a --quality launch option picks one: LOW, so the first
+## minutes run smoothly anywhere; F2 steps up.
+@export var default_quality := Quality.LOW
 
 @onready var _label: Label = $Label
 
 ## Set by TouchControls: shortens the hint line (no keyboard shortcuts on a tablet).
 var touch_mode := false
-var _quality := Quality.HIGH
+var _quality := Quality.LOW
 var _sun_angular_distance := 0.0   # scene-authored PCSS softness, restored on HIGH
 
 
@@ -69,12 +72,9 @@ func _ready() -> void:
 	if RenderingServer.get_current_rendering_method() == "gl_compatibility" and compatibility_sky:
 		world_environment.environment.sky.sky_material = compatibility_sky
 	var args := launch_args()
+	_quality = default_quality
 	if args.has("quality") and QUALITY_NAMES.has(String(args["quality"]).to_upper()):
 		_quality = QUALITY_NAMES.find(String(args["quality"]).to_upper()) as Quality
-	elif OS.has_feature("web"):
-		_quality = Quality.LOW                      # phones and tablets: frame rate first
-	elif GpuInfo.is_integrated():
-		_quality = Quality.MEDIUM
 	_apply_quality()
 	if args.has("capture"):
 		_capture_and_quit(String(args["capture"]), float(args.get("capture-delay", "6")))

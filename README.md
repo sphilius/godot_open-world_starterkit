@@ -124,7 +124,7 @@ Pull requests into `vertical-slice-prototype` run the same suite (`.github/workf
 Headless mode doesn't dispatch input to the GUI, so feed UI events straight into `_gui_input()`
 (see `test_touch.gd`).
 
-URL options: `?touch` forces the touch UI, and `?quality=low|medium|high` picks a preset (web defaults to LOW).
+URL options: `?touch` forces the touch UI, and `?quality=low|medium|high` picks a preset (every build starts on LOW).
 The overlay shows FPS, the quality preset and the samurai's combat state (IDLE, ATTACK attack_2, DODGE, HURT…),
 which helps confirm that taps register while playtesting.
 
@@ -155,13 +155,14 @@ On the first D3D12 launch, expect a short hitch while shaders compile and are ca
 
 | Preset | FPS | What's on |
 |---|---|---|
-| LOW | ~40 | 2-split PCF shadows, 35% grass, FSR 0.6. SDFGI and volumetric fog off |
-| **MEDIUM** (auto on integrated GPUs) | ~18–19 | SDFGI (half-res, 3 cascades), volumetric fog (48×32 froxels), 50% grass, FSR 0.67 |
-| HIGH (default on discrete GPUs) | discrete GPU | PCSS soft shadows, 4 splits at 4096, full-res SDFGI, 128×96 froxels, 100% grass |
+| **LOW** (default: F2 steps up) | ~40 | 2-split PCF shadows, 35% grass, FSR 0.6. SDFGI and volumetric fog off |
+| MEDIUM | ~18–19 | SDFGI (half-res, 3 cascades), volumetric fog (48×32 froxels), 50% grass, FSR 0.67 |
+| HIGH (aimed at discrete GPUs) | discrete GPU | PCSS soft shadows, 4 splits at 4096, full-res SDFGI, 128×96 froxels, 100% grass |
 
 On this chip SDFGI has a fixed cost of about 18 ms. The presets are a data table in
-`scripts/debug/dev_hud.gd` (`PRESETS`). Integrated-GPU detection lives in
-`scripts/core/gpu_info.gd`, because D3D12 reports Intel iGPUs as discrete.
+`scripts/debug/dev_hud.gd` (`PRESETS`); `default_quality` there picks the start-up preset, and
+`--quality=low|medium|high` overrides it. Integrated-GPU detection (used for the sword trail)
+lives in `scripts/core/gpu_info.gd`, because D3D12 reports Intel iGPUs as discrete.
 
 ## Architecture
 
