@@ -12,7 +12,8 @@ extends Node
 ## Per beat: play seconds (GameManager's clock: no menus or pauses), deaths, parries, fight
 ## attempts, average FPS, the worst frame and the number of hitches (real frame time over
 ## `hitch_ms`, the §6.2 limit). The first `warmup_time` seconds after Begin (shader and navmesh
-## warm-up) and paused frames aren't measured. Each run also gets a `total` row.
+## warm-up), paused frames and the wait for the victory screen after the Gatekeeper falls (the
+## play clock has stopped by then) aren't measured. Each run also gets a `total` row.
 ##
 ## Where the file lands: user:// is %APPDATA%/Godot/app_userdata/<project name>/ on Windows,
 ## ~/.local/share/godot/app_userdata/<project name>/ on Linux. The rows are also printed, for
@@ -37,9 +38,16 @@ static var log_path := "user://playtest.csv"
 var beat := -1
 ## True once this run has been written (a run is written once).
 var written := false
+## False once play is over (the Gatekeeper fell): frames stop counting with the play clock.
+var sampling := true
 var _rows: Array[Dictionary] = []
 var _last_usec := 0
 var _warm_until_msec := 0
+var _id_rng := RandomNumberGenerator.new()               # its own: a seeded global RNG would repeat ids
+
+
+func _init() -> void:
+	_id_rng.randomize()
 
 
 func _ready() -> void:
@@ -50,6 +58,8 @@ func _ready() -> void:
 	game.returning_to_title.connect(func() -> void: finish(&"title"))
 	if game.courtyard:
 		game.courtyard.cleared.connect(func() -> void: _reach(2))
+	if game.sanctum:
+		game.sanctum.cleared.connect(func() -> void: sampling = false)
 	if game.is_playing():
 		_on_state_changed(GameManager.GameState.START_MENU, game.state)
 
@@ -80,7 +90,7 @@ func finish(outcome: StringName) -> void:
 		total[&"worst_frame_ms"] = maxf(total[&"worst_frame_ms"], row[&"worst_frame_ms"])
 	run_rows.append(total)
 	var prefix := [
-		Time.get_datetime_string_from_system().replace(":", "") + "-%04d" % (randi() % 10000),
+		Time.get_datetime_string_from_system().replace(":", "") + "-%04d" % _id_rng.randi_range(0, 9999),
 		Time.get_date_string_from_system(), OS.get_name(),
 		RenderingServer.get_current_rendering_method(),
 		dev_hud.quality_name() if dev_hud else "", outcome,
@@ -100,7 +110,7 @@ func finish(outcome: StringName) -> void:
 
 func _process(_delta: float) -> void:
 	var now := Time.get_ticks_usec()
-	if beat >= 0 and _last_usec > 0 and Time.get_ticks_msec() >= _warm_until_msec:
+	if sampling and beat >= 0 and _last_usec > 0 and Time.get_ticks_msec() >= _warm_until_msec:
 		# Real frame time: hit-stop and slow motion scale `delta`, not the wall clock.
 		var ms := (now - _last_usec) / 1000.0
 		var row := _rows[-1]

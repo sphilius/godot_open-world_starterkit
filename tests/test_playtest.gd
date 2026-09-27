@@ -9,7 +9,6 @@ func test_a_run_logs_one_row_per_beat_and_a_total() -> void:
 	await load_world(false)
 	_fresh_log()
 	var game := GameManager.find(tree)
-	game.victory_delay = 0.1
 	var logger := world.get_node("PlaytestLogger") as PlaytestLogger
 	logger.warmup_time = 0.0
 	check_eq(logger.beat, -1, "nothing is logged on the title")
@@ -38,8 +37,13 @@ func test_a_run_logs_one_row_per_beat_and_a_total() -> void:
 	check_eq(logger.beat, 3, "the Gatekeeper fight starts the sanctum beat")
 	check(await wait_until(func() -> bool: return not sanctum.alive_enemies().is_empty(), 2.0), "the Gatekeeper never appeared")
 	await physics_frames(3)
+	game.victory_delay = 0.6
 	for enemy in sanctum.alive_enemies():
 		(enemy.get_node("Hurtbox") as Hurtbox).receive_hit(CombatFixtures.make_hit(player(), 99999.0, 0.0))
+	check(await wait_until(func() -> bool: return sanctum.state == Encounter.State.CLEARED, 2.0), "the Gatekeeper never fell")
+	await tree.process_frame
+	OS.delay_msec(160)                                   # a long frame while the victory screen is on its way
+	await tree.process_frame
 	check(await wait_until(func() -> bool: return logger.written, 6.0), "the victory never wrote the run")
 
 	var rows := _read_log()
@@ -54,6 +58,7 @@ func test_a_run_logs_one_row_per_beat_and_a_total() -> void:
 	check_eq(int(rows[1].parries), 1, "the courtyard parry")
 	check_eq(int(rows[1].attempts), 2, "two tries at the courtyard")
 	check_eq(int(rows[3].attempts), 1, "one try at the Gatekeeper")
+	check(float(rows[3].worst_frame_ms) < 150.0, "frames after the Gatekeeper falls aren't measured (worst %s ms)" % rows[3].worst_frame_ms)
 	check_eq(int(rows[4].deaths), 1, "the total adds up the deaths")
 	var beat_seconds := 0.0
 	for row in rows.slice(0, 4):

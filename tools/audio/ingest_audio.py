@@ -18,7 +18,8 @@ stereo kept for the ui_* events). Music and ambience are loudness-normalised (-1
 dBTP) to Ogg Vorbis in assets/audio/music/<cue>.ogg. It then rebuilds
 resources/audio/sound_bank.tres (events without sourced takes keep their placeholders, and every
 event keeps its pitch variation), points MusicDirector's cues in scenes/main.tscn at the new
-music, and appends a line per file to assets/LICENSES.md.
+music, and appends a line to assets/LICENSES.md for every processed file and every raw source
+(the raw drops stay in assets/incoming/, which the export presets leave out of builds).
 
 Every raw file needs a CREDITS.csv row with a licence that allows use in a public repository
 and a commercial game: CC0, CC-BY or OGA-BY. Anything else (NC, ND, SA, GPL, "royalty-free"
@@ -186,15 +187,18 @@ def main() -> int:
     write_bank(files, pitch)
     MAIN.write_text(main_scene, encoding="utf-8")
 
+    # Both the processed file and its raw source (which stays in assets/incoming/) get a line.
     listed = LICENSES.read_text(encoding="utf-8")
     with LICENSES.open("a", encoding="utf-8") as handle:
         for source, target, _ in jobs:
-            if f"`{target.relative_to(ROOT).as_posix()}`" in listed:
-                continue                                 # a re-run replaces the file, not its line
             row = credits[source.relative_to(INCOMING).as_posix()]
             credit = "—" if row["license"].strip().upper() == "CC0" else f"{row['title']} by {row['author']}"
-            handle.write(f"| `{target.relative_to(ROOT).as_posix()}` | {row['title']} | "
-                         f"[{row['author']}]({row['source_url']}) | {row['license'].strip()} | {credit} |\n")
+            for path, what in ((target, row["title"]), (source, f"{row['title']} (raw source of `{target.relative_to(ROOT).as_posix()}`)")):
+                key = f"`{path.relative_to(ROOT).as_posix()}`"
+                if key in listed:
+                    continue                             # a re-run replaces the file, not its line
+                handle.write(f"| {key} | {what} | [{row['author']}]({row['source_url']}) | "
+                             f"{row['license'].strip()} | {credit} |\n")
     print(f"\n{len(jobs)} files ingested; {BANK.relative_to(ROOT)}, {MAIN.relative_to(ROOT)} and "
           f"{LICENSES.relative_to(ROOT)} updated. Next: bash tools/ci/validate.sh")
     return 0
