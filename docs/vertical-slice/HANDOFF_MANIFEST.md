@@ -34,6 +34,7 @@ class_name HitInfo extends RefCounted         # scripts/combat/hit_info.gd
 class_name Hitbox extends Area3D              # scripts/combat/hitbox.gd
   signal hit_landed(target: HealthComponent, hit: HitInfo)
   var source: Node3D
+  var damage_scale := 1.0                     # reset by begin(); > 1 = a critical (damage and poise scaled)
   func begin(attack: AttackData) -> void      # arm and clear the once-per-target memory
   func set_active(on: bool) -> void; func is_active() -> bool
 
@@ -62,7 +63,14 @@ class_name CombatStateMachine extends Node    # player "Combat" node (runbook: C
   const ALL_ACTIONS := [ComboManager.LIGHT, ComboManager.HEAVY, ComboManager.DODGE]
   @export combo: ComboManager; @export warping: MotionWarping; @export targeting: Node   # targeting optional (M7)
   @export dodge_duration := 0.45; dodge_distance := 3.2; dodge_move_time := 0.32; dodge_iframes := Vector2(0.08, 0.3); dodge_cancel_time := 0.3
-  @export side_step_speed := 1.75   # m/s the strafe_l/r/b clips match; locked-on RUN plays them, time-scaled to the ground speed
+  @export side_step_speed := 2.75   # m/s the strafe_l/r/b clips match; locked-on RUN plays them, time-scaled to the ground speed
+  @export hurtbox: Hurtbox (defaults to guard.hurtbox; becomes its evader); guard_move_scale := 0.4; perfect_dodge_window := 0.2
+  @export critical_multiplier := 2.0; critical_grace := 0.3   # Phase A
+  signal perfect_dodged(attacker: Node3D); signal critical_armed(seconds: float)
+  func evade(hit: HitInfo) -> bool; func try_perfect_dodge(attacker: Node3D) -> bool   # the dodge's perfect window (once per dodge)
+  func arm_critical(seconds: float) -> void; func is_critical_armed() -> bool; func dodge_origin() -> Vector3
+  static func find_on(node: Node) -> CombatStateMachine   # a player body's "Combat" child
+  # A dodge cancels a strike's wind-up and recovery (only the active frames commit). A parry arms a critical for the attacker's parried_time + grace.
   const SIDE_STEPS := { &"strafe_l": &"parameters/strafe_l/speed/scale", ... }   # AnimationTree side-step states → their TimeScale
   var state: State; var current_attack: AttackData   # null outside ATTACK
   func is_attacking() -> bool; static func dodge_clip(facing: Vector3, direction: Vector3) -> StringName
@@ -103,12 +111,14 @@ class_name HitInfo                            # v2, fields added (all optional, 
   poise_damage: float; damage_type: int (AttackData.DamageType); hit_position: Vector3
   unblockable: bool; can_be_parried: bool; attack: AttackData
   broke_posture: bool                        # set by the Hurtbox (M5): this hit, not an earlier one, broke posture
+  critical: bool                             # Phase A: a strike armed by a perfect dodge or parry
 
   enum Result { IGNORED, HIT, BLOCKED, PARRIED, GUARD_BROKEN, KILLED }   # HitInfo.Result
   static func is_landed(result: Result) -> bool   # HIT or KILLED
 
 class_name Hurtbox                            # v2
   signal hit_received(hit: HitInfo, result: HitInfo.Result)   # not emitted for IGNORED
+  var evader: Object                          # Phase A: evade(hit) -> bool, asked before invulnerability and the defenders
   @export var health: HealthComponent
   @export var posture: Node                   # optional; a PostureComponent, or anything with add_posture(amount) -> bool (kept duck-typed for test stubs)
   func receive_hit(hit: HitInfo) -> HitInfo.Result   # runs defenders in order, then health and posture
@@ -171,13 +181,14 @@ class_name ParrySystem extends Node           # defender, registers itself first
   func on_guard_pressed() -> bool             # true if a window opened; a successful parry lifts the lockout
   func is_window_open() -> bool
 class_name DamageReactionComponent extends Node   # node name "DamageReaction"
-  signal stagger_started(type: StringName); signal stagger_ended   # &"front", &"back", &"left", &"right", &"heavy", &"knockdown", &"guard_break", &"parried"
+  signal stagger_started(type: StringName); signal stagger_ended   # &"front", &"back", &"left", &"right", &"heavy", &"knockdown", &"guard_break", &"parried", &"evaded"
   @export body: CharacterBody3D; hurtbox: Hurtbox; posture: PostureComponent; guard: GuardComponent
   @export poise_threshold := 30.0; knockdown_threshold := 60.0; friction := 18.0
-  @export flinch_time := 0.3; heavy_time := 0.7; knockdown_time := 1.8; parried_time := 1.0; blocked_push := 0.35
+  @export flinch_time := 0.3; heavy_time := 0.7; knockdown_time := 1.8; parried_time := 1.0 (humanoids and wolf 1.4); evaded_time := 0.8; blocked_push := 0.35
   var is_staggered: bool; var stagger_type: StringName
   func react(type: StringName, duration: float) -> void   # a held knockdown / guard_break / parried with more time left isn't cut short
-  func play_parried(broke_posture := false) -> void; func clear() -> void; func classify(hit: HitInfo) -> Array   # [type, duration]
+  func play_parried(broke_posture := false) -> void; func play_evaded() -> void   # evaded: a perfect dodge's opening (held)
+  func clear() -> void; func classify(hit: HitInfo) -> Array   # [type, duration]
   # A hit that breaks posture knocks down for max(knockdown_time, stagger_time, posture.break_duration).
   static func direction_of(facing: Vector3, to_attacker: Vector3) -> StringName; static func find_on(node: Node) -> DamageReactionComponent
   # Knockback: bodies with apply_knockback() (PlayerController) brake themselves; others brake here with `friction`.
@@ -202,7 +213,8 @@ class_name EnemyCombatController extends CharacterBody3D   # group "enemies"; ta
   enum State { IDLE, APPROACH, FLANKING, ATTACK_WINDUP, ATTACK_ACTIVE, RECOVER, STAGGERED, DEAD }
   @export attacks: Array[AttackData]; combos: Array[EnemyCombo]; director: CombatDirector
   @export walk_speed, run_speed, approach_distance := 2.0, aggro_radius := 14.0, telegraph_lead := 0.4, attack_cooldown, recovery_scale := 1.0
-  @export strafe_clip_speed := 1.75   # flanking plays strafe_l/r at speed / this (AnimationPlayer.speed_scale)
+  @export strafe_clip_speed := 2.75   # flanking plays strafe_l/r at speed / this (AnimationPlayer.speed_scale)
+  @export strike_reach := 3.2         # a strike opening within this of where the player started a dodge offers a perfect dodge
   @export execution_damage_ratio := 1.0 (grunt; brute 0.6, gatekeeper 0.4); free_on_death := true
   const STAGGER_CLIPS                         # DamageReaction type → enemy clip
   var state; var target: Node3D; var current_attack: AttackData; var glint: TelegraphGlint
@@ -314,6 +326,8 @@ class_name InkSplats extends Node3D           # in main.tscn; pooled ground quad
   @export max_splats := 24, lifetime := 25.0, fade_time := 3.0, size_range, kill_scale := 1.7, color, ground_mask := 1, lift := 0.06
   func splat(at: Vector3, size_scale := 1.0) -> MeshInstance3D   # null without ground within max_drop; var splats; func visible_count() -> int
   static func make_mask(size: int, seed_value: int) -> Image
+Afterimage: static func spawn(parent, source, color, fade_time) -> Afterimage; static func trail(parent, source, count := 3, interval := 0.06)
+FeedbackDirector: @export perfect_dodge_time_scale := 0.35; perfect_dodge_slow_time := 0.35   # perfect_dodged → afterimages, slow motion, sound, shake
 FeedbackDirector: @export ink: InkSplats                # HIT and KILLED lay ink (kills × kill_scale)
 DevHUD: func quality_name() -> String                 # "LOW", "MEDIUM" or "HIGH"
 Export presets: "Web", "Windows Desktop", "Linux" (x86_64, embedded PCK); .github/workflows/export-desktop.yml builds the desktop pair

@@ -98,7 +98,7 @@ katana = NodePath("../Katana")
 hand_socket = NodePath("../Visual/SamuraiModel/Armature/Skeleton3D/HandBone/HandSocket")
 sheath_socket = NodePath("../Visual/SamuraiModel/Armature/Skeleton3D/SheathBone/SheathSocket")
 
-[node name="Combat" type="Node" parent="." node_paths=PackedStringArray("body", "animation_tree", "katana", "holster", "health", "combo", "warping", "targeting", "guard", "parry", "reaction", "posture")]
+[node name="Combat" type="Node" parent="." node_paths=PackedStringArray("body", "animation_tree", "katana", "holster", "health", "combo", "warping", "targeting", "guard", "parry", "reaction", "hurtbox", "posture")]
 script = ExtResource("6_combat")
 body = NodePath("..")
 animation_tree = NodePath("../AnimationTree")
@@ -111,6 +111,7 @@ targeting = NodePath("../TargetingSystem")
 guard = NodePath("../GuardComponent")
 parry = NodePath("../ParrySystem")
 reaction = NodePath("../DamageReaction")
+hurtbox = NodePath("../Hurtbox")
 posture = NodePath("../PostureComponent")
 execution = ExtResource("19_execution")
 

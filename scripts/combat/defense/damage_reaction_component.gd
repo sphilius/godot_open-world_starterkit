@@ -13,6 +13,7 @@ extends Node
 ## GUARD_BROKEN → &"guard_break" for GuardComponent.guard_break_stagger.
 ## BLOCKED      → no stagger; `blocked_push` of the knockback.
 ## play_parried() (called by the defender's ParrySystem) → &"parried".
+## play_evaded() (a perfect dodge by the defender) → &"evaded", a shorter opening.
 ## Lethal hits are left to the owner's death handling. A knockdown, guard break or parried
 ## stagger is never cut short by a later, shorter one (hits during a posture break, say).
 ##
@@ -40,11 +41,14 @@ signal stagger_ended
 ## Fall and get up (s).
 @export var knockdown_time := 1.8
 @export var parried_time := 1.0
+## Stagger after the defender perfect-dodges this fighter's strike (s). A parry opens
+## `parried_time`, which should be 1.5–2x this.
+@export var evaded_time := 0.8
 ## Share of the knockback a blocked hit still pushes.
 @export_range(0.0, 1.0) var blocked_push := 0.35
 
 ## Staggers a later, shorter reaction must not cut short.
-const HELD_TYPES: Array[StringName] = [&"knockdown", &"guard_break", &"parried", &"roar"]
+const HELD_TYPES: Array[StringName] = [&"knockdown", &"guard_break", &"parried", &"evaded", &"roar"]
 
 var is_staggered := false
 var stagger_type := &""
@@ -73,6 +77,11 @@ func play_parried(broke_posture := false) -> void:
 	if broke_posture and posture:
 		duration = maxf(duration, posture.break_duration)
 	react(&"parried", duration)
+
+
+## The attacker side of a perfect dodge: a short opening.
+func play_evaded() -> void:
+	react(&"evaded", evaded_time)
 
 
 ## Ends a stagger early (respawn, death).

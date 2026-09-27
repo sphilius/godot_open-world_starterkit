@@ -68,7 +68,7 @@ posture = NodePath("../PostureComponent")
 poise_threshold = 20.0
 knockdown_threshold = 60.0
 knockdown_time = 1.6
-parried_time = 1.2
+parried_time = 1.4
 
 [node name="WeaponHitbox" type="Area3D" parent="."]
 collision_layer = 32
